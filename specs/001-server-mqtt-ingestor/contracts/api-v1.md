@@ -3,7 +3,8 @@
 **Base URL**: `/api/v1`
 **Port**: 8321 (behind nginx)
 **Framework**: FastAPI (auto-generated OpenAPI at `/docs`)
-**Auth**: API Key header `X-API-Key` (MVP), JWT Bearer (future)
+**Auth**: Без аутентификации (MVP — сервис за nginx, доступ ограничен сетью).
+API Key header `X-API-Key` или JWT Bearer — отдельная итерация.
 
 ---
 

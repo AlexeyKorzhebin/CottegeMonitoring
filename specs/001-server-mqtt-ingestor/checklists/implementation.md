@@ -118,23 +118,32 @@
 
 ## 11. Деплой
 
+### Базы данных
+
+- [ ] CHK-D01 `deploy/init-db.sh` — скрипт создания обеих БД: `cottage_monitoring` (prod) + `cottage_monitoring_dev` (dev), TimescaleDB extension в обеих
+- [ ] CHK-D02 Alembic: миграции применяются к каждой базе отдельно через `DB_URL`
+- [ ] CHK-D03 Redis: dev использует DB 1 (`redis://…/1`), prod использует DB 0 (`redis://…/0`)
+
 ### Docker
 
-- [ ] CHK-D01 `deploy/Dockerfile` — multi-stage build, Python 3.12-slim
-- [ ] CHK-D02 `deploy/docker-compose.yml` — app + postgres (timescaledb) + redis + mosquitto (dev)
-- [ ] CHK-D03 `deploy/docker-compose.prod.yml` — production overrides (без mosquitto, внешний broker)
-- [ ] CHK-D04 `deploy/cottage-monitoring.env` — шаблон env-переменных
+- [ ] CHK-D04 `deploy/Dockerfile` — multi-stage build, Python 3.12-slim
+- [ ] CHK-D05 `deploy/docker-compose.yml` — app + postgres (timescaledb, обе базы) + redis + mosquitto (dev)
+- [ ] CHK-D06 `deploy/docker-compose.prod.yml` — production overrides (без mosquitto, внешний broker, prod DB)
+- [ ] CHK-D07 `deploy/cottage-monitoring.dev.env` — dev env (cottage_monitoring_dev, DEBUG, порт 8322)
+- [ ] CHK-D08 `deploy/cottage-monitoring.prod.env` — prod env (cottage_monitoring, INFO, порт 8321, TLS)
 
 ### Systemd
 
-- [ ] CHK-D05 `deploy/cottage-monitoring.service` — systemd unit file (User=cottage-monitoring, EnvironmentFile, Restart=always)
-- [ ] CHK-D06 Инструкция создания пользователя `cottage-monitoring` и директорий `/opt/cottage-monitoring`, `/var/log/cottage-monitoring`
+- [ ] CHK-D09 `deploy/cottage-monitoring.service` — systemd unit production (порт 8321, prod.env)
+- [ ] CHK-D10 `deploy/cottage-monitoring-dev.service` — systemd unit dev (порт 8322, dev.env)
+- [ ] CHK-D11 Инструкция создания пользователя `cottage-monitoring` и директорий `/opt/cottage-monitoring`, `/var/log/cottage-monitoring`
 
 ### Nginx
 
-- [ ] CHK-D07 `deploy/nginx/cottage-monitoring.conf` — reverse proxy на порт 8321
-- [ ] CHK-D08 Проксирование /api/, /metrics (restricted), /health, /docs, /openapi.json
-- [ ] CHK-D09 Ограничение доступа к /metrics (allow 127.0.0.1, allow 10.0.0.0/8, deny all)
+- [ ] CHK-D12 `deploy/nginx/cottage-monitoring.conf` — два upstream: prod (:8321) + dev (:8322)
+- [ ] CHK-D13 Production server block: /api/, /metrics (restricted), /health, /docs, /openapi.json
+- [ ] CHK-D14 Dev server block: проксирование всех запросов на dev-инстанс
+- [ ] CHK-D15 Ограничение доступа к /metrics (allow 127.0.0.1, allow 10.0.0.0/8, deny all)
 
 ## 12. Тесты
 
@@ -188,7 +197,7 @@
 | RPC | 2 | FR-023 |
 | REST API | 13 | FR-044 (partial) |
 | Наблюдаемость | 10 | FR-043..044 |
-| Деплой | 9 | — |
+| Деплой | 15 | — |
 | Тесты | 19 | FR-026..030, FR-034, FR-039 |
 | Документация | 2 | FR-045 (out of scope noted) |
-| **ИТОГО** | **110** | **49 FR покрыты** |
+| **ИТОГО** | **116** | **49 FR покрыты** |

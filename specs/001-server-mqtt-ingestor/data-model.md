@@ -4,6 +4,39 @@
 
 ---
 
+## Database Environments
+
+**Сервер**: `elion.black-castle.ru` (SSH-алиас: `elion`, доступ `ssh elion`, sudo)
+
+Все сервисы (PostgreSQL, Redis, Mosquitto) расположены на одном сервере.
+Приложение работает на этом же сервере — подключение к БД и кешу через `localhost`.
+
+Две раздельные базы данных с идентичной схемой:
+
+| Database | Назначение | Redis DB | MQTT Topic Prefix |
+|----------|-----------|----------|-------------------|
+| `cottage_monitoring` | **Production** — боевые данные от реальных домов | `redis://localhost:6379/0` | *(пусто)* → `lm/<house_id>/v1/...` |
+| `cottage_monitoring_dev` | **Dev/Staging** — разработка, тесты, отладка | `redis://localhost:6379/1` | `dev/` → `dev/lm/<house_id>/v1/...` |
+
+Обе базы создаются на одном PostgreSQL-сервере (`localhost:5432` на elion). Схема (миграции Alembic)
+применяется к каждой базе отдельно. Redis использует разные DB-номера для изоляции кеша.
+MQTT-топики разделены префиксом: dev-инстанс подписывается на `dev/lm/+/v1/#`,
+prod — на `lm/+/v1/#`. Контроллеры публикуют только в prod-топики.
+
+### Локальная разработка (SSH tunnel)
+
+Для доступа к PostgreSQL и Redis с dev-машины используется SSH-туннель:
+
+```bash
+# SSH tunnel: PostgreSQL (5432) + Redis (6379) + MQTT (1883)
+ssh -L 5432:localhost:5432 -L 6379:localhost:6379 -L 1883:localhost:1883 elion -N
+```
+
+После этого `localhost:5432`, `localhost:6379`, `localhost:1883` на dev-машине
+указывают на сервисы elion.
+
+---
+
 ## Entity Relationship Diagram
 
 ```

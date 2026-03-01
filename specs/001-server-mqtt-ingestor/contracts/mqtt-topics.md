@@ -1,8 +1,26 @@
 # MQTT Topic Contracts v1
 
-**Namespace**: `lm/<house_id>/v1/`
-**Broker**: внешний MQTT broker (TLS + login/password)
-**Client ID**: `cottage-monitoring-server`
+**Namespace**: `{prefix}lm/<house_id>/v1/` (где `{prefix}` — конфигурируемый `MQTT_TOPIC_PREFIX`)
+**Broker**: Mosquitto на `elion.black-castle.ru` (localhost:1883 с сервера, SSH tunnel с dev-машины)
+**Client ID**: `cottage-monitoring-server` (prod) / `cottage-monitoring-dev` (dev)
+
+---
+
+## Dev/Prod Topic Isolation
+
+Для изоляции dev- и prod-потоков на одном MQTT-брокере используется конфигурируемый
+префикс топиков `MQTT_TOPIC_PREFIX`:
+
+| Окружение | `MQTT_TOPIC_PREFIX` | Wildcard подписка | Пример топика |
+|-----------|--------------------|--------------------|---------------|
+| **Production** | *(пусто)* | `lm/+/v1/#` | `lm/house-01/v1/events` |
+| **Dev/Staging** | `dev/` | `dev/lm/+/v1/#` | `dev/lm/house-01/v1/events` |
+
+Контроллеры LogicMachine публикуют **только** в prod-топики (`lm/<house_id>/v1/...`).
+Dev-данные создаются тестовыми клиентами с префиксом `dev/`.
+
+**MQTT Client ID** также различается по окружению для предотвращения конфликтов
+сессий на одном брокере.
 
 ---
 
@@ -10,30 +28,33 @@
 
 | Pattern | QoS | Retain | Purpose |
 |---------|-----|--------|---------|
-| `lm/+/v1/events` | 0/1 | no | Журнал событий от домов |
-| `lm/+/v1/state/ga/+` | 1 | yes | Последнее состояние объектов |
-| `lm/+/v1/meta/objects` | 1 | yes | Полная схема объектов |
-| `lm/+/v1/meta/objects/chunk/+` | 1 | yes | Чанки схемы объектов |
-| `lm/+/v1/status/online` | 1 | yes | Online/offline (LWT) |
-| `lm/+/v1/cmd/ack/+` | 0/1 | no | Подтверждения команд |
-| `lm/+/v1/rpc/resp/+/+` | 0/1 | no | Ответы RPC |
+| `{prefix}lm/+/v1/events` | 0/1 | no | Журнал событий от домов |
+| `{prefix}lm/+/v1/state/ga/+` | 1 | yes | Последнее состояние объектов |
+| `{prefix}lm/+/v1/meta/objects` | 1 | yes | Полная схема объектов |
+| `{prefix}lm/+/v1/meta/objects/chunk/+` | 1 | yes | Чанки схемы объектов |
+| `{prefix}lm/+/v1/status/online` | 1 | yes | Online/offline (LWT) |
+| `{prefix}lm/+/v1/cmd/ack/+` | 0/1 | no | Подтверждения команд |
+| `{prefix}lm/+/v1/rpc/resp/+/+` | 0/1 | no | Ответы RPC |
 
-Wildcard subscription: `lm/+/v1/#`
+Wildcard subscription: `{prefix}lm/+/v1/#`
 
 ## Publications (Server publishes)
 
 | Topic | QoS | Retain | Purpose |
 |-------|-----|--------|---------|
-| `lm/<house_id>/v1/cmd` | 1 | no | Команды управления |
-| `lm/<house_id>/v1/rpc/req/<client_id>` | 0/1 | no | RPC запросы |
+| `{prefix}lm/<house_id>/v1/cmd` | 1 | no | Команды управления |
+| `{prefix}lm/<house_id>/v1/rpc/req/<client_id>` | 0/1 | no | RPC запросы |
 
 ---
 
 ## Topic Parsing
 
 ```
-lm/<house_id>/v1/<rest...>
+{prefix}lm/<house_id>/v1/<rest...>
 ```
+
+Topic parser сначала отбрасывает `MQTT_TOPIC_PREFIX` (если задан), затем разбирает
+оставшуюся часть по стандартной структуре `lm/<house_id>/v1/<rest>`.
 
 | rest | Message Type | Handler |
 |------|-------------|---------|

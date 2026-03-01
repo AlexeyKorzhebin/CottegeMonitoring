@@ -8,20 +8,23 @@
 Серверный сервис на Python (FastAPI + aiomqtt) для приёма телеметрии
 от домов через MQTT, хранения в PostgreSQL/TimescaleDB, кеширования
 актуального среза в Redis и предоставления REST API для внешних систем
-и MCP-серверов. Сервис запускается как Docker-контейнер или systemd-юнит
-на Ubuntu за nginx reverse proxy на порту **8321**.
+и MCP-серверов. Сервис работает как Docker-контейнер, управляемый systemd,
+на `elion.black-castle.ru` за nginx reverse proxy на порту **8321**.
 
 ## Technical Context
 
 **Language/Version**: Python 3.12
 **Primary Dependencies**: FastAPI, uvicorn, aiomqtt (asyncio MQTT client), SQLAlchemy 2.x (async), asyncpg, redis[hiredis], alembic, pydantic v2, prometheus-client, structlog
-**Storage**: PostgreSQL 16 + TimescaleDB (events hypertable), Redis 7 (current state cache)
+**Server**: `elion.black-castle.ru` (SSH: `ssh elion`, sudo доступен)
+**Storage**: PostgreSQL 16 + TimescaleDB (events hypertable), Redis 7 (current state cache) — всё на elion
+**MQTT Broker**: Mosquitto на elion (localhost:1883); dev/prod изоляция через `MQTT_TOPIC_PREFIX`
 **Testing**: pytest, pytest-asyncio, testcontainers-python (Postgres + Redis + MQTT), httpx (API tests)
-**Target Platform**: Linux (Ubuntu 22.04/24.04 server)
+**Target Platform**: Linux (Ubuntu на elion.black-castle.ru)
 **Project Type**: web-service (FastAPI REST API + MQTT subscriber daemon)
 **Performance Goals**: 10 домов одновременно, обработка state <1с, команда <2с до контроллера
-**Constraints**: <200ms p95 API response (cached state), <5с lag ingestion, порт 8321 (за nginx)
+**Constraints**: <200ms p95 API response (cached state), <5с lag ingestion, порт 8321 (за nginx на elion)
 **Scale/Scope**: 10 домов, ~150 объектов на дом, ~1500 объектов суммарно
+**Dev Access**: SSH tunnel (`ssh -L 5432:localhost:5432 -L 6379:localhost:6379 -L 1883:localhost:1883 elion -N`)
 
 ## Constitution Check
 
@@ -63,6 +66,7 @@ server/
 │       ├── main.py                  # FastAPI app + lifespan (MQTT startup)
 │       ├── config.py                # Pydantic Settings (env/file)
 │       ├── logging_config.py        # structlog + file rotation
+│       ├── metrics.py               # Prometheus metrics definitions
 │       ├── models/                  # SQLAlchemy ORM models
 │       │   ├── __init__.py
 │       │   ├── base.py              # DeclarativeBase
@@ -105,8 +109,7 @@ server/
 │       │   └── topic_parser.py      # Topic → (house_id, message_type, params)
 │       └── db/                      # Database utilities
 │           ├── __init__.py
-│           ├── session.py           # async session factory
-│           └── migrations.py        # Alembic helpers
+│           └── session.py           # async session factory
 ├── tests/
 │   ├── conftest.py                  # testcontainers fixtures
 │   ├── unit/
@@ -127,12 +130,14 @@ server/
 │       └── test_api_contracts.py
 ├── deploy/
 │   ├── Dockerfile
-│   ├── docker-compose.yml           # app + postgres + redis + mosquitto
-│   ├── docker-compose.prod.yml      # production overrides
-│   ├── cottage-monitoring.service   # systemd unit file
-│   ├── cottage-monitoring.env       # env template
+│   ├── docker-compose.yml           # postgres + redis + mosquitto (для тестов/CI)
+│   ├── cottage-monitoring.service   # systemd: docker run prod (порт 8321)
+│   ├── cottage-monitoring-dev.service # systemd: docker run dev (порт 8322)
+│   ├── cottage-monitoring.dev.env   # env: dev (cottage_monitoring_dev, DEBUG)
+│   ├── cottage-monitoring.prod.env  # env: production (cottage_monitoring, INFO)
+│   ├── init-db.sh                   # скрипт создания обеих БД + TimescaleDB
 │   └── nginx/
-│       └── cottage-monitoring.conf  # nginx site config
+│       └── cottage-monitoring.conf  # nginx: prod (:8321) + dev (:8322)
 ├── alembic/
 │   ├── env.py
 │   └── versions/
@@ -142,9 +147,10 @@ server/
 ```
 
 **Structure Decision**: Монопроект (Single project) — один Python-сервис объединяет
-MQTT ingestor и FastAPI API в едином asyncio event loop. Docker Compose для локальной
-разработки и тестирования; на production сервис может работать как Docker-контейнер
-или напрямую как systemd-юнит.
+MQTT ingestor и FastAPI API в едином asyncio event loop. Деплой на elion — Docker-
+контейнеры (prod + dev), управляемые systemd (`--network=host` для доступа к host
+PostgreSQL/Redis/MQTT). Локальная разработка через SSH tunnel к сервисам на elion.
+Docker Compose — для интеграционных тестов (testcontainers) и CI.
 
 ## Complexity Tracking
 
