@@ -64,14 +64,20 @@ sudo systemctl start cottage-monitoring
 
 ## Tests
 
+Integration and contract tests use server DB, Redis, MQTT (via SSH tunnel):
+
 ```bash
+# Terminal 1: SSH tunnel
+ssh -L 5432:localhost:5432 -L 6379:localhost:6379 -L 1883:localhost:1883 elion -N
+
+# Terminal 2: Run tests
 cd server
-pytest tests/unit/ -v
-pytest tests/integration/ -v
-pytest tests/contract/ -v
+cp .env.test.example .env.test   # or create from example
+pip install -e ".[dev]"
 pytest -v
-ruff check .
 ```
+
+Unit tests only (no tunnel needed): `COTTAGE_USE_SERVER_FOR_TESTS=0 pytest tests/unit/ -v`
 
 ## Project Structure
 

@@ -73,8 +73,9 @@ async def test_timeout_scenario(db_session: AsyncSession) -> None:
     cmd = await send_command(house_id, payload, session=db_session)
     await db_session.commit()
 
-    # Simulate old ts_sent (past timeout)
+    # Simulate: already retried twice, ts_sent old → one retry_pending_commands marks timeout
     cmd.ts_sent = datetime.now(UTC) - timedelta(seconds=120)
+    cmd.retry_count = 2  # Exhaust retries
     await db_session.commit()
 
     await retry_pending_commands(session=db_session)

@@ -1,21 +1,32 @@
 """Unit tests for application config (Settings)."""
 
+import pytest
+
 from cottage_monitoring.config import Settings
+
+
+def _clear_test_env(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Clear env vars that .env.test may set, so we test true defaults."""
+    for key in ("DB_URL", "REDIS_URL", "MQTT_HOST", "MQTT_PORT", "MQTT_CLIENT_ID", "MQTT_TOPIC_PREFIX"):
+        monkeypatch.delenv(key, raising=False)
 
 
 class TestSettingsDefaults:
     """Test default values are set correctly."""
 
-    def test_db_url_default(self):
+    def test_db_url_default(self, monkeypatch):
+        _clear_test_env(monkeypatch)
         s = Settings()
         expected = "postgresql+asyncpg://cottage:cottage@localhost:5432/cottage_monitoring_dev"
         assert s.db_url == expected
 
-    def test_redis_url_default(self):
+    def test_redis_url_default(self, monkeypatch):
+        _clear_test_env(monkeypatch)
         s = Settings()
         assert s.redis_url == "redis://localhost:6379/0"
 
-    def test_mqtt_defaults(self):
+    def test_mqtt_defaults(self, monkeypatch):
+        _clear_test_env(monkeypatch)
         s = Settings()
         assert s.mqtt_host == "localhost"
         assert s.mqtt_port == 1883
@@ -25,12 +36,14 @@ class TestSettingsDefaults:
         assert s.mqtt_client_id == "cottage-monitoring-server"
         assert s.mqtt_topic_prefix == ""
 
-    def test_api_defaults(self):
+    def test_api_defaults(self, monkeypatch):
+        _clear_test_env(monkeypatch)
         s = Settings()
         assert s.api_port == 8321
         assert s.api_host == "0.0.0.0"
 
-    def test_logging_defaults(self):
+    def test_logging_defaults(self, monkeypatch):
+        _clear_test_env(monkeypatch)
         s = Settings()
         assert s.log_level == "INFO"
         assert s.log_dir == "/var/log/cottage-monitoring"
@@ -39,7 +52,8 @@ class TestSettingsDefaults:
 class TestMqttSubscriptionTopic:
     """Test mqtt_subscription_topic property."""
 
-    def test_empty_prefix(self):
+    def test_empty_prefix(self, monkeypatch):
+        _clear_test_env(monkeypatch)
         s = Settings()
         assert s.mqtt_subscription_topic == "lm/+/v1/#"
 

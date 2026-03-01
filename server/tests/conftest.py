@@ -1,81 +1,52 @@
-"""Shared test fixtures: testcontainers, async DB session, httpx client."""
+"""Shared test fixtures: use server DB, Redis, MQTT via env (SSH tunnel required)."""
 
 from __future__ import annotations
 
-import asyncio
+import os
+import os
+from pathlib import Path
+
+# Load .env.test for integration/contract tests (use server DB via SSH tunnel).
+# Set COTTAGE_USE_SERVER_FOR_TESTS=0 to skip (e.g. for unit config default tests).
+_env_test = Path(__file__).resolve().parent.parent / ".env.test"
+if _env_test.exists() and os.environ.get("COTTAGE_USE_SERVER_FOR_TESTS") != "0":
+    from dotenv import load_dotenv
+    load_dotenv(_env_test)
+
 from collections.abc import AsyncGenerator
 
 import pytest
 import pytest_asyncio
 from httpx import ASGITransport, AsyncClient
-from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
+from sqlalchemy.ext.asyncio import AsyncSession
 
-from cottage_monitoring.models import Base
-
-
-@pytest.fixture(scope="session")
-def event_loop():
-    loop = asyncio.new_event_loop()
-    yield loop
-    loop.close()
-
-
-@pytest_asyncio.fixture(scope="session")
-async def db_engine():
-    """Create a PostgreSQL+TimescaleDB test engine via testcontainers."""
-    try:
-        from testcontainers.postgres import PostgresContainer
-
-        container = PostgresContainer(
-            image="timescale/timescaledb:latest-pg16",
-            username="test",
-            password="test",
-            dbname="test_db",
-        )
-        container.start()
-        url = container.get_connection_url().replace("psycopg2", "asyncpg")
-        engine = create_async_engine(url, echo=False)
-        async with engine.begin() as conn:
-            await conn.run_sync(Base.metadata.create_all)
-        yield engine
-        await engine.dispose()
-        container.stop()
-    except ImportError:
-        pytest.skip("testcontainers not available")
+from cottage_monitoring.db.session import async_session_factory
+from cottage_monitoring.deps import redis_cache
 
 
 @pytest_asyncio.fixture
-async def db_session(db_engine) -> AsyncGenerator[AsyncSession]:
-    factory = async_sessionmaker(db_engine, expire_on_commit=False)
-    async with factory() as session:
+async def db_session() -> AsyncGenerator[AsyncSession]:
+    """Session from app's engine (server DB via env). Each test uses unique house_ids."""
+    async with async_session_factory() as session:
         yield session
-        await session.rollback()
 
 
 @pytest_asyncio.fixture
-async def async_client(db_engine) -> AsyncGenerator[AsyncClient]:
-    """httpx AsyncClient wired to the FastAPI app with test DB."""
-    from cottage_monitoring import main
+async def async_client() -> AsyncGenerator[AsyncClient]:
+    """httpx AsyncClient wired to FastAPI app (uses server DB/Redis/MQTT from env)."""
+    from cottage_monitoring.main import app
 
-    transport = ASGITransport(app=main.app)
+    transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test") as client:
         yield client
 
 
-@pytest_asyncio.fixture
-async def redis_client():
-    """Create a test Redis connection via testcontainers."""
+@pytest_asyncio.fixture(scope="session", autouse=True)
+async def _connect_services() -> AsyncGenerator[None]:
+    """Connect Redis for integration tests (state_service writes to cache). MQTT connects per-publish."""
+    await redis_cache.connect()
     try:
-        from testcontainers.redis import RedisContainer
+        yield
+    finally:
+        await redis_cache.disconnect()
 
-        container = RedisContainer()
-        container.start()
-        import redis.asyncio as aioredis
-
-        url = f"redis://localhost:{container.get_exposed_port(6379)}/0"
-        client = aioredis.Redis.from_url(url, decode_responses=True)
-        yield client
-        await client.aclose()
-        container.stop()
-    except ImportError:
-        pytest.skip("testcontainers not available")

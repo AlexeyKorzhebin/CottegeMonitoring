@@ -33,7 +33,7 @@ server/
 
 **Purpose**: Проверка/установка сервисов на elion. Все команды через `ssh elion`.
 
-- [ ] T000 Verify/install infrastructure on elion (ssh elion): PostgreSQL 16 + TimescaleDB extension, Redis 7, Mosquitto MQTT broker, nginx, Docker; create PostgreSQL user `cottage`, databases `cottage_monitoring` + `cottage_monitoring_dev` with TimescaleDB extension; create directories `/opt/cottage-monitoring`, `/etc/cottage-monitoring`, `/var/log/cottage-monitoring/{prod,dev}`; verify all services running via systemctl
+- [x] T000 Verify/install infrastructure on elion (ssh elion): PostgreSQL 16 + TimescaleDB extension, Redis 7, Mosquitto MQTT broker, nginx, Docker; create PostgreSQL user `cottage`, databases `cottage_monitoring` + `cottage_monitoring_dev` with TimescaleDB extension; create directories `/opt/cottage-monitoring`, `/etc/cottage-monitoring`, `/var/log/cottage-monitoring/{prod,dev}`; verify all services running via systemctl
 
 ---
 
