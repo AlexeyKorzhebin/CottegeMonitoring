@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-import os
+import asyncio
 import os
 from pathlib import Path
 
@@ -39,6 +39,31 @@ async def async_client() -> AsyncGenerator[AsyncClient]:
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test") as client:
         yield client
+
+
+@pytest_asyncio.fixture
+async def mqtt_app_client() -> AsyncGenerator[AsyncClient]:
+    """
+    AsyncClient with app lifespan running (MQTT subscriber connected).
+    Use for full-path tests: publish to MQTT → ingestor → DB.
+    """
+    from asgi_lifespan import LifespanManager
+    from cottage_monitoring.main import app
+
+    from cottage_monitoring.deps import mqtt_client as _mc
+    _mc._shutdown = False
+    _mc._connected = False
+    _mc._backoff = 1.0
+
+    async with LifespanManager(app, startup_timeout=15) as manager:
+        transport = ASGITransport(app=manager.app)
+        async with AsyncClient(transport=transport, base_url="http://test") as client:
+            for _ in range(30):
+                r = await client.get("/health")
+                if r.status_code == 200 and r.json().get("mqtt_connected"):
+                    break
+                await asyncio.sleep(0.5)
+            yield client
 
 
 @pytest_asyncio.fixture(scope="session", autouse=True)

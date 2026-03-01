@@ -79,6 +79,16 @@ pytest -v
 
 Unit tests only (no tunnel needed): `COTTAGE_USE_SERVER_FOR_TESTS=0 pytest tests/unit/ -v`
 
+### Cleanup MQTT topics (dev/test)
+
+Clear retained messages on dev/ and test/ topics to reduce clutter in MQTT client UI:
+
+```bash
+cd server && python scripts/cleanup_mqtt_topics.py
+```
+
+Requires SSH tunnel to elion (or local MQTT broker). Loads config from `.env.test` or `.env`.
+
 ## Project Structure
 
 ```
