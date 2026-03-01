@@ -29,6 +29,11 @@ Thumbs.db
 *.log
 logs/
 
-# Local config (если появятся)
+# Local config
 *.local.yaml
 *.local.yml
+
+# Project-specific
+server/.venv/
+server/*.egg-info/
+.specify/
