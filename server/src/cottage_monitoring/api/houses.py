@@ -7,6 +7,7 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from cottage_monitoring.db.session import get_session
+from cottage_monitoring.models.device import Device
 from cottage_monitoring.models.house import House
 from cottage_monitoring.models.object import Object
 from cottage_monitoring.models.schema_version import SchemaVersion
@@ -25,11 +26,16 @@ async def list_houses(
 
     items = []
     for house in houses:
-        # Count objects for this house
+        # Count objects and devices for this house
         obj_count_q = select(func.count()).select_from(Object).where(
             Object.house_id == house.house_id
         )
         object_count = (await session.execute(obj_count_q)).scalar_one()
+
+        dev_count_q = select(func.count()).select_from(Device).where(
+            Device.house_id == house.house_id
+        )
+        device_count = (await session.execute(dev_count_q)).scalar_one()
 
         # Get latest schema_hash
         schema_q = (
@@ -49,6 +55,7 @@ async def list_houses(
                 online_status=house.online_status,
                 is_active=house.is_active,
                 object_count=object_count,
+                device_count=device_count,
                 current_schema_hash=current_schema_hash,
             )
         )
@@ -78,6 +85,12 @@ async def get_house(
     )
     active_object_count = (await session.execute(obj_active_q)).scalar_one()
 
+    # Count devices
+    dev_count_q = select(func.count()).select_from(Device).where(
+        Device.house_id == house_id
+    )
+    device_count = (await session.execute(dev_count_q)).scalar_one()
+
     # Get current_schema_hash
     schema_q = (
         select(SchemaVersion.schema_hash)
@@ -101,6 +114,7 @@ async def get_house(
         online_status=house.online_status,
         is_active=house.is_active,
         object_count=object_count,
+        device_count=device_count,
         current_schema_hash=current_schema_hash,
         active_object_count=active_object_count,
         schema_versions_count=schema_versions_count,
@@ -125,11 +139,15 @@ async def update_house(
     await session.commit()
     await session.refresh(house)
 
-    # Recompute object_count and current_schema_hash for HouseRead
     obj_count_q = select(func.count()).select_from(Object).where(
         Object.house_id == house_id
     )
     object_count = (await session.execute(obj_count_q)).scalar_one()
+
+    dev_count_q = select(func.count()).select_from(Device).where(
+        Device.house_id == house_id
+    )
+    device_count = (await session.execute(dev_count_q)).scalar_one()
 
     schema_q = (
         select(SchemaVersion.schema_hash)
@@ -147,5 +165,6 @@ async def update_house(
         online_status=house.online_status,
         is_active=house.is_active,
         object_count=object_count,
+        device_count=device_count,
         current_schema_hash=current_schema_hash,
     ).model_dump(mode="json")

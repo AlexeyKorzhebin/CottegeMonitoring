@@ -37,7 +37,7 @@ class Settings(BaseSettings):
 
     @property
     def mqtt_subscription_topic(self) -> str:
-        return f"{self.mqtt_topic_prefix}lm/+/v1/#"
+        return f"{self.mqtt_topic_prefix}cm/+/+/v1/#"
 
 
 settings = Settings()

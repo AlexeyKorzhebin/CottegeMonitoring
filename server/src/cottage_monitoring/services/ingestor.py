@@ -28,17 +28,18 @@ async def handle_message(message: aiomqtt.Message) -> None:
         return
 
     house_id = parsed.house_id
+    device_id = parsed.device_id
     msg_type = parsed.message_type
 
     from cottage_monitoring.metrics import MESSAGES_TOTAL
 
     MESSAGES_TOTAL.labels(house_id=house_id, message_type=msg_type.value).inc()
 
-    from cottage_monitoring.services.house_service import ensure_house, is_house_active
+    from cottage_monitoring.services.house_service import ensure_device, ensure_house, is_house_active
 
     await ensure_house(house_id)
+    await ensure_device(house_id, device_id)
 
-    # Skip processing for deactivated houses (except status updates)
     if msg_type != MessageType.STATUS:
         active = await is_house_active(house_id)
         if not active:
@@ -48,23 +49,23 @@ async def handle_message(message: aiomqtt.Message) -> None:
     if msg_type == MessageType.STATE:
         from cottage_monitoring.services.state_service import handle_state
 
-        await handle_state(house_id, parsed.params["ga"], payload)
+        await handle_state(house_id, device_id, parsed.params["ga"], payload)
     elif msg_type == MessageType.EVENT:
         from cottage_monitoring.services.event_service import handle_event
 
-        await handle_event(house_id, payload)
+        await handle_event(house_id, device_id, payload)
     elif msg_type == MessageType.META_FULL:
         from cottage_monitoring.services.schema_service import handle_full_meta
 
-        await handle_full_meta(house_id, payload)
+        await handle_full_meta(house_id, device_id, payload)
     elif msg_type == MessageType.META_CHUNK:
         from cottage_monitoring.services.schema_service import handle_chunk_meta
 
-        await handle_chunk_meta(house_id, parsed.params["chunk_no"], payload)
+        await handle_chunk_meta(house_id, device_id, parsed.params["chunk_no"], payload)
     elif msg_type == MessageType.STATUS:
         from cottage_monitoring.services.house_service import handle_status
 
-        await handle_status(house_id, payload)
+        await handle_status(house_id, device_id, payload)
     elif msg_type == MessageType.CMD_ACK:
         from cottage_monitoring.services.command_service import handle_ack
 
@@ -77,5 +78,6 @@ async def handle_message(message: aiomqtt.Message) -> None:
         )
 
     logger.debug(
-        "message_processed", house_id=house_id, message_type=msg_type.value, topic=topic_str
+        "message_processed", house_id=house_id, device_id=device_id,
+        message_type=msg_type.value, topic=topic_str,
     )

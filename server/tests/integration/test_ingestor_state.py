@@ -21,7 +21,7 @@ async def test_state_upsert_new(db_session: AsyncSession) -> None:
     house_id = "house-state-new"
     ga = "1/1/1"
     await ensure_house(house_id, session=db_session)
-    await handle_state(house_id, ga, SAMPLE_PAYLOAD, session=db_session)
+    await handle_state(house_id, "lm-main", ga, SAMPLE_PAYLOAD, session=db_session)
     await db_session.commit()
 
     house = await db_session.get(House, house_id)
@@ -44,11 +44,11 @@ async def test_state_upsert_existing(db_session: AsyncSession) -> None:
     house_id = "house-state-update"
     ga = "1/2/3"
     await ensure_house(house_id, session=db_session)
-    await handle_state(house_id, ga, SAMPLE_PAYLOAD, session=db_session)
+    await handle_state(house_id, "lm-main", ga, SAMPLE_PAYLOAD, session=db_session)
     await db_session.commit()
 
     payload2 = {"ts": 1730000100, "value": False, "datatype": 1001}
-    await handle_state(house_id, ga, payload2, session=db_session)
+    await handle_state(house_id, "lm-main", ga, payload2, session=db_session)
     await db_session.commit()
 
     result = await db_session.execute(
@@ -67,7 +67,7 @@ async def test_state_server_received_ts(db_session: AsyncSession) -> None:
     house_id = "house-state-ts"
     ga = "2/1/1"
     await ensure_house(house_id, session=db_session)
-    await handle_state(house_id, ga, SAMPLE_PAYLOAD, session=db_session)
+    await handle_state(house_id, "lm-main", ga, SAMPLE_PAYLOAD, session=db_session)
     await db_session.commit()
 
     result = await db_session.execute(
@@ -85,9 +85,9 @@ async def test_state_multiple_gas(db_session: AsyncSession) -> None:
     house_id = "house-state-multi"
     await ensure_house(house_id, session=db_session)
 
-    await handle_state(house_id, "1/1/1", SAMPLE_PAYLOAD, session=db_session)
+    await handle_state(house_id, "lm-main", "1/1/1", SAMPLE_PAYLOAD, session=db_session)
     payload2 = {"ts": 1730000000, "value": 21.5, "datatype": 9001}
-    await handle_state(house_id, "1/3/1", payload2, session=db_session)
+    await handle_state(house_id, "lm-main", "1/3/1", payload2, session=db_session)
     await db_session.commit()
 
     result = await db_session.execute(

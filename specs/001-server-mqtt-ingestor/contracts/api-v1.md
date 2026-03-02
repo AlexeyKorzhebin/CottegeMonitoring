@@ -102,6 +102,51 @@ Response 200: updated house object
 
 ---
 
+### Devices
+
+#### GET /api/v1/houses/{house_id}/devices
+
+Список контроллеров дома.
+
+Response 200:
+```json
+{
+  "items": [
+    {
+      "house_id": "house-01",
+      "device_id": "lm-main",
+      "created_at": "2026-01-15T10:00:00Z",
+      "last_seen": "2026-03-01T12:00:00Z",
+      "online_status": "online",
+      "is_active": true
+    }
+  ],
+  "total": 2
+}
+```
+
+#### GET /api/v1/houses/{house_id}/devices/{device_id}
+
+Детали контроллера.
+
+Response 200: single device object
+Response 404: `NOT_FOUND`
+
+#### PATCH /api/v1/houses/{house_id}/devices/{device_id}
+
+Обновление контроллера (деактивация/реактивация).
+
+Request:
+```json
+{
+  "is_active": false
+}
+```
+
+Response 200: updated device object
+
+---
+
 ### Objects
 
 #### GET /api/v1/houses/{house_id}/objects
@@ -373,7 +418,7 @@ Response 200:
 
 ### RPC
 
-#### POST /api/v1/houses/{house_id}/rpc/meta
+#### POST /api/v1/houses/{house_id}/devices/{device_id}/rpc/meta
 
 Запрос meta через RPC.
 
@@ -385,7 +430,7 @@ Response 202:
 }
 ```
 
-#### POST /api/v1/houses/{house_id}/rpc/snapshot
+#### POST /api/v1/houses/{house_id}/devices/{device_id}/rpc/snapshot
 
 Запрос snapshot через RPC.
 

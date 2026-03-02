@@ -21,6 +21,7 @@ class Command(Base):
     house_id: Mapped[str] = mapped_column(
         String(64), ForeignKey("houses.house_id"), nullable=False
     )
+    device_id: Mapped[str | None] = mapped_column(String(64), nullable=True)
     ts_sent: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     payload: Mapped[dict] = mapped_column(JSONB, nullable=False)
     ts_ack: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)

@@ -15,13 +15,13 @@
 
 | Database | Назначение | Redis DB | MQTT Topic Prefix |
 |----------|-----------|----------|-------------------|
-| `cottage_monitoring` | **Production** — боевые данные от реальных домов | `redis://localhost:6379/0` | *(пусто)* → `lm/<house_id>/v1/...` |
-| `cottage_monitoring_dev` | **Dev/Staging** — разработка, тесты, отладка | `redis://localhost:6379/1` | `dev/` → `dev/lm/<house_id>/v1/...` |
+| `cottage_monitoring` | **Production** — боевые данные от реальных домов | `redis://localhost:6379/0` | *(пусто)* → `cm/<house_id>/<device_id>/v1/...` |
+| `cottage_monitoring_dev` | **Dev/Staging** — разработка, тесты, отладка | `redis://localhost:6379/1` | `dev/` → `dev/cm/<house_id>/<device_id>/v1/...` |
 
 Обе базы создаются на одном PostgreSQL-сервере (`localhost:5432` на elion). Схема (миграции Alembic)
 применяется к каждой базе отдельно. Redis использует разные DB-номера для изоляции кеша.
-MQTT-топики разделены префиксом: dev-инстанс подписывается на `dev/lm/+/v1/#`,
-prod — на `lm/+/v1/#`. Контроллеры публикуют только в prod-топики.
+MQTT-топики разделены префиксом: dev-инстанс подписывается на `dev/cm/+/+/v1/#`,
+prod — на `cm/+/+/v1/#`. Контроллеры публикуют только в prod-топики.
 
 ### Локальная разработка (SSH tunnel)
 
@@ -41,43 +41,58 @@ ssh -L 5432:localhost:5432 -L 6379:localhost:6379 -L 1883:localhost:1883 elion -
 
 ```
 ┌───────────────────┐       ┌───────────────────────────┐
-│      houses        │──1:N──│        objects             │
+│      houses        │──1:N──│        devices             │
 │                   │       │                           │
-│ house_id (PK)     │       │ house_id + ga (PK)        │
-│ created_at        │       │ object_id, name, datatype │
-│ last_seen         │       │ units, tags, comment      │
-│ online_status     │       │ schema_hash, is_active    │
-│ is_active         │       │ is_timeseries             │
-└───────────────────┘       └───────────────────────────┘
-        │                           │
-        │ 1:N                       │ 1:N (via house_id+ga)
-        ▼                           ▼
-┌───────────────────┐       ┌───────────────────────────┐
-│  schema_versions   │       │     current_state         │
-│                   │       │                           │
-│ house_id +        │       │ house_id + ga (PK)        │
-│ schema_hash (PK)  │       │ ts, value, datatype       │
-│ ts, count         │       │ server_received_ts        │
-│ raw_meta_json     │       └───────────────────────────┘
+│ house_id (PK)     │       │ house_id + device_id (PK) │
+│ created_at        │       │ created_at, last_seen     │
+│ last_seen         │       │ online_status, is_active  │
+│ online_status     │       └───────────────────────────┘
+│ is_active         │               │
+└───────────────────┘               │ 1:N
+                                    ▼
+                            ┌───────────────────────────┐
+                            │        objects             │
+                            │                           │
+                            │ house_id + ga (PK)        │
+                            │ device_id                 │
+                            │ object_id, name, datatype │
+                            │ units, tags, comment      │
+                            │ schema_hash, is_active    │
+                            │ is_timeseries             │
+                            └───────────────────────────┘
+                                    │
+                                    │ 1:N (via house_id+ga)
+                                    ▼
+                            ┌───────────────────────────┐
+┌───────────────────┐       │     current_state         │
+│  schema_versions   │       │                           │
+│                   │       │ house_id + ga (PK)        │
+│ house_id +        │       │ device_id                 │
+│ device_id +       │       │ ts, value, datatype       │
+│ schema_hash (PK)  │       │ server_received_ts        │
+│ ts, count         │       └───────────────────────────┘
+│ raw_meta_json     │
 └───────────────────┘
-        │                   ┌───────────────────────────┐
-        │                   │       events              │
-        │                   │   (TimescaleDB hypertable)│
-        │                   │                           │
-        │                   │ house_id, ts (partition)  │
-        │                   │ seq, type, ga, id, name   │
-        │                   │ datatype, value, raw_json │
-        │                   │ server_received_ts        │
-        │                   └───────────────────────────┘
-        │
-        │               ┌───────────────────────────────┐
-        │               │         commands              │
-        │               │                               │
-        │               │ request_id (PK)               │
-        │               │ house_id, ts_sent, payload    │
-        │               │ ts_ack, status, results       │
-        │               │ retry_count                   │
-        │               └───────────────────────────────┘
+                            ┌───────────────────────────┐
+                            │       events              │
+                            │   (TimescaleDB hypertable)│
+                            │                           │
+                            │ house_id, device_id       │
+                            │ ts (partition)            │
+                            │ seq, type, ga, id, name   │
+                            │ datatype, value, raw_json │
+                            │ server_received_ts        │
+                            └───────────────────────────┘
+
+                        ┌───────────────────────────────┐
+                        │         commands              │
+                        │                               │
+                        │ request_id (PK)               │
+                        │ house_id, device_id           │
+                        │ ts_sent, payload              │
+                        │ ts_ack, status, results       │
+                        │ retry_count                   │
+                        └───────────────────────────────┘
 ```
 
 ---
@@ -106,6 +121,31 @@ CREATE TABLE houses (
 );
 ```
 
+### 1b. devices
+
+Реестр контроллеров LogicMachine. В одном доме может быть один или несколько контроллеров.
+
+| Column | Type | Constraints | Description |
+|--------|------|-------------|-------------|
+| house_id | VARCHAR(64) | PK (composite), FK → houses | Дом |
+| device_id | VARCHAR(64) | PK (composite) | Уникальный ID контроллера в рамках дома |
+| created_at | TIMESTAMPTZ | NOT NULL, DEFAULT now() | Время первого появления |
+| last_seen | TIMESTAMPTZ | | Время последнего сообщения |
+| online_status | VARCHAR(16) | NOT NULL, DEFAULT 'unknown' | `online` / `offline` / `unknown` |
+| is_active | BOOLEAN | NOT NULL, DEFAULT true | Деактивирован ли контроллер |
+
+```sql
+CREATE TABLE devices (
+    house_id        VARCHAR(64) NOT NULL REFERENCES houses(house_id),
+    device_id       VARCHAR(64) NOT NULL,
+    created_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
+    last_seen       TIMESTAMPTZ,
+    online_status   VARCHAR(16) NOT NULL DEFAULT 'unknown',
+    is_active       BOOLEAN NOT NULL DEFAULT true,
+    PRIMARY KEY (house_id, device_id)
+);
+```
+
 ### 2. objects
 
 Реестр KNX-объектов (GA). Обновляется при получении meta/objects.
@@ -113,6 +153,7 @@ CREATE TABLE houses (
 | Column | Type | Constraints | Description |
 |--------|------|-------------|-------------|
 | house_id | VARCHAR(64) | PK (composite), FK → houses | Дом |
+| device_id | VARCHAR(64) | FK → devices | Контроллер, публикующий этот объект |
 | ga | VARCHAR(16) | PK (composite) | Group Address (e.g., "1/1/1") |
 | object_id | INTEGER | | ID объекта на контроллере |
 | name | VARCHAR(256) | | Название объекта |
@@ -128,6 +169,7 @@ CREATE TABLE houses (
 ```sql
 CREATE TABLE objects (
     house_id        VARCHAR(64) NOT NULL REFERENCES houses(house_id),
+    device_id       VARCHAR(64),
     ga              VARCHAR(16) NOT NULL,
     object_id       INTEGER,
     name            VARCHAR(256),
@@ -160,6 +202,7 @@ CREATE INDEX idx_objects_tags ON objects USING gin(to_tsvector('simple', tags));
 | Column | Type | Constraints | Description |
 |--------|------|-------------|-------------|
 | house_id | VARCHAR(64) | PK (composite), FK → houses | Дом |
+| device_id | VARCHAR(64) | | Контроллер-источник |
 | ga | VARCHAR(16) | PK (composite) | Group Address |
 | ts | TIMESTAMPTZ | NOT NULL | Timestamp из payload |
 | value | JSONB | NOT NULL | Значение (может быть bool, number, string) |
@@ -169,6 +212,7 @@ CREATE INDEX idx_objects_tags ON objects USING gin(to_tsvector('simple', tags));
 ```sql
 CREATE TABLE current_state (
     house_id            VARCHAR(64) NOT NULL REFERENCES houses(house_id),
+    device_id           VARCHAR(64),
     ga                  VARCHAR(16) NOT NULL,
     ts                  TIMESTAMPTZ NOT NULL,
     value               JSONB NOT NULL,
@@ -182,7 +226,7 @@ CREATE TABLE current_state (
 
 ```
 Key:   state:{house_id}          (Redis HASH)
-Field: {ga}
+Field: {ga}                      (GA уникален в рамках дома — KNX bus)
 Value: {"ts": 1730000000, "value": true, "datatype": 1001, "server_received_ts": 1730000001}
 ```
 
@@ -194,6 +238,7 @@ Append-only журнал событий. Без дедупликации (append
 |--------|------|-------------|-------------|
 | id | BIGSERIAL | | Auto-increment surrogate |
 | house_id | VARCHAR(64) | NOT NULL | Дом |
+| device_id | VARCHAR(64) | | Контроллер-источник |
 | ts | TIMESTAMPTZ | NOT NULL | Timestamp из payload |
 | seq | BIGINT | | Порядковый номер из LM |
 | type | VARCHAR(32) | | knx.groupwrite, snapshot, command, state.refresh |
@@ -209,6 +254,7 @@ Append-only журнал событий. Без дедупликации (append
 CREATE TABLE events (
     id                  BIGSERIAL,
     house_id            VARCHAR(64) NOT NULL,
+    device_id           VARCHAR(64),
     ts                  TIMESTAMPTZ NOT NULL,
     seq                 BIGINT,
     type                VARCHAR(32),
@@ -234,6 +280,7 @@ CREATE INDEX idx_events_house_ga_ts ON events(house_id, ga, ts DESC);
 | Column | Type | Constraints | Description |
 |--------|------|-------------|-------------|
 | house_id | VARCHAR(64) | PK (composite), FK → houses | Дом |
+| device_id | VARCHAR(64) | PK (composite) | Контроллер |
 | schema_hash | VARCHAR(128) | PK (composite) | SHA256 хеш схемы |
 | ts | TIMESTAMPTZ | NOT NULL | Время получения |
 | count | INTEGER | NOT NULL | Количество объектов в схеме |
@@ -243,12 +290,13 @@ CREATE INDEX idx_events_house_ga_ts ON events(house_id, ga, ts DESC);
 ```sql
 CREATE TABLE schema_versions (
     house_id        VARCHAR(64) NOT NULL REFERENCES houses(house_id),
+    device_id       VARCHAR(64) NOT NULL,
     schema_hash     VARCHAR(128) NOT NULL,
     ts              TIMESTAMPTZ NOT NULL,
     count           INTEGER NOT NULL,
     raw_meta_json   JSONB NOT NULL,
     created_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
-    PRIMARY KEY (house_id, schema_hash)
+    PRIMARY KEY (house_id, device_id, schema_hash)
 );
 ```
 
@@ -260,6 +308,7 @@ CREATE TABLE schema_versions (
 |--------|------|-------------|-------------|
 | request_id | UUID | PK | Уникальный ID команды |
 | house_id | VARCHAR(64) | NOT NULL, FK → houses | Дом |
+| device_id | VARCHAR(64) | | Контроллер-получатель |
 | ts_sent | TIMESTAMPTZ | NOT NULL | Время отправки |
 | payload | JSONB | NOT NULL | Полный JSON cmd |
 | ts_ack | TIMESTAMPTZ | | Время получения ack |
@@ -272,6 +321,7 @@ CREATE TABLE schema_versions (
 CREATE TABLE commands (
     request_id      UUID PRIMARY KEY,
     house_id        VARCHAR(64) NOT NULL REFERENCES houses(house_id),
+    device_id       VARCHAR(64),
     ts_sent         TIMESTAMPTZ NOT NULL,
     payload         JSONB NOT NULL,
     ts_ack          TIMESTAMPTZ,
@@ -292,8 +342,8 @@ CREATE INDEX idx_commands_status ON commands(status) WHERE status = 'sent';
 ```python
 # In-memory structure
 chunk_buffer: dict[str, dict] = {
-    # key: f"{house_id}:{schema_hash}"
-    "house-01:sha256:abc123": {
+    # key: f"{house_id}:{device_id}:{schema_hash}"
+    "house-01:lm-01:sha256:abc123": {
         "schema_hash": "sha256:abc123",
         "chunk_total": 3,
         "ts": 1730000000,
@@ -315,6 +365,11 @@ unknown ──[status=online]──→ online
 online  ──[LWT offline]───→ offline
 offline ──[status=online]──→ online
 ```
+
+House.online_status агрегируется от devices:
+- all devices online → house online
+- any device offline → house partial
+- all devices offline → house offline
 
 ### Command status
 

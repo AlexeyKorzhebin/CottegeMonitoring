@@ -76,6 +76,7 @@ async def test_data_preserved_after_deactivation(db_session: AsyncSession) -> No
     await ensure_house(house_id, session=db_session)
     await handle_state(
         house_id,
+        "lm-main",
         ga,
         {"ts": 1730000000, "value": True, "datatype": 1001},
         session=db_session,

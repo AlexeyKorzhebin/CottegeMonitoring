@@ -16,20 +16,20 @@ logger = structlog.get_logger(__name__)
 _pending_rpc: dict[str, dict] = {}
 
 
-async def request_meta(house_id: str) -> str:
+async def request_meta(house_id: str, device_id: str) -> str:
     """Send RPC request for meta/objects. Returns request_id."""
-    return await _send_rpc(house_id, "meta")
+    return await _send_rpc(house_id, device_id, "meta")
 
 
-async def request_snapshot(house_id: str) -> str:
+async def request_snapshot(house_id: str, device_id: str) -> str:
     """Send RPC request for snapshot. Returns request_id."""
-    return await _send_rpc(house_id, "snapshot")
+    return await _send_rpc(house_id, device_id, "snapshot")
 
 
-async def _send_rpc(house_id: str, method: str) -> str:
+async def _send_rpc(house_id: str, device_id: str, method: str) -> str:
     request_id = str(uuid.uuid4())
     client_id = settings.mqtt_client_id
-    topic = f"{settings.mqtt_topic_prefix}lm/{house_id}/v1/rpc/req/{client_id}"
+    topic = f"{settings.mqtt_topic_prefix}cm/{house_id}/{device_id}/v1/rpc/req/{client_id}"
     payload = {"request_id": request_id, "method": method, "params": {"scope": "all"}}
     await mqtt_client.publish(topic, json.dumps(payload))
     _pending_rpc[request_id] = {"method": method, "chunks": {}, "chunk_total": None}

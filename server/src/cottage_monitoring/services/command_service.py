@@ -67,6 +67,7 @@ async def handle_ack(
 
 async def send_command(
     house_id: str,
+    device_id: str,
     payload: dict,
     *,
     session: AsyncSession | None = None,
@@ -85,6 +86,7 @@ async def send_command(
         cmd = Command(
             request_id=request_id,
             house_id=house_id,
+            device_id=device_id,
             ts_sent=now,
             payload=mqtt_payload,
             status="sent",
@@ -101,10 +103,10 @@ async def send_command(
             from cottage_monitoring.config import settings
             from cottage_monitoring.deps import mqtt_client
 
-            topic = f"{settings.mqtt_topic_prefix}lm/{house_id}/v1/cmd"
+            topic = f"{settings.mqtt_topic_prefix}cm/{house_id}/{device_id}/v1/cmd"
             await mqtt_client.publish(topic, json.dumps(mqtt_payload))
         except Exception:
-            logger.exception("mqtt_publish_failed", house_id=house_id, request_id=str(request_id))
+            logger.exception("mqtt_publish_failed", house_id=house_id, device_id=device_id, request_id=str(request_id))
 
         return cmd
 
@@ -145,7 +147,7 @@ async def retry_pending_commands(
 
                     from cottage_monitoring.deps import mqtt_client
 
-                    topic = f"{settings.mqtt_topic_prefix}lm/{cmd.house_id}/v1/cmd"
+                    topic = f"{settings.mqtt_topic_prefix}cm/{cmd.house_id}/{cmd.device_id}/v1/cmd"
                     await mqtt_client.publish(topic, json.dumps(cmd.payload))
                     logger.info(
                         "command_retried",

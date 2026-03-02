@@ -26,7 +26,7 @@ class FakeMessage:
 
 async def test_invalid_json_skipped() -> None:
     """Call handle_message with non-JSON payload → no error, message skipped."""
-    msg = FakeMessage(topic="lm/house-01/v1/events", payload=b"not valid json")
+    msg = FakeMessage(topic="cm/house-01/lm-main/v1/events", payload=b"not valid json")
     await handle_message(msg)  # no exception
 
 
@@ -60,15 +60,16 @@ async def test_duplicate_meta_same_hash(db_session: AsyncSession) -> None:
     await ensure_house(house_id, session=db_session)
     await db_session.commit()
 
-    await handle_full_meta(house_id, payload, session=db_session)
+    await handle_full_meta(house_id, "lm-main", payload, session=db_session)
     await db_session.commit()
 
-    await handle_full_meta(house_id, payload, session=db_session)
+    await handle_full_meta(house_id, "lm-main", payload, session=db_session)
     await db_session.commit()
 
     result = await db_session.execute(
         select(SchemaVersion).where(
             SchemaVersion.house_id == house_id,
+            SchemaVersion.device_id == "lm-main",
             SchemaVersion.schema_hash == schema_hash,
         )
     )
@@ -85,7 +86,7 @@ async def test_message_for_unknown_ga(db_session: AsyncSession) -> None:
     await ensure_house(house_id, session=db_session)
     await db_session.commit()
 
-    await handle_state(house_id, ga, payload, session=db_session)
+    await handle_state(house_id, "lm-main", ga, payload, session=db_session)
     await db_session.commit()
 
     result = await db_session.execute(

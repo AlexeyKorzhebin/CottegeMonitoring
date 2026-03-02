@@ -19,7 +19,7 @@ TIMESERIES_TAGS = {"temp", "meter", "humidity", "weather", "wind", "pressure_mm"
 TIMESERIES_UNITS = {"°C", "kWh", "kVARh", "W", "A", "V", "Hz", "%", "мм", "м/с", "VA", "VAR"}
 NUMERIC_DATATYPES = {9, 9001, 14}
 
-# In-memory chunk buffer: key = "{house_id}:{schema_hash}"
+# In-memory chunk buffer: key = "{house_id}:{device_id}:{schema_hash}"
 _chunk_buffer: dict[str, dict] = {}
 
 
@@ -36,6 +36,7 @@ def _should_be_timeseries(obj: dict) -> bool:
 
 async def handle_full_meta(
     house_id: str,
+    device_id: str,
     payload: dict,
     *,
     session: AsyncSession | None = None,
@@ -46,11 +47,12 @@ async def handle_full_meta(
     ts_epoch = payload.get("ts", 0)
     count = payload.get("count", len(objects_list))
 
-    await _process_schema(house_id, schema_hash, ts_epoch, count, objects_list, payload, session=session)
+    await _process_schema(house_id, device_id, schema_hash, ts_epoch, count, objects_list, payload, session=session)
 
 
 async def handle_chunk_meta(
     house_id: str,
+    device_id: str,
     chunk_no: int,
     payload: dict,
     *,
@@ -59,7 +61,7 @@ async def handle_chunk_meta(
     """Handle chunked meta/objects — buffer chunks and assemble when complete."""
     schema_hash = payload.get("schema_hash", "")
     chunk_total = payload.get("chunk_total", 1)
-    buf_key = f"{house_id}:{schema_hash}"
+    buf_key = f"{house_id}:{device_id}:{schema_hash}"
 
     if buf_key not in _chunk_buffer:
         _chunk_buffer[buf_key] = {
@@ -86,13 +88,14 @@ async def handle_chunk_meta(
             "objects": all_objects,
         }
         await _process_schema(
-            house_id, schema_hash, buf["ts"], buf["count"], all_objects, full_payload, session=session
+            house_id, device_id, schema_hash, buf["ts"], buf["count"], all_objects, full_payload, session=session
         )
-        logger.info("chunk_assembly_complete", house_id=house_id, schema_hash=schema_hash, chunks=chunk_total)
+        logger.info("chunk_assembly_complete", house_id=house_id, device_id=device_id, schema_hash=schema_hash, chunks=chunk_total)
 
 
 async def _process_schema(
     house_id: str,
+    device_id: str,
     schema_hash: str,
     ts_epoch: int,
     count: int,
@@ -113,6 +116,7 @@ async def _process_schema(
         result = await session.execute(
             select(SchemaVersion).where(
                 SchemaVersion.house_id == house_id,
+                SchemaVersion.device_id == device_id,
                 SchemaVersion.schema_hash == schema_hash,
             )
         )
@@ -121,6 +125,7 @@ async def _process_schema(
         if existing_sv is None:
             sv = SchemaVersion(
                 house_id=house_id,
+                device_id=device_id,
                 schema_hash=schema_hash,
                 ts=ts,
                 count=count,
@@ -150,6 +155,7 @@ async def _process_schema(
                 existing_obj.tags = obj_data.get("tags", "")
                 existing_obj.comment = obj_data.get("comment", "")
                 existing_obj.schema_hash = schema_hash
+                existing_obj.device_id = device_id
                 existing_obj.is_active = True
                 existing_obj.is_timeseries = is_ts
                 existing_obj.updated_at = datetime.now(UTC)
@@ -157,6 +163,7 @@ async def _process_schema(
                 new_obj = Object(
                     house_id=house_id,
                     ga=ga,
+                    device_id=device_id,
                     object_id=obj_data.get("id"),
                     name=obj_data.get("name", ""),
                     datatype=obj_data.get("datatype", 0),
@@ -169,9 +176,11 @@ async def _process_schema(
                 )
                 session.add(new_obj)
 
-        # Soft-delete objects not in the new schema
+        # Soft-delete objects from this device not in the new schema
         result = await session.execute(
-            select(Object).where(Object.house_id == house_id, Object.is_active.is_(True))
+            select(Object).where(
+                Object.house_id == house_id, Object.device_id == device_id, Object.is_active.is_(True)
+            )
         )
         all_active = result.scalars().all()
         for obj in all_active:
@@ -185,6 +194,7 @@ async def _process_schema(
         logger.info(
             "schema_processed",
             house_id=house_id,
+            device_id=device_id,
             schema_hash=schema_hash,
             object_count=len(objects_list),
         )

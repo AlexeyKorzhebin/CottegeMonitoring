@@ -65,9 +65,9 @@ async def test_event_via_mqtt(
     mqtt_app_client: AsyncClient,
     db_session: AsyncSession,
 ) -> None:
-    """Publish event to {prefix}lm/{house}/v1/events → row appears in events table."""
+    """Publish event to {prefix}cm/{house}/lm-main/v1/events → row appears in events table."""
     house_id = f"e2e-event-{uuid.uuid4().hex[:8]}"
-    topic = f"{PREFIX}lm/{house_id}/v1/events"
+    topic = f"{PREFIX}cm/{house_id}/lm-main/v1/events"
     payload = {
         "ts": 1730000000,
         "seq": 1,
@@ -99,10 +99,10 @@ async def test_state_via_mqtt(
     mqtt_app_client: AsyncClient,
     db_session: AsyncSession,
 ) -> None:
-    """Publish state to {prefix}lm/{house}/v1/state/ga/1/1/5 → current_state upserted."""
+    """Publish state to {prefix}cm/{house}/lm-main/v1/state/ga/1/1/5 → current_state upserted."""
     house_id = f"e2e-state-{uuid.uuid4().hex[:8]}"
     ga = "1/1/5"
-    topic = f"{PREFIX}lm/{house_id}/v1/state/ga/{ga}"
+    topic = f"{PREFIX}cm/{house_id}/lm-main/v1/state/ga/{ga}"
     payload = {"ts": 1730000100, "value": 42.5, "datatype": 9001}
     await _publish(topic, payload)
 
@@ -130,7 +130,7 @@ async def test_meta_full_via_mqtt(
     """Publish meta/objects → schema_versions + objects created."""
     house_id = f"e2e-meta-{uuid.uuid4().hex[:8]}"
     schema_hash = f"sha256:{uuid.uuid4().hex}"
-    topic = f"{PREFIX}lm/{house_id}/v1/meta/objects"
+    topic = f"{PREFIX}cm/{house_id}/lm-main/v1/meta/objects"
     payload = {
         "ts": 1730000200,
         "schema_version": 1,
@@ -183,7 +183,7 @@ async def test_meta_chunk_via_mqtt(
         "count": 2,
     }
 
-    topic1 = f"{PREFIX}lm/{house_id}/v1/meta/objects/chunk/1"
+    topic1 = f"{PREFIX}cm/{house_id}/lm-main/v1/meta/objects/chunk/1"
     await _publish(topic1, {
         **base,
         "chunk_no": 1,
@@ -191,7 +191,7 @@ async def test_meta_chunk_via_mqtt(
         "objects": [{"id": 200, "address": "2/1/1", "name": "Obj A", "datatype": 14, "units": "V", "tags": "meter", "comment": ""}],
     })
 
-    topic2 = f"{PREFIX}lm/{house_id}/v1/meta/objects/chunk/2"
+    topic2 = f"{PREFIX}cm/{house_id}/lm-main/v1/meta/objects/chunk/2"
     await _publish(topic2, {
         **base,
         "chunk_no": 2,
@@ -227,7 +227,7 @@ async def test_status_online_via_mqtt(
 ) -> None:
     """Publish status/online → house.online_status = 'online'."""
     house_id = f"e2e-status-{uuid.uuid4().hex[:8]}"
-    topic = f"{PREFIX}lm/{house_id}/v1/status/online"
+    topic = f"{PREFIX}cm/{house_id}/lm-main/v1/status/online"
     payload = {"ts": 1730000400, "status": "online", "version": "1.0.0"}
     await _publish(topic, payload)
 
@@ -257,11 +257,11 @@ async def test_cmd_ack_via_mqtt(
     await ensure_house(house_id, session=db_session)
     await db_session.commit()
 
-    cmd = await send_command(house_id, {"ga": "1/1/1", "value": True}, session=db_session)
+    cmd = await send_command(house_id, "lm-main", {"ga": "1/1/1", "value": True}, session=db_session)
     await db_session.commit()
     request_id = str(cmd.request_id)
 
-    topic = f"{PREFIX}lm/{house_id}/v1/cmd/ack/{request_id}"
+    topic = f"{PREFIX}cm/{house_id}/lm-main/v1/cmd/ack/{request_id}"
     ack_payload = {
         "ts": 1730000500,
         "request_id": request_id,
@@ -301,7 +301,7 @@ async def test_rpc_resp_via_mqtt(
 
     _pending_rpc[request_id] = {"method": "meta", "chunks": {}, "chunk_total": 1}
 
-    topic = f"{PREFIX}lm/{house_id}/v1/rpc/resp/{client_id}/{request_id}"
+    topic = f"{PREFIX}cm/{house_id}/lm-main/v1/rpc/resp/{client_id}/{request_id}"
     payload = {
         "request_id": request_id,
         "ok": True,

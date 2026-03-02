@@ -42,13 +42,22 @@ async def create_command(
         raise HTTPException(status_code=400, detail="House is inactive")
 
     items = _build_items(body)
+
+    # Resolve device_id: explicit from request, or auto-resolve from GA → object.device_id
+    device_id = body.device_id
     for item in items:
         ga = item["ga"]
         obj_result = await session.execute(
             select(Object).where(Object.house_id == house_id, Object.ga == ga)
         )
-        if obj_result.scalar_one_or_none() is None:
+        obj = obj_result.scalar_one_or_none()
+        if obj is None:
             raise HTTPException(status_code=400, detail=f"Unknown GA: {ga}")
+        if device_id is None and obj.device_id:
+            device_id = obj.device_id
+
+    if device_id is None:
+        raise HTTPException(status_code=400, detail="Cannot resolve device_id for command")
 
     payload: dict
     if len(items) == 1:
@@ -58,12 +67,13 @@ async def create_command(
     if body.comment:
         payload["comment"] = body.comment
 
-    cmd = await send_command(house_id, payload, session=session)
+    cmd = await send_command(house_id, device_id, payload, session=session)
     await session.commit()
 
     return {
         "request_id": str(cmd.request_id),
         "house_id": cmd.house_id,
+        "device_id": cmd.device_id,
         "status": cmd.status,
         "ts_sent": cmd.ts_sent.isoformat(),
     }

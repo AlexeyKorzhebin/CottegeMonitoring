@@ -16,6 +16,7 @@ class Event(Base):
 
     id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
     house_id: Mapped[str] = mapped_column(String(64), nullable=False)
+    device_id: Mapped[str | None] = mapped_column(String(64), nullable=True)
     ts: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     seq: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
     type: Mapped[str | None] = mapped_column(String(32), nullable=True)

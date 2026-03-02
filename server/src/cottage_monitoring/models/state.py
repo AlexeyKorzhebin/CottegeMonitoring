@@ -14,6 +14,7 @@ class CurrentState(Base):
         String(64), ForeignKey("houses.house_id"), primary_key=True
     )
     ga: Mapped[str] = mapped_column(String(16), primary_key=True)
+    device_id: Mapped[str | None] = mapped_column(String(64), nullable=True)
     ts: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     value: Mapped[dict] = mapped_column(JSONB, nullable=False)
     datatype: Mapped[int] = mapped_column(Integer, nullable=False)

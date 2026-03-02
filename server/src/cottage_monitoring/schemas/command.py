@@ -11,6 +11,7 @@ class CommandItem(BaseModel):
 
 
 class CommandCreate(BaseModel):
+    device_id: str | None = None
     ga: str | None = None
     value: Any = None
     items: list[CommandItem] | None = None
@@ -30,6 +31,7 @@ class CommandRead(BaseModel):
 
     request_id: UUID
     house_id: str
+    device_id: str | None = None
     ts_sent: datetime
     ts_ack: datetime | None
     status: str

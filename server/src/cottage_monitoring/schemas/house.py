@@ -12,6 +12,7 @@ class HouseRead(BaseModel):
     online_status: str
     is_active: bool
     object_count: int
+    device_count: int = 0
     current_schema_hash: str | None
 
 

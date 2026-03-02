@@ -17,6 +17,7 @@ logger = structlog.get_logger(__name__)
 
 async def handle_event(
     house_id: str,
+    device_id: str,
     payload: dict,
     *,
     session: AsyncSession | None = None,
@@ -33,6 +34,7 @@ async def handle_event(
 
         event = Event(
             house_id=house_id,
+            device_id=device_id,
             ts=ts,
             seq=payload.get("seq"),
             type=payload.get("type"),

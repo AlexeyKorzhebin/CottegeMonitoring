@@ -18,6 +18,7 @@ logger = structlog.get_logger(__name__)
 
 async def handle_state(
     house_id: str,
+    device_id: str,
     ga: str,
     payload: dict,
     *,
@@ -46,11 +47,13 @@ async def handle_state(
             existing.ts = ts
             existing.value = value
             existing.datatype = datatype
+            existing.device_id = device_id
             existing.server_received_ts = now
         else:
             state = CurrentState(
                 house_id=house_id,
                 ga=ga,
+                device_id=device_id,
                 ts=ts,
                 value=value,
                 datatype=datatype,

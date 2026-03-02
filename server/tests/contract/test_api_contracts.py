@@ -81,6 +81,23 @@ async def test_commands_list(async_client: AsyncClient) -> None:
     assert "offset" in data
 
 
+async def test_devices_list(async_client: AsyncClient) -> None:
+    """GET /api/v1/houses/house-01/devices → 200, response has items list and total int."""
+    resp = await async_client.get("/api/v1/houses/house-01/devices")
+    assert resp.status_code == 200
+    data = resp.json()
+    assert "items" in data
+    assert isinstance(data["items"], list)
+    assert "total" in data
+    assert isinstance(data["total"], int)
+
+
+async def test_device_not_found(async_client: AsyncClient) -> None:
+    """GET /api/v1/houses/house-01/devices/nonexistent → 404."""
+    resp = await async_client.get("/api/v1/houses/house-01/devices/nonexistent")
+    assert resp.status_code == 404
+
+
 async def test_metrics_endpoint(async_client: AsyncClient) -> None:
     """GET /metrics → 200, content type text/plain."""
     resp = await async_client.get("/metrics")

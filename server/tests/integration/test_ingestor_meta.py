@@ -82,12 +82,13 @@ async def test_full_meta_creates_schema_version(db_session: AsyncSession) -> Non
     """Full meta saves schema_version record."""
     house_id = "house-meta-schema"
     await ensure_house(house_id, session=db_session)
-    await handle_full_meta(house_id, FULL_META_PAYLOAD, session=db_session)
+    await handle_full_meta(house_id, "lm-main", FULL_META_PAYLOAD, session=db_session)
     await db_session.commit()
 
     result = await db_session.execute(
         select(SchemaVersion).where(
             SchemaVersion.house_id == house_id,
+            SchemaVersion.device_id == "lm-main",
             SchemaVersion.schema_hash == "sha256:abc123",
         )
     )
@@ -100,11 +101,14 @@ async def test_full_meta_creates_objects(db_session: AsyncSession) -> None:
     """Objects from meta are saved to objects table."""
     house_id = "house-meta-objs"
     await ensure_house(house_id, session=db_session)
-    await handle_full_meta(house_id, FULL_META_PAYLOAD, session=db_session)
+    await handle_full_meta(house_id, "lm-main", FULL_META_PAYLOAD, session=db_session)
     await db_session.commit()
 
     result = await db_session.execute(
-        select(Object).where(Object.house_id == house_id)
+        select(Object).where(
+            Object.house_id == house_id,
+            Object.device_id == "lm-main",
+        )
     )
     rows = result.scalars().all()
     assert len(rows) == 2
@@ -118,11 +122,14 @@ async def test_is_timeseries_classification(db_session: AsyncSession) -> None:
     """Objects with tags temp/meter etc. are is_timeseries=True; control without timeseries indicators are False."""
     house_id = "house-meta-timeseries"
     await ensure_house(house_id, session=db_session)
-    await handle_full_meta(house_id, FULL_META_PAYLOAD, session=db_session)
+    await handle_full_meta(house_id, "lm-main", FULL_META_PAYLOAD, session=db_session)
     await db_session.commit()
 
     result = await db_session.execute(
-        select(Object).where(Object.house_id == house_id)
+        select(Object).where(
+            Object.house_id == house_id,
+            Object.device_id == "lm-main",
+        )
     )
     rows = result.scalars().all()
     assert len(rows) == 2
@@ -137,13 +144,14 @@ async def test_chunked_meta_assembly(db_session: AsyncSession) -> None:
     house_id = "house-meta-chunk"
     await ensure_house(house_id, session=db_session)
 
-    await handle_chunk_meta(house_id, 1, CHUNK_1_PAYLOAD, session=db_session)
-    await handle_chunk_meta(house_id, 2, CHUNK_2_PAYLOAD, session=db_session)
+    await handle_chunk_meta(house_id, "lm-main", 1, CHUNK_1_PAYLOAD, session=db_session)
+    await handle_chunk_meta(house_id, "lm-main", 2, CHUNK_2_PAYLOAD, session=db_session)
     await db_session.commit()
 
     result = await db_session.execute(
         select(SchemaVersion).where(
             SchemaVersion.house_id == house_id,
+            SchemaVersion.device_id == "lm-main",
             SchemaVersion.schema_hash == "sha256:def456",
         )
     )
@@ -151,7 +159,10 @@ async def test_chunked_meta_assembly(db_session: AsyncSession) -> None:
     assert sv is not None
 
     result = await db_session.execute(
-        select(Object).where(Object.house_id == house_id)
+        select(Object).where(
+            Object.house_id == house_id,
+            Object.device_id == "lm-main",
+        )
     )
     objs = result.scalars().all()
     assert len(objs) == 2

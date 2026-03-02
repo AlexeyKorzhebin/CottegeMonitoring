@@ -116,7 +116,7 @@ async def test_objects_json_full_ingest_via_mqtt(
         "count": len(meta_objects),
         "objects": meta_objects,
     }
-    meta_topic = f"{PREFIX}lm/{house_id}/v1/meta/objects"
+    meta_topic = f"{PREFIX}cm/{house_id}/lm-main/v1/meta/objects"
     with_value = [(o, _get_value(o)) for o in objects_raw if _get_value(o) is not None and _get_value(o) != ""]
 
     async with aiomqtt.Client(
@@ -127,7 +127,7 @@ async def test_objects_json_full_ingest_via_mqtt(
         await _publish(mqtt_client, meta_topic, meta_payload)
         for obj, val in with_value:
             ga = obj["address"]
-            state_topic = f"{PREFIX}lm/{house_id}/v1/state/ga/{ga}"
+            state_topic = f"{PREFIX}cm/{house_id}/lm-main/v1/state/ga/{ga}"
             state_payload = {"ts": ts, "value": val, "datatype": obj.get("datatype", 0)}
             await _publish(mqtt_client, state_topic, state_payload)
 

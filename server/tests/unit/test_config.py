@@ -55,12 +55,12 @@ class TestMqttSubscriptionTopic:
     def test_empty_prefix(self, monkeypatch):
         _clear_test_env(monkeypatch)
         s = Settings()
-        assert s.mqtt_subscription_topic == "lm/+/v1/#"
+        assert s.mqtt_subscription_topic == "cm/+/+/v1/#"
 
     def test_dev_prefix(self, monkeypatch):
         monkeypatch.setenv("MQTT_TOPIC_PREFIX", "dev/")
         s = Settings()
-        assert s.mqtt_subscription_topic == "dev/lm/+/v1/#"
+        assert s.mqtt_subscription_topic == "dev/cm/+/+/v1/#"
 
 
 class TestSettingsFromEnv:

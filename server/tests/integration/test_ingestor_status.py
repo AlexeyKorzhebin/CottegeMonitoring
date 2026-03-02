@@ -24,6 +24,7 @@ async def test_status_online(db_session: AsyncSession) -> None:
 
     await handle_status(
         house_id,
+        "lm-main",
         {"ts": 1730000000, "status": "online"},
         session=db_session,
     )
@@ -43,6 +44,7 @@ async def test_lwt_offline(db_session: AsyncSession) -> None:
 
     await handle_status(
         house_id,
+        "lm-main",
         {"ts": 1730000000, "status": "offline"},
         session=db_session,
     )
@@ -59,6 +61,7 @@ async def test_unknown_house_auto_created(db_session: AsyncSession) -> None:
     house_id = "house-auto-created-via-status"
     await handle_status(
         house_id,
+        "lm-main",
         {"ts": 1730000000, "status": "online"},
         session=db_session,
     )

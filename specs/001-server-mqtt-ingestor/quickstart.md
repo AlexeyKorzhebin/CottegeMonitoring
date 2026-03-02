@@ -35,7 +35,7 @@ pip install -e ".[dev]"
 # 4. Переменные окружения (dev)
 cp deploy/cottage-monitoring.dev.env .env
 # DB_URL, REDIS_URL, MQTT_HOST уже указывают на localhost (через SSH tunnel)
-# MQTT_TOPIC_PREFIX=dev/ — dev-инстанс использует топики dev/lm/+/v1/#
+# MQTT_TOPIC_PREFIX=dev/ — dev-инстанс использует топики dev/cm/+/+/v1/#
 
 # 5. Миграции БД (dev)
 alembic upgrade head
@@ -51,7 +51,7 @@ uvicorn cottage_monitoring.main:app --host 127.0.0.1 --port 8322 --reload
 
 ```bash
 # Публикация тестового события (dev-топик)
-mosquitto_pub -h localhost -t "dev/lm/house-01/v1/events" \
+mosquitto_pub -h localhost -t "dev/cm/house-01/lm-main/v1/events" \
   -m '{"ts":1730000000,"seq":1,"type":"knx.groupwrite","ga":"1/1/1","id":2305,"name":"Свет","datatype":1001,"value":true}'
 ```
 
@@ -138,7 +138,7 @@ sudo docker logs cottage-monitoring
 |--|-----------|-------------|
 | **БД** | `cottage_monitoring` | `cottage_monitoring_dev` |
 | **Redis DB** | `redis://localhost:6379/0` | `redis://localhost:6379/1` |
-| **MQTT prefix** | *(пусто)* → `lm/+/v1/#` | `dev/` → `dev/lm/+/v1/#` |
+| **MQTT prefix** | *(пусто)* → `cm/+/+/v1/#` | `dev/` → `dev/cm/+/+/v1/#` |
 | **MQTT Client ID** | `cottage-monitoring-server` | `cottage-monitoring-dev` |
 | **Порт API** | 8321 | 8322 |
 | **Env-файл** | `cottage-monitoring.prod.env` | `cottage-monitoring.dev.env` |
@@ -147,7 +147,7 @@ sudo docker logs cottage-monitoring
 - Безопасно тестировать миграции и новый код на dev-базе, не затрагивая production
 - Запускать параллельно dev- и prod-инстанс сервиса (на разных портах)
 - Dev-инстанс обрабатывает только dev-топики — реальные данные от контроллеров изолированы
-- Заливать тестовые данные через `dev/lm/...` без риска для production
+- Заливать тестовые данные через `dev/cm/...` без риска для production
 
 ### Параллельный запуск на elion (два Docker-контейнера через systemd)
 
@@ -287,15 +287,15 @@ curl http://localhost:8321/metrics
 # --- Dev-топики (префикс dev/) ---
 
 # Публикация тестового события (dev)
-mosquitto_pub -h localhost -t "dev/lm/house-01/v1/events" \
+mosquitto_pub -h localhost -t "dev/cm/house-01/lm-main/v1/events" \
   -m '{"ts":1730000000,"seq":1,"type":"knx.groupwrite","ga":"1/1/1","id":2305,"name":"Свет","datatype":1001,"value":true}'
 
 # Публикация тестового state (dev)
-mosquitto_pub -h localhost -t "dev/lm/house-01/v1/state/ga/1/1/1" -r \
+mosquitto_pub -h localhost -t "dev/cm/house-01/lm-main/v1/state/ga/1/1/1" -r \
   -m '{"ts":1730000000,"value":true,"datatype":1001}'
 
 # --- Prod-топики (без префикса, реальные данные от контроллеров) ---
 
 # Подписка на все prod-сообщения (мониторинг)
-mosquitto_sub -h localhost -t "lm/+/v1/#" -v
+mosquitto_sub -h localhost -t "cm/+/+/v1/#" -v
 ```

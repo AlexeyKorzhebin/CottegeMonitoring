@@ -16,6 +16,7 @@ class Object(Base):
         String(64), ForeignKey("houses.house_id"), primary_key=True
     )
     ga: Mapped[str] = mapped_column(String(16), primary_key=True)
+    device_id: Mapped[str | None] = mapped_column(String(64), nullable=True)
     object_id: Mapped[int | None] = mapped_column(Integer, nullable=True)
     name: Mapped[str | None] = mapped_column(String(256), nullable=True)
     datatype: Mapped[int] = mapped_column(Integer, nullable=False)

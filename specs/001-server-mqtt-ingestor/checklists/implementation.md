@@ -21,8 +21,8 @@
 
 ## 2. MQTT слой (Протокол обмена)
 
-- [ ] CHK-M01 **FR-001** `mqtt/client.py` — подписка на `lm/+/v1/#`
-- [ ] CHK-M02 **FR-002** `mqtt/topic_parser.py` — парсинг `lm/<house_id>/v1/<subtopic>` → (house_id, message_type, params)
+- [ ] CHK-M01 **FR-001** `mqtt/client.py` — подписка на `cm/+/+/v1/#`
+- [ ] CHK-M02 **FR-002** `mqtt/topic_parser.py` — парсинг `cm/<house_id>/<device_id>/v1/<subtopic>` → (house_id, message_type, params)
 - [ ] CHK-M03 **FR-003** `services/ingestor.py` — dispatcher для всех типов сообщений: events, state/ga/*, meta/objects, meta/objects/chunk/*, status/online, cmd/ack/*, rpc/resp/*/*
 - [ ] CHK-M04 **FR-004** Валидация JSON во входящих сообщениях; невалидные → лог ошибки, skip
 - [ ] CHK-M05 **FR-024** Auto-reconnect к MQTT-брокеру с exponential backoff (1s → 30s max)
@@ -72,7 +72,7 @@
 
 - [ ] CHK-C01 **FR-017** `services/command_service.py` — приём запроса (house_id, ga, value) или batch (house_id, items[{ga, value}])
 - [ ] CHK-C02 **FR-018** Генерация UUID request_id
-- [ ] CHK-C03 **FR-019** Публикация в `lm/<house_id>/v1/cmd` в JSON-формате протокола
+- [ ] CHK-C03 **FR-019** Публикация в `cm/<house_id>/<device_id>/v1/cmd` в JSON-формате протокола
 - [ ] CHK-C04 **FR-020** Сохранение команды в БД: house_id, request_id, ts_sent, payload
 - [ ] CHK-C05 **FR-021** Обработка ack из cmd/ack/* → обновление ts_ack, status, results
 - [ ] CHK-C06 **FR-022** Идемпотентность: повторная cmd с тем же request_id НЕ создаёт новую запись

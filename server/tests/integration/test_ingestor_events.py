@@ -26,11 +26,14 @@ SAMPLE_EVENT_PAYLOAD = {
 async def test_event_append(db_session: AsyncSession) -> None:
     """Event is inserted into events table with all fields."""
     house_id = "house-event-append"
-    await handle_event(house_id, SAMPLE_EVENT_PAYLOAD, session=db_session)
+    await handle_event(house_id, "lm-main", SAMPLE_EVENT_PAYLOAD, session=db_session)
     await db_session.commit()
 
     result = await db_session.execute(
-        select(Event).where(Event.house_id == house_id)
+        select(Event)
+        .where(Event.house_id == house_id)
+        .order_by(Event.id.desc())
+        .limit(1)
     )
     row = result.scalar_one_or_none()
     assert row is not None
@@ -47,25 +50,32 @@ async def test_event_append(db_session: AsyncSession) -> None:
 async def test_event_duplicate_accepted(db_session: AsyncSession) -> None:
     """Same event twice → both rows saved (no unique constraint, QoS 1 duplicates OK)."""
     house_id = "house-event-dup"
-    await handle_event(house_id, SAMPLE_EVENT_PAYLOAD, session=db_session)
-    await handle_event(house_id, SAMPLE_EVENT_PAYLOAD, session=db_session)
+    result_before = await db_session.execute(
+        select(func.count()).select_from(Event).where(Event.house_id == house_id)
+    )
+    count_before = result_before.scalar_one()
+    await handle_event(house_id, "lm-main", SAMPLE_EVENT_PAYLOAD, session=db_session)
+    await handle_event(house_id, "lm-main", SAMPLE_EVENT_PAYLOAD, session=db_session)
     await db_session.commit()
 
     result = await db_session.execute(
         select(func.count()).select_from(Event).where(Event.house_id == house_id)
     )
     count = result.scalar_one()
-    assert count == 2
+    assert count == count_before + 2
 
 
 async def test_event_server_received_ts(db_session: AsyncSession) -> None:
     """server_received_ts is populated."""
     house_id = "house-event-ts"
-    await handle_event(house_id, SAMPLE_EVENT_PAYLOAD, session=db_session)
+    await handle_event(house_id, "lm-main", SAMPLE_EVENT_PAYLOAD, session=db_session)
     await db_session.commit()
 
     result = await db_session.execute(
-        select(Event).where(Event.house_id == house_id)
+        select(Event)
+        .where(Event.house_id == house_id)
+        .order_by(Event.id.desc())
+        .limit(1)
     )
     row = result.scalar_one_or_none()
     assert row is not None
@@ -76,11 +86,14 @@ async def test_event_raw_json_saved(db_session: AsyncSession) -> None:
     """Full raw JSON is preserved."""
     house_id = "house-event-raw"
     payload = {**SAMPLE_EVENT_PAYLOAD, "extra_field": "preserved"}
-    await handle_event(house_id, payload, session=db_session)
+    await handle_event(house_id, "lm-main", payload, session=db_session)
     await db_session.commit()
 
     result = await db_session.execute(
-        select(Event).where(Event.house_id == house_id)
+        select(Event)
+        .where(Event.house_id == house_id)
+        .order_by(Event.id.desc())
+        .limit(1)
     )
     row = result.scalar_one_or_none()
     assert row is not None

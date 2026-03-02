@@ -49,7 +49,7 @@ async def test_new_schema_adds_objects(db_session: AsyncSession) -> None:
     """New schema with objects → objects created."""
     house_id = "house-schema-add"
     await ensure_house(house_id, session=db_session)
-    await handle_full_meta(house_id, SCHEMA_V1, session=db_session)
+    await handle_full_meta(house_id, "lm-main", SCHEMA_V1, session=db_session)
     await db_session.commit()
 
     result = await db_session.execute(select(Object).where(Object.house_id == house_id))
@@ -64,7 +64,7 @@ async def test_schema_removes_objects_soft_delete(db_session: AsyncSession) -> N
     """New schema without an object → old object gets is_active=False (soft delete)."""
     house_id = "house-schema-soft-delete"
     await ensure_house(house_id, session=db_session)
-    await handle_full_meta(house_id, SCHEMA_V1, session=db_session)
+    await handle_full_meta(house_id, "lm-main", SCHEMA_V1, session=db_session)
     await db_session.commit()
 
     schema_v2 = {
@@ -83,7 +83,7 @@ async def test_schema_removes_objects_soft_delete(db_session: AsyncSession) -> N
             },
         ],
     }
-    await handle_full_meta(house_id, schema_v2, session=db_session)
+    await handle_full_meta(house_id, "lm-main", schema_v2, session=db_session)
     await db_session.commit()
 
     result = await db_session.execute(
@@ -98,7 +98,7 @@ async def test_empty_schema_deactivates_all(db_session: AsyncSession) -> None:
     """Schema with empty objects list → all objects is_active=False."""
     house_id = "house-schema-empty"
     await ensure_house(house_id, session=db_session)
-    await handle_full_meta(house_id, SCHEMA_V1, session=db_session)
+    await handle_full_meta(house_id, "lm-main", SCHEMA_V1, session=db_session)
     await db_session.commit()
 
     schema_empty = {
@@ -107,7 +107,7 @@ async def test_empty_schema_deactivates_all(db_session: AsyncSession) -> None:
         "count": 0,
         "objects": [],
     }
-    await handle_full_meta(house_id, schema_empty, session=db_session)
+    await handle_full_meta(house_id, "lm-main", schema_empty, session=db_session)
     await db_session.commit()
 
     result = await db_session.execute(
@@ -122,7 +122,7 @@ async def test_state_for_inactive_objects_accepted(db_session: AsyncSession) -> 
     house_id = "house-schema-state-inactive"
     ga = "1/1/1"
     await ensure_house(house_id, session=db_session)
-    await handle_full_meta(house_id, SCHEMA_V1, session=db_session)
+    await handle_full_meta(house_id, "lm-main", SCHEMA_V1, session=db_session)
     await db_session.commit()
 
     schema_v2 = {
@@ -131,11 +131,12 @@ async def test_state_for_inactive_objects_accepted(db_session: AsyncSession) -> 
         "count": 0,
         "objects": [],
     }
-    await handle_full_meta(house_id, schema_v2, session=db_session)
+    await handle_full_meta(house_id, "lm-main", schema_v2, session=db_session)
     await db_session.commit()
 
     await handle_state(
         house_id,
+        "lm-main",
         ga,
         {"ts": 1730000200, "value": False, "datatype": 1001},
         session=db_session,

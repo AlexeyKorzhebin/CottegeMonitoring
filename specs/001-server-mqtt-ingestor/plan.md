@@ -23,7 +23,7 @@
 **Project Type**: web-service (FastAPI REST API + MQTT subscriber daemon)
 **Performance Goals**: 10 домов одновременно, обработка state <1с, команда <2с до контроллера
 **Constraints**: <200ms p95 API response (cached state), <5с lag ingestion, порт 8321 (за nginx на elion)
-**Scale/Scope**: 10 домов, ~150 объектов на дом, ~1500 объектов суммарно
+**Scale/Scope**: 10 домов, 1-N контроллеров на дом, ~150 объектов на контроллер
 **Dev Access**: SSH tunnel (`ssh -L 5432:localhost:5432 -L 6379:localhost:6379 -L 1883:localhost:1883 elion -N`)
 
 ## Constitution Check
@@ -71,6 +71,7 @@ server/
 │       │   ├── __init__.py
 │       │   ├── base.py              # DeclarativeBase
 │       │   ├── house.py
+│       │   ├── device.py
 │       │   ├── object.py
 │       │   ├── state.py
 │       │   ├── event.py
@@ -79,6 +80,7 @@ server/
 │       ├── schemas/                 # Pydantic request/response schemas
 │       │   ├── __init__.py
 │       │   ├── house.py
+│       │   ├── device.py
 │       │   ├── object.py
 │       │   ├── state.py
 │       │   ├── event.py
@@ -98,6 +100,7 @@ server/
 │       │   ├── __init__.py
 │       │   ├── router.py            # Main router aggregation
 │       │   ├── houses.py
+│       │   ├── devices.py
 │       │   ├── objects.py
 │       │   ├── state.py
 │       │   ├── events.py
@@ -122,6 +125,7 @@ server/
 │   │   ├── test_ingestor_meta.py
 │   │   ├── test_ingestor_status.py
 │   │   ├── test_commands.py
+│   │   ├── test_devices.py
 │   │   ├── test_rpc.py
 │   │   ├── test_reconnect.py
 │   │   ├── test_house_lifecycle.py

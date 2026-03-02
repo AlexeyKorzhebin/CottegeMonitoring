@@ -13,6 +13,7 @@ class SchemaVersion(Base):
     house_id: Mapped[str] = mapped_column(
         String(64), ForeignKey("houses.house_id"), primary_key=True
     )
+    device_id: Mapped[str] = mapped_column(String(64), primary_key=True, server_default="")
     schema_hash: Mapped[str] = mapped_column(String(128), primary_key=True)
     ts: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     count: Mapped[int] = mapped_column(Integer, nullable=False)

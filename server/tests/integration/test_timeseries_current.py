@@ -131,7 +131,7 @@ async def test_timeseries_meter_full_30min_stored_correctly(
                 name=obj["name"],
                 value=value,
             )
-            await handle_event(house_id, payload, session=db_session)
+            await handle_event(house_id, "lm-main", payload, session=db_session)
     await db_session.commit()
 
     # Verify total event count
@@ -204,7 +204,7 @@ async def test_timeseries_via_mqtt_full_path(
     Requires: running MQTT broker (localhost via SSH tunnel), MQTT_TOPIC_PREFIX=dev/
     """
     house_id = f"house-ts-mqtt-{uuid.uuid4().hex[:12]}"
-    topic = f"{settings.mqtt_topic_prefix}lm/{house_id}/v1/events"
+    topic = f"{settings.mqtt_topic_prefix}cm/{house_id}/lm-main/v1/events"
     base_ts = 1730000000
 
     expected_by_ga: dict[str, list[float]] = {m["ga"]: [] for m in MQTT_FULLPATH_GAS}

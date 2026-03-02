@@ -26,7 +26,7 @@ async def test_send_command_creates_record(db_session: AsyncSession) -> None:
     await ensure_house(house_id, session=db_session)
     await db_session.commit()
 
-    cmd = await send_command(house_id, payload, session=db_session)
+    cmd = await send_command(house_id, "lm-main", payload, session=db_session)
     await db_session.commit()
 
     assert cmd.request_id is not None
@@ -44,7 +44,7 @@ async def test_ack_updates_status(db_session: AsyncSession) -> None:
     await ensure_house(house_id, session=db_session)
     await db_session.commit()
 
-    cmd = await send_command(house_id, payload, session=db_session)
+    cmd = await send_command(house_id, "lm-main", payload, session=db_session)
     await db_session.commit()
     request_id_str = str(cmd.request_id)
 
@@ -70,7 +70,7 @@ async def test_timeout_scenario(db_session: AsyncSession) -> None:
     await ensure_house(house_id, session=db_session)
     await db_session.commit()
 
-    cmd = await send_command(house_id, payload, session=db_session)
+    cmd = await send_command(house_id, "lm-main", payload, session=db_session)
     await db_session.commit()
 
     # Simulate: already retried twice, ts_sent old → one retry_pending_commands marks timeout
@@ -93,7 +93,7 @@ async def test_late_ack_after_timeout(db_session: AsyncSession) -> None:
     await ensure_house(house_id, session=db_session)
     await db_session.commit()
 
-    cmd = await send_command(house_id, payload, session=db_session)
+    cmd = await send_command(house_id, "lm-main", payload, session=db_session)
     await db_session.commit()
 
     cmd.status = "timeout"
@@ -116,7 +116,7 @@ async def test_idempotent_ack(db_session: AsyncSession) -> None:
     await ensure_house(house_id, session=db_session)
     await db_session.commit()
 
-    cmd = await send_command(house_id, payload, session=db_session)
+    cmd = await send_command(house_id, "lm-main", payload, session=db_session)
     await db_session.commit()
     request_id_str = str(cmd.request_id)
 
