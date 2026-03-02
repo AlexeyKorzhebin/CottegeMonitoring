@@ -1,0 +1,22 @@
+[Unit]
+Description=CottageMonitoring MQTT Ingestor (dev)
+After=network.target docker.service postgresql.service redis.service
+Requires=docker.service
+
+[Service]
+Type=simple
+Restart=always
+RestartSec=5
+ExecStartPre=-/usr/bin/docker stop cottage-monitoring-dev
+ExecStartPre=-/usr/bin/docker rm cottage-monitoring-dev
+ExecStart=/usr/bin/docker run --name cottage-monitoring-dev \
+  --network=host \
+  --env-file /etc/cottage-monitoring/cottage-monitoring.dev.env \
+  -v /var/log/cottage-monitoring/dev:/var/log/cottage-monitoring \
+  cottage-monitoring:latest
+ExecStop=/usr/bin/docker stop cottage-monitoring-dev
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target

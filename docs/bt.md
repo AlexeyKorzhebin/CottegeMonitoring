@@ -59,7 +59,8 @@
 - Серверная обработка событий — потоковая, без тяжёлых блокировок.
 
 ### 3.3 Масштабирование
-- Много домов: все топики имеют префикс `lm/<house_id>/v1/…`
+- Много домов и контроллеров: все топики имеют префикс `cm/<house_id>/<device_id>/v1/…`
+- В одном доме может быть один или несколько контроллеров LogicMachine (device). Контроллер управляет только одним домом или его частью.
 - Возможность горизонтального масштабирования ingestion (consumer group по MQTT/bridge).
 
 ### 3.4 Безопасность
@@ -109,11 +110,15 @@
 ## 5) Протокол и контракты (v1)
 
 ### 5.1 Namespace
-`lm/<house_id>/v1/`
+`cm/<house_id>/<device_id>/v1/`
 
-`house_id` уникален в системе мониторинга.
+`house_id` уникален в системе мониторинга. `device_id` уникален в рамках дома и идентифицирует конкретный контроллер LogicMachine.
+
+В одном доме может быть один или несколько контроллеров (device). Каждый контроллер управляет только одним домом или его частью. Отношение: House 1:N Device, Device N:1 House.
 
 ### 5.2 Topic Tree (контракт)
+
+Все топики относительно namespace `cm/<house_id>/<device_id>/v1/`:
 
 | Назначение | Topic | QoS | Retain | Producer | Consumer |
 |---|---|---:|---:|---|---|
@@ -132,7 +137,7 @@
 
 ### 6.1 Общие поля
 - `ts` (unix time seconds) — когда сформировано сообщение.
-- `house_id` не передаём в payload (он в топике), но сервер может добавлять в БД как тег.
+- `house_id` и `device_id` не передаём в payload (они в топике), но сервер извлекает и добавляет в БД.
 - `v` — опциональная версия payload (при расширениях).
 
 ### 6.2 Event (events)
@@ -326,7 +331,7 @@ UI позволяет выгрузить нормализованный grp.all(
 
 Доступность
 
-status=offline → дом считается недоступным; создаётся алерт.
+status=offline → контроллер (device) считается недоступным; если все контроллеры дома offline → дом недоступен; создаётся алерт.
 
 Команды
 
@@ -347,15 +352,17 @@ UI/операторский контур
 
 - House { house_id, created_at, last_seen, online_status }
 
-- Object { house_id, ga, object_id, name, datatype, units, tags, comment, schema_hash }
+- Device { house_id, device_id, created_at, last_seen, online_status, is_active }
 
-- State { house_id, ga, ts, value, datatype }
+- Object { house_id, device_id, ga, object_id, name, datatype, units, tags, comment, schema_hash }
 
-- Event { house_id, ts, seq, type, ga, value, datatype, raw_json }
+- State { house_id, device_id, ga, ts, value, datatype }
 
-- SchemaVersion { house_id, schema_hash, ts, count, raw_meta_json }
+- Event { house_id, device_id, ts, seq, type, ga, value, datatype, raw_json }
 
-- Command { house_id, request_id, ts_sent, payload, ts_ack, status, results }
+- SchemaVersion { house_id, device_id, schema_hash, ts, count, raw_meta_json }
+
+- Command { house_id, device_id, request_id, ts_sent, payload, ts_ack, status, results }
 
 - Alert { house_id, type, severity, ts_open, ts_close, context }
 
@@ -420,8 +427,8 @@ schema churn: количество изменений схемы
 
   LM->>B: CONNECT (will_set status=offline, retain=true)
   B-->>LM: CONNACK
-  LM->>B: PUBLISH status/online = {"status":"online"} retain=true
-  S->>B: SUBSCRIBE lm/<house>/v1/status/online
+  LM->>B: PUBLISH cm/<house>/<device>/v1/status/online = {"status":"online"} retain=true
+  S->>B: SUBSCRIBE cm/+/+/v1/#
   B-->>S: (retained) status=online
 
   Note over LM,B: Если LM пропадает без DISCONNECT
@@ -437,9 +444,9 @@ schema churn: количество изменений схемы
   participant DB as State/History DB
 
   LB-->>LM: object changed (ga,value,datatype)
-  LM->>B: PUBLISH events (json) qos0
-  LM->>B: PUBLISH state/ga/<ga> (retained) qos1
-  S->>B: SUBSCRIBE events, state/ga/+
+  LM->>B: PUBLISH cm/<house>/<device>/v1/events (json) qos0
+  LM->>B: PUBLISH cm/<house>/<device>/v1/state/ga/<ga> (retained) qos1
+  S->>B: SUBSCRIBE cm/+/+/v1/#
   B-->>S: events message
   S->>DB: INSERT Event
   B-->>S: retained state update
@@ -453,10 +460,10 @@ schema churn: количество изменений схемы
   participant S as Server Ingestor
   participant R as Schema Registry
 
-  LM->>B: PUBLISH meta/objects/chunk/1 retain=true
-  LM->>B: PUBLISH meta/objects/chunk/2 retain=true
-  LM->>B: PUBLISH meta/objects/chunk/3 retain=true
-  S->>B: SUBSCRIBE meta/objects, meta/objects/chunk/+
+  LM->>B: PUBLISH cm/<house>/<device>/v1/meta/objects/chunk/1 retain=true
+  LM->>B: PUBLISH cm/<house>/<device>/v1/meta/objects/chunk/2 retain=true
+  LM->>B: PUBLISH cm/<house>/<device>/v1/meta/objects/chunk/3 retain=true
+  S->>B: SUBSCRIBE cm/+/+/v1/#
   B-->>S: chunks (schema_hash=H)
   S->>R: assemble chunks by H
   R-->>S: schema stored (H)
@@ -472,12 +479,12 @@ schema churn: количество изменений схемы
 
   UI->>CS: send command (ga,value)
   CS->>DB: CREATE Command(request_id)
-  CS->>B: PUBLISH cmd {request_id,ga,value} qos1
-  LM->>B: SUBSCRIBE cmd
+  CS->>B: PUBLISH cm/<house>/<device>/v1/cmd {request_id,ga,value} qos1
+  LM->>B: SUBSCRIBE cm/<house>/<device>/v1/cmd
   B-->>LM: cmd message
   LM->>LM: grp.update(ga,value)
-  LM->>B: PUBLISH cmd/ack/<request_id> {status,results}
-  CS->>B: SUBSCRIBE cmd/ack/+
+  LM->>B: PUBLISH cm/<house>/<device>/v1/cmd/ack/<request_id> {status,results}
+  CS->>B: SUBSCRIBE cm/+/+/v1/cmd/ack/+
   B-->>CS: ack
   CS->>DB: UPDATE Command(status,ts_ack,results)
   ```
@@ -489,12 +496,12 @@ schema churn: количество изменений схемы
   participant LM as LogicMachine Daemon
   participant DB as State DB
 
-  S->>B: PUBLISH rpc/req/<client_id> {method:"snapshot",request_id}
-  LM->>B: SUBSCRIBE rpc/req/+
+  S->>B: PUBLISH cm/<house>/<device>/v1/rpc/req/<client_id> {method:"snapshot",request_id}
+  LM->>B: SUBSCRIBE cm/<house>/<device>/v1/rpc/req/+
   B-->>LM: rpc request
   LM->>LM: build snapshot from grp.all()/cache
-  LM->>B: PUBLISH state/ga/* (retained updates) OR rpc/resp
-  S->>B: SUBSCRIBE state/ga/+ and rpc/resp/...
+  LM->>B: PUBLISH cm/<house>/<device>/v1/state/ga/* (retained) OR rpc/resp
+  S->>B: SUBSCRIBE cm/+/+/v1/#
   B-->>S: updates
   S->>DB: UPSERT State
   ```
@@ -502,7 +509,7 @@ schema churn: количество изменений схемы
   12) Требования к Apps UI (клиент)
 12.1 UI функции (обязательные)
 
-Настройка: house_id, MQTT broker, логин/пароль, client_id, QoS, режим команд (update/write).
+Настройка: house_id, device_id, MQTT broker, логин/пароль, client_id, QoS, режим команд (update/write).
 
 Фильтры экспорта: теги/список GA.
 
@@ -519,7 +526,7 @@ UI должен давать restart/stop через стандартный Apps
 13) План реализации (сервер)
 13.1 Минимальный MVP
 
-Broker + ACL per house.
+Broker + ACL per house/device.
 
 Ingestor:
 
@@ -570,8 +577,9 @@ Alert rules engine (offline, пороги температур, “нет обн
   end
 
   subgraph House[Дом]
-    LM[LogicMachine\nlm-mqtt-exporter App]
-    Devices[Устройства/объекты\n(виртуальная шина/KNX)]
+    LM1[LogicMachine 1\ncm-mqtt-exporter]
+    LM2[LogicMachine N\ncm-mqtt-exporter]
+    KNXDevices[Устройства/объекты\n(виртуальная шина/KNX)]
   end
 
   subgraph Cloud[Инфраструктура мониторинга]
@@ -581,11 +589,14 @@ Alert rules engine (offline, пороги температур, “нет обн
 
   Op -->|UI| Mon
   Eng -->|UI/API| Mon
-  Devices -->|state changes| LM
-  LM -->|publish| Broker
+  KNXDevices -->|state changes| LM1
+  KNXDevices -->|state changes| LM2
+  LM1 -->|publish| Broker
+  LM2 -->|publish| Broker
   Mon -->|subscribe| Broker
   Mon -->|publish cmd| Broker
-  Broker -->|deliver cmd| LM
+  Broker -->|deliver cmd| LM1
+  Broker -->|deliver cmd| LM2
   ```
 
 
@@ -629,49 +640,49 @@ Alert rules engine (offline, пороги температур, “нет обн
   16) MQTT ACL (пример политики)
 16.1 Принцип
 
-У LM отдельный пользователь (например lm_house-01) — может публиковать только исходящие топики своего дома и подписываться только на входящие (cmd, rpc/req/*).
+У каждого LM контроллера отдельный пользователь (например lm_house-01_lm-main) — может публиковать только исходящие топики своего дома/устройства и подписываться только на входящие (cmd, rpc/req/*).
 
-У сервера отдельный пользователь (например mon_server) — может всё в рамках lm/+/v1/#.
+У сервера отдельный пользователь (например mon_server) — может всё в рамках cm/+/+/v1/#.
 
 16.2 Шаблон ACL (логический)
 
-Для конкретного house_id = H:
+Для конкретного house_id = H, device_id = D:
 
 LM user (publish allowed):
 
-lm/H/v1/events
+cm/H/D/v1/events
 
-lm/H/v1/state/#
+cm/H/D/v1/state/#
 
-lm/H/v1/meta/#
+cm/H/D/v1/meta/#
 
-lm/H/v1/status/#
+cm/H/D/v1/status/#
 
-lm/H/v1/cmd/ack/#
+cm/H/D/v1/cmd/ack/#
 
-lm/H/v1/rpc/resp/#
+cm/H/D/v1/rpc/resp/#
 
 LM user (subscribe allowed):
 
-lm/H/v1/cmd
+cm/H/D/v1/cmd
 
-lm/H/v1/rpc/req/#
+cm/H/D/v1/rpc/req/#
 
 LM user (deny):
 
-publish на lm/H/v1/cmd (запрещено)
+publish на cm/H/D/v1/cmd (запрещено)
 
-publish на lm/H/v1/rpc/req/# (запрещено)
+publish на cm/H/D/v1/rpc/req/# (запрещено)
 
 Server user (subscribe/publish allowed):
 
-lm/+/v1/# (или более узко по списку домов)
+cm/+/+/v1/# (или более узко по списку домов)
 
 16.3 Замечания по безопасности
 
 Если брокер поддерживает “pattern ACL” (например prefix-based), внедрить именно так.
 
-При использовании shared broker для разных клиентов — обязательно изоляция по house_id.
+При использовании shared broker для разных клиентов — обязательно изоляция по house_id и device_id.
 
 17) Server API (контракт для UI/интеграций)
 
@@ -698,6 +709,20 @@ GET /houses/{house_id}
 GET /houses/{house_id}/status
 
 online/offline + причины (LWT/offline timeout)
+
+Devices
+
+GET /houses/{house_id}/devices
+
+список контроллеров дома, online_status, last_seen
+
+GET /houses/{house_id}/devices/{device_id}
+
+подробности контроллера
+
+PATCH /houses/{house_id}/devices/{device_id}
+
+деактивация/реактивация контроллера
 
 Objects / Schema
 
@@ -785,13 +810,13 @@ GET /houses/{house_id}/commands/{request_id}
 
 Ops / Diagnostics
 
-POST /houses/{house_id}/rpc/meta
+POST /houses/{house_id}/devices/{device_id}/rpc/meta
 
-публикует rpc/req на meta (через брокер)
+публикует rpc/req на meta для конкретного контроллера (через брокер)
 
-POST /houses/{house_id}/rpc/snapshot
+POST /houses/{house_id}/devices/{device_id}/rpc/snapshot
 
-публикует rpc/req на snapshot
+публикует rpc/req на snapshot для конкретного контроллера
 
 GET /health
 
