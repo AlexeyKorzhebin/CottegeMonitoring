@@ -245,7 +245,77 @@ async def test_status_online_via_mqtt(
     assert house.online_status == "online"
 
 
-# ---------- 6. CMD ACK ----------
+# ---------- 6. REST → MQTT (команда включить свет) ----------
+
+
+async def test_rest_command_light_on_published_to_mqtt(
+    mqtt_app_client: AsyncClient,
+    db_session: AsyncSession,
+) -> None:
+    """POST /api/v1/houses/{id}/commands {"ga": "1/1/1", "value": true} → сообщение в MQTT."""
+    house_id = f"e2e-rest-mqtt-{uuid.uuid4().hex[:8]}"
+    device_id = "lm-main"
+    ga = "1/1/1"
+
+    await ensure_house(house_id, session=db_session)
+    await db_session.commit()
+
+    obj = Object(
+        house_id=house_id,
+        ga=ga,
+        device_id=device_id,
+        object_id=2305,
+        name="Свет - крыльцо",
+        datatype=1001,
+        tags="control,light",
+        is_active=True,
+    )
+    db_session.add(obj)
+    await db_session.commit()
+
+    cmd_topic = f"{PREFIX}cm/{house_id}/{device_id}/v1/cmd"
+    received: list[dict] = []
+
+    async def _subscribe_and_collect() -> None:
+        async with aiomqtt.Client(
+            hostname=settings.mqtt_host,
+            port=settings.mqtt_port,
+            identifier=f"test-sub-{uuid.uuid4().hex[:8]}",
+        ) as sub_client:
+            await sub_client.subscribe(cmd_topic, qos=0)
+            async for msg in sub_client.messages:
+                payload = json.loads(msg.payload.decode()) if msg.payload else {}
+                received.append(payload)
+                if received:
+                    break
+
+    sub_task = asyncio.create_task(_subscribe_and_collect())
+    await asyncio.sleep(0.5)
+
+    # REST API: POST команды включить свет
+    resp = await mqtt_app_client.post(
+        f"/api/v1/houses/{house_id}/commands",
+        json={"ga": ga, "value": True, "comment": "Включить свет"},
+    )
+    assert resp.status_code == 201
+
+    try:
+        await asyncio.wait_for(sub_task, timeout=POLL_TIMEOUT)
+    except asyncio.TimeoutError:
+        sub_task.cancel()
+        raise AssertionError(
+            f"MQTT message not received on {cmd_topic} after REST command. "
+            "Check MQTT broker and app mqtt_client."
+        ) from None
+
+    assert len(received) == 1
+    payload = received[0]
+    assert payload.get("ga") == ga
+    assert payload.get("value") is True
+    assert "request_id" in payload
+
+
+# ---------- 7. CMD ACK ----------
 
 
 async def test_cmd_ack_via_mqtt(
