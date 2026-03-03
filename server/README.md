@@ -89,6 +89,16 @@ cd server && python scripts/cleanup_mqtt_topics.py
 
 Requires SSH tunnel to elion (or local MQTT broker). Loads config from `.env.test` or `.env`.
 
+### Cleanup dev database tables
+
+Clear all tables in `cottage_monitoring_dev`:
+
+```bash
+cd server && python scripts/cleanup_dev_db.py
+```
+
+Requires `DB_URL` in `.env` or `.env.test`. For remote DB — SSH tunnel to elion.
+
 ## Project Structure
 
 ```
