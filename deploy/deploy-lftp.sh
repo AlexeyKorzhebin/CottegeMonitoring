@@ -9,7 +9,12 @@ set -e
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 SOURCE_DIR="$PROJECT_ROOT/cm-client"
-REMOTE_PATH="/data/apps/store/data/cottage-monitoring"
+
+# LM: user "apps" — FTP root может быть store ИЛИ data/cottage-monitoring (app dir)
+# store: нужно cd data/cottage-monitoring
+# app dir: уже в правильной папке, mirror в .
+REMOTE_APP_PATH="data/cottage-monitoring"
+REMOTE_DAEMON_PATH="daemon/cottage-monitoring"
 
 HOST="${1:-192.168.100.130}"
 USER="${2:-apps}"
@@ -22,11 +27,45 @@ if [ -z "$PASS" ]; then
 fi
 
 cd "$SOURCE_DIR"
-lftp -u "$USER","$PASS" "ftp://$HOST" -e "
-cd $REMOTE_PATH
+
+# 1. Приложение: пробуем data/cottage-monitoring; при ошибке — текущая папка (app dir)
+echo "Uploading app to $REMOTE_APP_PATH..."
+if lftp -u "$USER","$PASS" "ftp://$HOST" -e "
+cd $REMOTE_APP_PATH
+lcd $SOURCE_DIR
+mirror -R .
+bye
+" 2>/dev/null; then
+  echo "  -> uploaded to $REMOTE_APP_PATH"
+else
+  echo "  -> cd $REMOTE_APP_PATH failed, trying current directory..."
+  lftp -u "$USER","$PASS" "ftp://$HOST" -e "
 lcd $SOURCE_DIR
 mirror -R .
 bye
 "
+  echo "  -> uploaded to FTP root (app directory)"
+fi
 
-echo "Deployed to ftp://$USER@$HOST$REMOTE_PATH"
+# 2. Daemon в daemon/cottage-monitoring
+echo "Uploading daemon to $REMOTE_DAEMON_PATH..."
+lftp -u "$USER","$PASS" "ftp://$HOST" -e "
+cd daemon
+mkdir cottage-monitoring
+cd cottage-monitoring
+lcd $SOURCE_DIR/daemon
+put daemon.lua
+bye
+" 2>/dev/null || true
+
+# 3. Проверка: список загруженных файлов (для отладки пути)
+echo ""
+echo "Verify — files in $REMOTE_APP_PATH:"
+lftp -u "$USER","$PASS" "ftp://$HOST" -e "
+cd $REMOTE_APP_PATH
+cls -1
+bye
+" 2>/dev/null || lftp -u "$USER","$PASS" "ftp://$HOST" -e "cls -1" 2>/dev/null
+
+echo ""
+echo "Deployed. App URL: http://$HOST/apps/data/cottage-monitoring/"

@@ -26,12 +26,12 @@
 Контроллер не поддерживает SCP, используется **lftp** (FTP):
 
 ```bash
-./deploy/deploy-lftp.sh 192.168.100.130 apps <пароль>
+./deploy/deploy-lftp.sh 192.168.100.130 apps LM_apps123
 ```
 
 Или вручную:
 ```bash
-lftp -u apps,<пароль> ftp://192.168.100.130 -e "
+lftp -u apps,LM_apps123 ftp://192.168.100.130 -e "
 cd /data/apps/store/data/cottage-monitoring
 lcd cm-client
 mirror -R .
@@ -56,7 +56,7 @@ Daemon автоматически регистрируется. Путь: `/daem
 
 ## Quickstart
 
-1. `./deploy/deploy-lftp.sh 192.168.100.130 apps <password>`
+1. `./deploy/deploy-lftp.sh 192.168.100.130 apps LM_apps123`
 2. LM → Apps → Install Cottage Monitoring
 3. Config → house_id, device_id, MQTT учётные данные → Save
 4. Daemon подключается к MQTT, публикует meta, snapshot, слушает groupwrite

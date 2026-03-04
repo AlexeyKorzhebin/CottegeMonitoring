@@ -1,3 +1,4 @@
+<script src="/apps/js/jquery.js.gz"></script>
 <div class="container">
   <a href="/apps/" class="button">← Back</a>
   <h2>Cottage Monitoring</h2>
@@ -11,7 +12,7 @@
 </div>
 
 <script>
-(function() {
+$(function() {
   var statusEl = $('#export-status');
 
   $('#export-file-btn').on('click', function() {
@@ -53,7 +54,7 @@
       error: function() {
         statusEl.text('MQTT недоступен');
       }
+      });
     });
-  });
-})();
+});
 </script>

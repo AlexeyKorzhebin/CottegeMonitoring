@@ -9,6 +9,7 @@
 
 - LogicMachine с поддержкой Apps и MQTT (mosquitto library)
 - **Доступ к контроллеру**: FTP `ftp://apps@192.168.100.130`, рабочая директория `/data/apps/store/data/cottage-monitoring` (SCP не поддерживается)
+- **FTP-учётные данные (временный пароль)**: user `apps`, password `LM_apps123`
 - MQTT-брокер сервера мониторинга (elion.black-castle.ru:8883, TLS)
 - Учётные данные MQTT (логин/пароль) от администратора брокера
 
@@ -20,10 +21,15 @@
 
 Контроллер не поддерживает SCP, используется **lftp** (FTP):
 
-**Вся директория** (с подкаталогами):
+**Рекомендуется** — скрипт деплоя (загружает приложение и daemon):
 ```bash
-lftp -u apps,<пароль> ftp://192.168.100.130 -e "
-cd /data/apps/store/data/cottage-monitoring
+./deploy/deploy-lftp.sh 192.168.100.130 apps LM_apps123
+```
+
+**Вручную (вся директория)**:
+```bash
+lftp -u apps,LM_apps123 ftp://192.168.100.130 -e "
+cd data/cottage-monitoring
 lcd cm-client
 mirror -R .
 bye
@@ -32,8 +38,8 @@ bye
 
 **Один файл** (например, обновлённый daemon):
 ```bash
-lftp -u apps,<пароль> ftp://192.168.100.130 -e "
-cd /data/apps/store/data/cottage-monitoring/daemon
+lftp -u apps,LM_apps123 ftp://192.168.100.130 -e "
+cd daemon/cottage-monitoring
 lcd cm-client/daemon
 put daemon.lua
 bye
@@ -42,8 +48,8 @@ bye
 
 **Интерактивно**:
 ```bash
-lftp -u apps,<пароль> ftp://192.168.100.130
-cd /data/apps/store/data/cottage-monitoring
+lftp -u apps,LM_apps123 ftp://192.168.100.130
+cd data/cottage-monitoring
 lcd cm-client
 mirror -R .
 # или один файл: cd daemon; put ../daemon/daemon.lua
@@ -62,18 +68,18 @@ Daemon автоматически регистрируется при устан
 
 ## Настройка
 
-1. Открыть приложение **Cottage Monitoring** в Apps
-2. Открыть **Config** (иконка шестерёнки или пункт меню)
-3. Заполнить обязательные поля:
+1. Открыть **Settings → Apps** в веб-интерфейсе LM
+2. В разделе **Dev apps** найти **Cottage Monitoring**, нажать на иконку (откроется главная страница)
+3. Открыть **Config** — иконка шестерёнки в заголовке приложения (или пункт меню). *Примечание*: Config открывается в модальном окне; при первом запуске поля будут пустыми.
+4. Заполнить обязательные поля:
    - **house_id**: идентификатор дома (например, `house-01`)
    - **device_id**: идентификатор контроллера (например, `lm-main`)
    - **env_mode**: `prod` (боевой) или `dev` (тестовая среда)
    - **mqtt_host**: `elion.black-castle.ru`
    - **mqtt_port**: `8883`
    - **mqtt_username** / **mqtt_password**: учётные данные MQTT
-4. Опционально: debug, buffer_size, snapshot_interval, throttle
-5. Нажать **Save**
-6. Daemon перезапустится автоматически
+5. Опционально: debug, buffer_size, snapshot_interval, throttle
+6. Нажать **Save** — daemon перезапустится автоматически
 
 ---
 
@@ -92,10 +98,12 @@ Daemon автоматически регистрируется при устан
 
 ---
 
-## Деплой-скрипты
+## Деплой
 
 ```bash
-./deploy/deploy-lftp.sh 192.168.100.130 apps <пароль>
+./deploy/deploy-lftp.sh 192.168.100.130 apps LM_apps123
 ```
 
-(Скрипт создаётся в Phase 2 — tasks.)
+Скрипт загружает приложение в `data/cottage-monitoring` и daemon в `daemon/cottage-monitoring` (путь, ожидаемый LM для автозапуска).
+
+*(Временный пароль для dev; при смене пароля — обновить здесь и в других спеках.)*

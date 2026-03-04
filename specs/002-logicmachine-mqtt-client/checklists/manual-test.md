@@ -11,7 +11,7 @@
 
 ## 1. Deploy
 
-- [ ] `./deploy/deploy-lftp.sh 192.168.100.130 apps <пароль>`
+- [ ] `./deploy/deploy-lftp.sh 192.168.100.130 apps LM_apps123`
 - [ ] Файлы скопированы в `/data/apps/store/data/cottage-monitoring`
 
 ## 2. Config Form

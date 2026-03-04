@@ -312,7 +312,7 @@ FR-010: TLS обязателен. На контроллере может не б
 
 **lftp — вся директория**:
 ```bash
-lftp -u apps,<пароль> ftp://192.168.100.130 -e "
+lftp -u apps,LM_apps123 ftp://192.168.100.130 -e "
 cd /data/apps/store/data/cottage-monitoring
 lcd cm-client
 mirror -R .
@@ -322,7 +322,7 @@ bye
 
 **lftp — один файл**:
 ```bash
-lftp -u apps,<пароль> ftp://192.168.100.130 -e "
+lftp -u apps,LM_apps123 ftp://192.168.100.130 -e "
 cd /data/apps/store/data/cottage-monitoring/daemon
 lcd cm-client/daemon
 put daemon.lua
