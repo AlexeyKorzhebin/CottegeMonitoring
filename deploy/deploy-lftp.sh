@@ -47,16 +47,34 @@ bye
   echo "  -> uploaded to FTP root (app directory)"
 fi
 
-# 2. Daemon в daemon/cottage-monitoring
-echo "Uploading daemon to $REMOTE_DAEMON_PATH..."
-lftp -u "$USER","$PASS" "ftp://$HOST" -e "
+# 2. Daemon в daemon/cottage-monitoring (per LM docs: "Create new directory named as
+#    your application in daemon directory. Place daemon.lua inside newly created directory")
+APP_NAME="cottage-monitoring"
+echo "Uploading daemon to daemon/$APP_NAME/..."
+if lftp -u "$USER","$PASS" "ftp://$HOST" -e "
 cd daemon
-mkdir cottage-monitoring
-cd cottage-monitoring
+mkdir $APP_NAME
+cd $APP_NAME
 lcd $SOURCE_DIR/daemon
 put daemon.lua
 bye
-" 2>/dev/null || true
+" 2>/dev/null; then
+  echo "  -> daemon uploaded to daemon/$APP_NAME/daemon.lua"
+else
+  echo "  -> trying store/daemon path..."
+  if lftp -u "$USER","$PASS" "ftp://$HOST" -e "
+cd store/daemon
+mkdir $APP_NAME
+cd $APP_NAME
+lcd $SOURCE_DIR/daemon
+put daemon.lua
+bye
+" 2>/dev/null; then
+    echo "  -> daemon uploaded to store/daemon/$APP_NAME/daemon.lua"
+  else
+    echo "  WARNING: daemon upload failed. Manual: cd daemon/$APP_NAME; put cm-client/daemon/daemon.lua"
+  fi
+fi
 
 # 3. Проверка: список загруженных файлов (для отладки пути)
 echo ""
