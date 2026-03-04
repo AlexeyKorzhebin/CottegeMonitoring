@@ -39,5 +39,13 @@ class Settings(BaseSettings):
     def mqtt_subscription_topic(self) -> str:
         return f"{self.mqtt_topic_prefix}cm/+/+/v1/#"
 
+    @property
+    def mqtt_subscription_topics(self) -> list[str]:
+        """Topics to subscribe to. Prod also subscribes to dev/ to catch misconfigured clients."""
+        topics = [self.mqtt_subscription_topic]
+        if not self.mqtt_topic_prefix:
+            topics.append(f"dev/cm/+/+/v1/#")
+        return topics
+
 
 settings = Settings()

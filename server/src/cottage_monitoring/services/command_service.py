@@ -40,11 +40,13 @@ async def handle_ack(
         )
         cmd = result.scalar_one_or_none()
         if cmd is None:
-            logger.warning("ack_for_unknown_command", request_id=request_id_str)
+            logger.info("ack_for_unknown_command", request_id=request_id_str, house_id=house_id)
             return
 
-        now = datetime.now(UTC)
         ack_status = payload.get("status", "ok")
+        logger.info("cmd_ack_applied", request_id=request_id_str, status=ack_status)
+
+        now = datetime.now(UTC)
 
         was_timeout = cmd.status == "timeout"
         cmd.ts_ack = now

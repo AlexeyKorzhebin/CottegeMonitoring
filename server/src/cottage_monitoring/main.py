@@ -32,7 +32,7 @@ async def _command_retry_loop() -> None:
 async def _mqtt_loop() -> None:
     from cottage_monitoring.services.ingestor import handle_message
 
-    mqtt_client.subscribe(settings.mqtt_subscription_topic)
+    mqtt_client.subscribe(settings.mqtt_subscription_topics)
     async for message in mqtt_client.messages():
         try:
             await handle_message(message)
@@ -43,7 +43,7 @@ async def _mqtt_loop() -> None:
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     setup_logging()
-    logger.info("starting", env=settings.env, mqtt_topic=settings.mqtt_subscription_topic)
+    logger.info("starting", env=settings.env, mqtt_topics=settings.mqtt_subscription_topics)
 
     await redis_cache.connect()
 
