@@ -248,6 +248,96 @@ async def test_status_online_via_mqtt(
 # ---------- 6. REST → MQTT (команда включить свет) ----------
 
 
+async def test_client_receives_two_commands_tambur(
+    mqtt_app_client: AsyncClient,
+    db_session: AsyncSession,
+) -> None:
+    """POST двух команд (свет тамбур + теплый пол 25°C) → клиент получает обе в MQTT."""
+    house_id = f"e2e-tambur-{uuid.uuid4().hex[:8]}"
+    device_id = "lm-main"
+    ga_light = "1/1/2"  # Свет - тамбур
+    ga_floor_temp = "1/6/2"  # Темп теплого пола - тамбур
+
+    await ensure_house(house_id, session=db_session)
+    for obj in [
+        Object(
+            house_id=house_id,
+            ga=ga_light,
+            device_id=device_id,
+            object_id=2401,
+            name="Свет - тамбур",
+            datatype=1001,
+            tags="control,light,tambur",
+            is_active=True,
+        ),
+        Object(
+            house_id=house_id,
+            ga=ga_floor_temp,
+            device_id=device_id,
+            object_id=2402,
+            name="Темп теплого пола - тамбур",
+            datatype=9001,
+            tags="temp,floor,tambur",
+            is_active=True,
+        ),
+    ]:
+        db_session.add(obj)
+    await db_session.commit()
+
+    cmd_topic = f"{PREFIX}cm/{house_id}/{device_id}/v1/cmd"
+    received: list[dict] = []
+
+    async def _subscribe_and_collect() -> None:
+        async with aiomqtt.Client(
+            hostname=settings.mqtt_host,
+            port=settings.mqtt_port,
+            identifier=f"test-sub-{uuid.uuid4().hex[:8]}",
+        ) as sub_client:
+            await sub_client.subscribe(cmd_topic, qos=0)
+            async for msg in sub_client.messages:
+                payload = json.loads(msg.payload.decode()) if msg.payload else {}
+                received.append(payload)
+                if len(received) >= 2:
+                    break
+
+    sub_task = asyncio.create_task(_subscribe_and_collect())
+    await asyncio.sleep(0.5)
+
+    # 1. Включи свет в тамбуре
+    resp1 = await mqtt_app_client.post(
+        f"/api/v1/houses/{house_id}/commands",
+        json={"ga": ga_light, "value": True, "comment": "Включи свет в тамбуре"},
+    )
+    assert resp1.status_code == 201
+
+    # 2. Установи температуру теплого пола в тамбуре 25°C
+    resp2 = await mqtt_app_client.post(
+        f"/api/v1/houses/{house_id}/commands",
+        json={"ga": ga_floor_temp, "value": 25.0, "comment": "Установи температуру теплого пола в тамбуре 25С"},
+    )
+    assert resp2.status_code == 201
+
+    try:
+        await asyncio.wait_for(sub_task, timeout=POLL_TIMEOUT)
+    except asyncio.TimeoutError:
+        sub_task.cancel()
+        raise AssertionError(
+            f"Expected 2 MQTT messages on {cmd_topic}, got {len(received)}. "
+            "Check MQTT broker and app mqtt_client."
+        ) from None
+
+    assert len(received) == 2, f"Expected 2 commands, got {len(received)}"
+
+    by_ga = {p.get("ga"): p for p in received}
+    assert ga_light in by_ga, f"Light command not found in {list(by_ga.keys())}"
+    assert ga_floor_temp in by_ga, f"Floor temp command not found in {list(by_ga.keys())}"
+
+    assert by_ga[ga_light]["value"] is True
+    assert by_ga[ga_floor_temp]["value"] == 25.0
+    assert "request_id" in by_ga[ga_light]
+    assert "request_id" in by_ga[ga_floor_temp]
+
+
 async def test_rest_command_light_on_published_to_mqtt(
     mqtt_app_client: AsyncClient,
     db_session: AsyncSession,

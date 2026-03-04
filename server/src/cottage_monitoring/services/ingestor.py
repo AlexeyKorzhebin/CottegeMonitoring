@@ -17,6 +17,8 @@ async def handle_message(message: aiomqtt.Message) -> None:
     """Parse MQTT topic and dispatch to the correct service handler."""
     topic_str = str(message.topic)
     parsed = parse_topic(topic_str, prefix=settings.mqtt_topic_prefix)
+    if parsed is None and not settings.mqtt_topic_prefix and topic_str.startswith("dev/"):
+        parsed = parse_topic(topic_str, prefix="dev/")
     if parsed is None:
         logger.warning("unknown_topic", topic=topic_str)
         return
@@ -40,7 +42,8 @@ async def handle_message(message: aiomqtt.Message) -> None:
     await ensure_house(house_id)
     await ensure_device(house_id, device_id)
 
-    if msg_type != MessageType.STATUS:
+    # CMD_ACK and RPC_RESP are responses to our requests — always process them
+    if msg_type not in (MessageType.STATUS, MessageType.CMD_ACK, MessageType.RPC_RESP):
         active = await is_house_active(house_id)
         if not active:
             logger.warning("message_for_inactive_house", house_id=house_id, message_type=msg_type.value)
@@ -69,6 +72,7 @@ async def handle_message(message: aiomqtt.Message) -> None:
     elif msg_type == MessageType.CMD_ACK:
         from cottage_monitoring.services.command_service import handle_ack
 
+        logger.info("cmd_ack_received", house_id=house_id, request_id=parsed.params["request_id"], topic=topic_str)
         await handle_ack(house_id, parsed.params["request_id"], payload)
     elif msg_type == MessageType.RPC_RESP:
         from cottage_monitoring.services.rpc_service import handle_rpc_response

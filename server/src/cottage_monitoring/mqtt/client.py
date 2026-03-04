@@ -33,13 +33,14 @@ class MqttClient:
         self._backoff = 1.0
         self._shutdown = False
 
-    def _build_client_kwargs(self) -> dict:
+    def _build_client_kwargs(self, *, for_publish: bool = False) -> dict:
+        client_id = (self._client_id or "cottage-monitoring") + ("-pub" if for_publish else "")
         kwargs: dict = {
             "hostname": self._host,
             "port": self._port,
             "username": self._username,
             "password": self._password,
-            "identifier": self._client_id,
+            "identifier": client_id,
         }
         if self._use_tls:
             ctx = ssl.create_default_context()
@@ -54,17 +55,17 @@ class MqttClient:
         """Signal the messages() loop to stop on next reconnect cycle."""
         self._shutdown = True
 
-    def subscribe(self, topic: str) -> None:
-        """Set topic for subscription. Actual subscription happens in messages()."""
-        self._topic = topic
+    def subscribe(self, topic: str | list[str]) -> None:
+        """Set topic(s) for subscription. Actual subscription happens in messages()."""
+        self._topic = topic if isinstance(topic, list) else [topic]
 
-    async def connect_and_subscribe(self, topic: str) -> None:
+    async def connect_and_subscribe(self, topic: str | list[str]) -> None:
         """Set topic for subscription. Connection established in messages() loop."""
         self.subscribe(topic)
 
     async def publish(self, topic: str, payload: str | bytes, qos: int = 1) -> None:
-        """Publish message. Opens a new connection per call."""
-        kwargs = self._build_client_kwargs()
+        """Publish message. Uses separate client_id (-pub suffix) to avoid kicking the subscriber."""
+        kwargs = self._build_client_kwargs(for_publish=True)
         async with aiomqtt.Client(**kwargs) as client:
             await client.publish(topic, payload, qos=qos)
 
@@ -74,16 +75,17 @@ class MqttClient:
             raise ValueError(
                 "Topic not set. Call subscribe(topic) or connect_and_subscribe(topic) first."
             )
-        topic = self._topic
+        topics = self._topic if isinstance(self._topic, list) else [self._topic]
 
         while not self._shutdown:
             try:
                 kwargs = self._build_client_kwargs()
                 async with aiomqtt.Client(**kwargs) as client:
-                    await client.subscribe(topic)
+                    for t in topics:
+                        await client.subscribe(t)
                     self._connected = True
                     self._backoff = 1.0
-                    logger.info("mqtt_connected", host=self._host, port=self._port, topic=topic)
+                    logger.info("mqtt_connected", host=self._host, port=self._port, topics=topics)
                     async for message in client.messages:
                         if self._shutdown:
                             break

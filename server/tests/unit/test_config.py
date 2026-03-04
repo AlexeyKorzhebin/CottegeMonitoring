@@ -62,6 +62,16 @@ class TestMqttSubscriptionTopic:
         s = Settings()
         assert s.mqtt_subscription_topic == "dev/cm/+/+/v1/#"
 
+    def test_mqtt_subscription_topics_prod(self, monkeypatch):
+        _clear_test_env(monkeypatch)
+        s = Settings()
+        assert s.mqtt_subscription_topics == ["cm/+/+/v1/#", "dev/cm/+/+/v1/#"]
+
+    def test_mqtt_subscription_topics_dev(self, monkeypatch):
+        monkeypatch.setenv("MQTT_TOPIC_PREFIX", "dev/")
+        s = Settings()
+        assert s.mqtt_subscription_topics == ["dev/cm/+/+/v1/#"]
+
 
 class TestSettingsFromEnv:
     """Test config reads from environment variables."""

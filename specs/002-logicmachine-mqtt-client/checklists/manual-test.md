@@ -18,7 +18,11 @@
 
 - [ ] LM → Apps → Install Cottage Monitoring
 - [ ] Открыть Config (config-load)
-- [ ] Заполнить house_id, device_id, mqtt_host, mqtt_port, mqtt_username, mqtt_password
+- [ ] Заполнить (референс prod):
+  - house_id: `house`, device_id: `lm-main`, env_mode: `prod`
+  - mqtt_host: `elion.black-castle.ru`, mqtt_port: `8883`
+  - mqtt_username: `lm_estate`, mqtt_password: *
+  - client_id: `auto`, debug: по необходимости, buffer_size: `1000`
 - [ ] Save (config-save)
 - [ ] Daemon перезапустился
 
@@ -47,9 +51,9 @@
 
 ## 7. Cmd from API
 
-- [ ] `POST /api/v1/houses/{house_id}/commands` с ga, value
-- [ ] Команда выполнена на шине
-- [ ] cmd/ack получен с status=ok
+- [ ] `POST /api/v1/houses/house/commands` с ga, value (напр. 1/1/2, 1/6/2)
+- [ ] Команда выполнена на шине (свет/ТП)
+- [ ] cmd/ack получен с status=ok (проверить в БД или journalctl)
 
 ## 8. RPC (optional)
 

@@ -34,7 +34,7 @@ local buffer_size = tonumber(get_cfg('buffer_size', 1000)) or 1000
 local snapshot_interval = tonumber(get_cfg('snapshot_interval', 0)) or 0
 local throttle = tonumber(get_cfg('throttle', 0)) or 0
 
-if client_id == '' then
+if client_id == '' or client_id == 'auto' then
   client_id = (house_id or '') .. '-' .. (device_id or '')
 end
 
@@ -290,6 +290,16 @@ mqtt_client:callback_set('ON_MESSAGE', function(mid, topic, payload, qos, retain
   if topic:match('/cmd$') then
     local req_id = data.request_id
     if not req_id then return end
+    if data.ga and data.value ~= nil then
+      log('CM cmd received: ga=' .. tostring(data.ga) .. ' value=' .. tostring(data.value) .. ' request_id=' .. tostring(req_id))
+    elseif data.items then
+      log('CM cmd received (batch): items=' .. #data.items .. ' request_id=' .. tostring(req_id))
+      for _, it in ipairs(data.items) do
+        log('CM cmd received (batch): ga=' .. tostring(it.ga) .. ' value=' .. tostring(it.value))
+      end
+    else
+      log('CM cmd received: (invalid) request_id=' .. tostring(req_id))
+    end
     local results = {}
     local status = 'ok'
     if data.ga and data.value ~= nil then
@@ -299,7 +309,9 @@ mqtt_client:callback_set('ON_MESSAGE', function(mid, topic, payload, qos, retain
         status = 'error'
       else
         local ok_w, err = pcall(grp.write, data.ga, data.value)
-        table.insert(results, { ga = data.ga, applied = ok_w, error = ok_w and nil or tostring(err) })
+        local r = { ga = data.ga, applied = ok_w }
+        if not ok_w then r.error = tostring(err) end
+        table.insert(results, r)
         if not ok_w then status = 'error' end
       end
     elseif data.items then
@@ -310,7 +322,9 @@ mqtt_client:callback_set('ON_MESSAGE', function(mid, topic, payload, qos, retain
           status = 'error'
         else
           local ok_w, err = pcall(grp.write, it.ga, it.value)
-          table.insert(results, { ga = it.ga, applied = ok_w, error = ok_w and nil or tostring(err) })
+          local r = { ga = it.ga, applied = ok_w }
+          if not ok_w then r.error = tostring(err) end
+          table.insert(results, r)
           if not ok_w then status = 'error' end
         end
       end
@@ -318,13 +332,21 @@ mqtt_client:callback_set('ON_MESSAGE', function(mid, topic, payload, qos, retain
       status = 'error'
       table.insert(results, { ga = nil, applied = false, error = 'missing ga+value or items' })
     end
-    local ack = json.encode({
+    local ok_enc, ack = pcall(json.encode, {
       ts = os.time(),
-      request_id = req_id,
+      request_id = tostring(req_id),
       status = status,
       results = results
     })
-    do_publish('cmd/ack/' .. req_id, ack, 0, false)
+    if not ok_enc or not ack then
+      dlog('cmd ack json.encode failed')
+      return
+    end
+    -- QoS 1 for ack: at-least-once delivery to broker (QoS 0 can lose packets)
+    local ok_pub = do_publish('cmd/ack/' .. tostring(req_id), ack, 1, false)
+    if not ok_pub then
+      dlog('cmd ack publish failed ', tostring(req_id))
+    end
   end
   -- rpc/req
   if topic:match('/rpc/req/') then

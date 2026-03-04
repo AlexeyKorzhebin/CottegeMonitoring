@@ -26,19 +26,19 @@
 
 ---
 
-## Пример config-save payload
+## Пример config-save payload (prod, LogicMachine)
 
 ```json
 {
-  "house_id": "house-01",
+  "house_id": "house",
   "device_id": "lm-main",
   "env_mode": "prod",
   "mqtt_host": "elion.black-castle.ru",
   "mqtt_port": 8883,
-  "mqtt_username": "cottage_client",
-  "mqtt_password": "secret",
+  "mqtt_username": "lm_estate",
+  "mqtt_password": "***",
   "mqtt_use_tls": true,
-  "client_id": "",
+  "client_id": "auto",
   "debug": false,
   "snapshot_interval": 0,
   "throttle": 0,

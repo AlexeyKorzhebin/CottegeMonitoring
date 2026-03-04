@@ -36,5 +36,5 @@ class CommandRead(BaseModel):
     ts_ack: datetime | None
     status: str
     payload: dict
-    results: dict | None
+    results: dict | list | None  # list from cmd/ack: [{ga, applied, error}, ...]
     retry_count: int

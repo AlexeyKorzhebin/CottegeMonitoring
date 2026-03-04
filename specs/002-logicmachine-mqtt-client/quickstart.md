@@ -71,14 +71,14 @@ Daemon автоматически регистрируется при устан
 1. Открыть **Settings → Apps** в веб-интерфейсе LM
 2. В разделе **Dev apps** найти **Cottage Monitoring**, нажать на иконку (откроется главная страница)
 3. Открыть **Config** — иконка шестерёнки в заголовке приложения (или пункт меню). *Примечание*: Config открывается в модальном окне; при первом запуске поля будут пустыми.
-4. Заполнить обязательные поля:
-   - **house_id**: идентификатор дома (например, `house-01`)
-   - **device_id**: идентификатор контроллера (например, `lm-main`)
-   - **env_mode**: `prod` (боевой) или `dev` (тестовая среда)
+4. Заполнить обязательные поля (рекомендуемые значения для prod):
+   - **house_id**: `house`
+   - **device_id**: `lm-main`
+   - **env_mode**: `prod`
    - **mqtt_host**: `elion.black-castle.ru`
    - **mqtt_port**: `8883`
-   - **mqtt_username** / **mqtt_password**: учётные данные MQTT
-5. Опционально: debug, buffer_size, snapshot_interval, throttle
+   - **mqtt_username** / **mqtt_password**: учётные данные MQTT (напр. `lm_estate`)
+5. Опционально: client_id (`auto`), debug, buffer_size (1000), snapshot_interval (0), throttle (0)
 6. Нажать **Save** — daemon перезапустится автоматически
 
 ---
