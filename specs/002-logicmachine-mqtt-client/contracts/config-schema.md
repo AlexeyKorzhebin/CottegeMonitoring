@@ -23,6 +23,8 @@
 | snapshot_interval | number | | ≥ 0, 0 = off |
 | throttle | number | | ≥ 0, 0 = без ограничения |
 | buffer_size | number | | ≥ 0, 0 = буфер отключён |
+| event_sleep | number | | 0–1, пауза (с) после каждого KNX groupwrite, 0 = off. Разгружает контроллер |
+| loop_sleep | number | | 0.01–0.5, пауза (с) в главном цикле. По умолчанию 0.1 |
 
 ---
 
@@ -42,7 +44,9 @@
   "debug": false,
   "snapshot_interval": 0,
   "throttle": 0,
-  "buffer_size": 1000
+  "buffer_size": 1000,
+  "event_sleep": 0,
+  "loop_sleep": 0.1
 }
 ```
 

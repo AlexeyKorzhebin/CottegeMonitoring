@@ -66,11 +66,23 @@
         </div>
         <div class="cm-field">
           <label for="cottage-monitoring-throttle">Throttle (events/с, 0=без лимита)</label>
-          <input type="number" id="cottage-monitoring-throttle" min="0" value="0">
+          <input type="number" id="cottage-monitoring-throttle" min="0" value="30" title="30=снижает нагрузку">
         </div>
         <div class="cm-field">
           <label for="cottage-monitoring-buffer_size">Buffer size (offline, 0=выкл)</label>
           <input type="number" id="cottage-monitoring-buffer_size" min="0" value="1000">
+        </div>
+        <div class="cm-field">
+          <label for="cottage-monitoring-event_sleep">Event sleep (с, 0=выкл)</label>
+          <input type="number" id="cottage-monitoring-event_sleep" min="0" max="1" step="0.01" value="0.02" title="Пауза после KNX-события">
+        </div>
+        <div class="cm-field">
+          <label for="cottage-monitoring-loop_sleep">Loop sleep (с)</label>
+          <input type="number" id="cottage-monitoring-loop_sleep" min="0.01" max="0.5" step="0.01" value="0.15" title="Пауза в главном цикле">
+        </div>
+        <div class="cm-field">
+          <button type="button" id="apply-lowload-btn" class="cm-btn">Применить настройки для снижения нагрузки</button>
+          <span class="cm-help">throttle=30, event_sleep=0.02, loop_sleep=0.15</span>
         </div>
         <button type="button" id="config-save-btn" class="cm-btn cm-save">Сохранить</button>
       </form>
@@ -115,6 +127,13 @@ $(function() {
     return s && typeof s === 'string' && s.length <= 64 && /^[a-zA-Z0-9_-]+$/.test(s);
   }
 
+  $('#apply-lowload-btn').on('click', function() {
+    $('#' + APP + '-throttle').val(30);
+    $('#' + APP + '-event_sleep').val(0.02);
+    $('#' + APP + '-loop_sleep').val(0.15);
+    $status.text('Настройки вставлены. Нажмите «Сохранить».');
+  });
+
   $('#config-save-btn').on('click', function() {
     var house_id = $.trim($('#' + APP + '-house_id').val());
     var device_id = $.trim($('#' + APP + '-device_id').val());
@@ -124,8 +143,10 @@ $(function() {
     var mqtt_username = $.trim($('#' + APP + '-mqtt_username').val());
     var mqtt_password = $('#' + APP + '-mqtt_password').val();
     var snapshot_interval = parseInt($('#' + APP + '-snapshot_interval').val(), 10) || 0;
-    var throttle = parseInt($('#' + APP + '-throttle').val(), 10) || 0;
+    var throttle = parseInt($('#' + APP + '-throttle').val(), 10) || 30;
     var buffer_size = parseInt($('#' + APP + '-buffer_size').val(), 10) || 0;
+    var event_sleep = parseFloat($('#' + APP + '-event_sleep').val()) || 0.02;
+    var loop_sleep = parseFloat($('#' + APP + '-loop_sleep').val()) || 0.15;
 
     if (!validId(house_id)) { alert('house_id: 1-64 символов [a-zA-Z0-9_-]'); return; }
     if (!validId(device_id)) { alert('device_id: 1-64 символов [a-zA-Z0-9_-]'); return; }
@@ -144,7 +165,8 @@ $(function() {
       mqtt_username: mqtt_username, mqtt_password: mqtt_password,
       mqtt_use_tls: true, client_id: $.trim($('#' + APP + '-client_id').val()),
       debug: $('#' + APP + '-debug').prop('checked'),
-      snapshot_interval: snapshot_interval, throttle: throttle, buffer_size: buffer_size
+      snapshot_interval: snapshot_interval, throttle: throttle, buffer_size: buffer_size,
+      event_sleep: event_sleep, loop_sleep: loop_sleep
     };
 
     $.post('config_save.lp', { config: JSON.stringify(payload) })

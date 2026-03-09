@@ -32,7 +32,9 @@ local mqtt_password = get_cfg('mqtt_password', '') or ''
 local client_id = get_cfg('client_id', '') or ''
 local buffer_size = tonumber(get_cfg('buffer_size', 1000)) or 1000
 local snapshot_interval = tonumber(get_cfg('snapshot_interval', 0)) or 0
-local throttle = tonumber(get_cfg('throttle', 0)) or 0
+local throttle = tonumber(get_cfg('throttle', 30)) or 30
+local event_sleep = tonumber(get_cfg('event_sleep', 0.02)) or 0.02
+local loop_sleep = tonumber(get_cfg('loop_sleep', 0.15)) or 0.15
 
 if client_id == '' or client_id == 'auto' then
   client_id = (house_id or '') .. '-' .. (device_id or '')
@@ -158,10 +160,12 @@ local function publish_meta_and_snapshot()
         objects = objects
       })
       do_publish('meta/objects/chunk/' .. chunk_no, payload, 1, true)
+      if chunk_no < chunk_total then os.sleep(0.02) end
     end
   end
 
-  -- Snapshot: state for each object
+  -- Snapshot: state for each object (with yield to reduce CPU spikes)
+  local pub_cnt = 0
   for _, o in ipairs(sorted) do
     local val = o.value
     if val == nil then
@@ -175,6 +179,8 @@ local function publish_meta_and_snapshot()
     })
     local ga_safe = (o.address or ''):gsub('/', '-')
     do_publish('state/ga/' .. ga_safe, state_payload, 1, true)
+    pub_cnt = pub_cnt + 1
+    if pub_cnt >= 30 then pub_cnt = 0; os.sleep(0.02) end
   end
 end
 
@@ -186,6 +192,7 @@ local function publish_snapshot_only()
   end
   table.sort(sorted, function(a, b) return (a.address or '') < (b.address or '') end)
   local ts = os.time()
+  local pub_cnt = 0
   for _, o in ipairs(sorted) do
     local val = o.value
     if val == nil then
@@ -195,6 +202,8 @@ local function publish_snapshot_only()
     local state_payload = json.encode({ ts = ts, value = val, datatype = o.datatype or 0 })
     local ga_safe = (o.address or ''):gsub('/', '-')
     do_publish('state/ga/' .. ga_safe, state_payload, 1, true)
+    pub_cnt = pub_cnt + 1
+    if pub_cnt >= 30 then pub_cnt = 0; os.sleep(0.02) end
   end
 end
 
@@ -242,6 +251,7 @@ lb:sethandler('groupwrite', function(event)
   })
   local ga_safe = (obj.address or dst or ''):gsub('/', '-')
   do_publish('state/ga/' .. ga_safe, state_payload, 1, true)
+  if event_sleep > 0 then os.sleep(event_sleep) end
 end)
 
 -- MQTT setup
@@ -263,10 +273,16 @@ mqtt_client:callback_set('ON_CONNECT', function()
   mqtt_publish(base_topic .. 'status/online', json.encode({ ts = os.time(), status = 'online', version = '1.0.0' }), 1, true)
   mqtt_client:subscribe(base_topic .. 'cmd', 1)
   mqtt_client:subscribe(base_topic .. 'rpc/req/' .. cid, 1)
-  -- Flush buffer
+  -- Flush buffer (with yield to reduce CPU spikes)
+  local flush_cnt = 0
   while #buffer > 0 do
     local e = table.remove(buffer, 1)
     mqtt_client:publish(e.topic, e.payload, e.qos, e.retain)
+    flush_cnt = flush_cnt + 1
+    if flush_cnt >= 20 then
+      flush_cnt = 0
+      os.sleep(0.02)
+    end
   end
   publish_meta_and_snapshot()
 end)
@@ -382,6 +398,7 @@ mqtt_client:callback_set('ON_MESSAGE', function(mid, topic, payload, qos, retain
       end
       table.sort(sorted, function(a, b) return (a.address or '') < (b.address or '') end)
       local states = {}
+      local rpc_cnt = 0
       for _, o in ipairs(sorted) do
         local val = o.value
         if val == nil then
@@ -389,6 +406,8 @@ mqtt_client:callback_set('ON_MESSAGE', function(mid, topic, payload, qos, retain
           val = ok_v and v or nil
         end
         table.insert(states, { ga = o.address, value = val, datatype = o.datatype or 0 })
+        rpc_cnt = rpc_cnt + 1
+        if rpc_cnt >= 30 then rpc_cnt = 0; os.sleep(0.02) end
       end
       local resp = json.encode({
         request_id = req_id,
@@ -414,13 +433,14 @@ dlog('Cottage Monitoring daemon starting')
 while true do
   lb:step()
   if mqtt_client then
-    mqtt_client:loop(100)
     if reconnect_scheduled and not mqtt_connected_flag then
       reconnect_scheduled = false
       os.sleep(2)
       if mqtt_host and mqtt_host ~= '' then
         mqtt_client:connect(mqtt_host, mqtt_port, 60)
       end
+    else
+      mqtt_client:loop(100)
     end
   end
   if storage.get('force_export') then
@@ -434,5 +454,5 @@ while true do
       publish_snapshot_only()
     end
   end
-  os.sleep(0.05)
+  os.sleep(loop_sleep)
 end
