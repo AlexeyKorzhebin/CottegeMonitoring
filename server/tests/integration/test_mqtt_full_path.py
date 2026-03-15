@@ -120,6 +120,88 @@ async def test_state_via_mqtt(
     assert row.datatype == 9001
 
 
+# ---------- 2b. EVENT_BATCH ----------
+
+
+async def test_events_batch_via_mqtt(
+    mqtt_app_client: AsyncClient,
+    db_session: AsyncSession,
+) -> None:
+    """Publish events/batch → multiple rows in events table."""
+    house_id = f"e2e-batch-evt-{uuid.uuid4().hex[:8]}"
+    topic = f"{PREFIX}cm/{house_id}/lm-main/v1/events/batch"
+    payload = {
+        "events": [
+            {"ts": 1730001000, "seq": 1, "type": "knx.groupwrite", "ga": "1/1/1", "id": 1, "name": "A", "datatype": 1001, "value": True},
+            {"ts": 1730001001, "seq": 2, "type": "knx.groupwrite", "ga": "1/1/2", "id": 2, "name": "B", "datatype": 1001, "value": False},
+        ],
+    }
+    # Retry publish once on flaky MQTT (disconnect during iteration)
+    for attempt in range(2):
+        await asyncio.sleep(0.5 if attempt else 0)
+        await _publish(topic, payload)
+
+        async def _check():
+            result = await db_session.execute(
+                select(Event).where(Event.house_id == house_id).order_by(Event.seq)
+            )
+            rows = result.scalars().all()
+            return rows if len(rows) >= 2 else None
+
+        rows = await _poll(_check, timeout=8.0)
+        if rows is not None:
+            break
+    assert rows is not None, "Events batch not found in DB (publish retried)"
+    assert len(rows) >= 2
+    assert rows[0].ga == "1/1/1" and rows[0].value is True
+    assert rows[1].ga == "1/1/2" and rows[1].value is False
+
+
+# ---------- 2c. STATE_BATCH ----------
+
+
+async def test_states_batch_via_mqtt(
+    mqtt_app_client: AsyncClient,
+    db_session: AsyncSession,
+) -> None:
+    """Publish state/batch → multiple current_state rows upserted."""
+    house_id = f"e2e-batch-st-{uuid.uuid4().hex[:8]}"
+    topic = f"{PREFIX}cm/{house_id}/lm-main/v1/state/batch"
+    payload = {
+        "states": [
+            {"ga": "1-1-10", "ts": 1730001100, "value": 100, "datatype": 7},
+            {"ga": "1-1-11", "ts": 1730001100, "value": 200, "datatype": 7},
+        ],
+    }
+    # Retry publish once on flaky MQTT (disconnect during iteration)
+    rows_result = None
+    for attempt in range(2):
+        await asyncio.sleep(0.5 if attempt else 0)
+        await _publish(topic, payload)
+
+        async def _check():
+            r1 = await db_session.execute(
+                select(CurrentState).where(
+                    CurrentState.house_id == house_id, CurrentState.ga == "1-1-10"
+                )
+            )
+            r2 = await db_session.execute(
+                select(CurrentState).where(
+                    CurrentState.house_id == house_id, CurrentState.ga == "1-1-11"
+                )
+            )
+            s1, s2 = r1.scalar_one_or_none(), r2.scalar_one_or_none()
+            return (s1, s2) if s1 and s2 else None
+
+        rows_result = await _poll(_check, timeout=8.0)
+        if rows_result is not None:
+            break
+    assert rows_result is not None, "States batch not found in DB (publish retried)"
+    row1, row2 = rows_result
+    assert row1.value == 100
+    assert row2.value == 200
+
+
 # ---------- 3. META FULL ----------
 
 
