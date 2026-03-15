@@ -12,7 +12,9 @@ class MessageType(Enum):
     """Message type inferred from topic's rest segment."""
 
     EVENT = "event"
+    EVENT_BATCH = "event_batch"
     STATE = "state"
+    STATE_BATCH = "state_batch"
     META_FULL = "meta_full"
     META_CHUNK = "meta_chunk"
     STATUS = "status"
@@ -61,6 +63,12 @@ def parse_topic(topic: str, prefix: str = "") -> ParsedTopic | None:
 
     if rest == "events":
         return ParsedTopic(house_id=house_id, device_id=device_id, message_type=MessageType.EVENT, params={})
+
+    if rest == "events/batch":
+        return ParsedTopic(house_id=house_id, device_id=device_id, message_type=MessageType.EVENT_BATCH, params={})
+
+    if rest == "state/batch":
+        return ParsedTopic(house_id=house_id, device_id=device_id, message_type=MessageType.STATE_BATCH, params={})
 
     if rest.startswith("state/ga/"):
         ga = rest[len("state/ga/") :]

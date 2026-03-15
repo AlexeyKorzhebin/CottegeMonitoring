@@ -14,6 +14,14 @@ class TestParseTopic:
         assert result.message_type == MessageType.EVENT
         assert result.params == {}
 
+    def test_events_batch_topic(self):
+        result = parse_topic("cm/house-01/lm-main/v1/events/batch", prefix="")
+        assert result is not None
+        assert result.house_id == "house-01"
+        assert result.device_id == "lm-main"
+        assert result.message_type == MessageType.EVENT_BATCH
+        assert result.params == {}
+
     def test_state_topic(self):
         result = parse_topic("cm/house-01/lm-main/v1/state/ga/1/1/1", prefix="")
         assert result is not None
@@ -61,6 +69,22 @@ class TestParseTopic:
         assert result.device_id == "lm-main"
         assert result.message_type == MessageType.RPC_RESP
         assert result.params == {"client_id": "client-1", "request_id": "req-456"}
+
+    def test_events_batch_topic(self):
+        result = parse_topic("cm/house-01/lm-main/v1/events/batch", prefix="")
+        assert result is not None
+        assert result.house_id == "house-01"
+        assert result.device_id == "lm-main"
+        assert result.message_type == MessageType.EVENT_BATCH
+        assert result.params == {}
+
+    def test_state_batch_topic(self):
+        result = parse_topic("cm/house-01/lm-main/v1/state/batch", prefix="")
+        assert result is not None
+        assert result.house_id == "house-01"
+        assert result.device_id == "lm-main"
+        assert result.message_type == MessageType.STATE_BATCH
+        assert result.params == {}
 
     def test_with_dev_prefix(self):
         result = parse_topic("dev/cm/house-01/lm-main/v1/events", prefix="dev/")

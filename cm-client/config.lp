@@ -39,8 +39,16 @@
     <input type="text" id="cottage-monitoring-client_id" class="form-control" placeholder="auto" maxlength="64">
   </div>
   <div class="form-group">
-    <label for="cottage-monitoring-debug">Debug</label>
-    <input type="checkbox" id="cottage-monitoring-debug">
+    <label for="cottage-monitoring-debug_level">Debug level (0=off, 1=batch, 2=verbose)</label>
+    <input type="number" id="cottage-monitoring-debug_level" class="form-control" min="0" max="2" value="0" title="1=логи сброса буфера, 2=все отладочные логи">
+  </div>
+  <div class="form-group">
+    <label for="cottage-monitoring-batch_interval">Batch interval (s, 0=immediate)</label>
+    <input type="number" id="cottage-monitoring-batch_interval" class="form-control" min="0" max="10" step="0.5" value="1.5" title="интервал отправки буфера событий">
+  </div>
+  <div class="form-group">
+    <label for="cottage-monitoring-batch_max_size">Batch max size (0=unlimited)</label>
+    <input type="number" id="cottage-monitoring-batch_max_size" class="form-control" min="0" value="50" title="сброс буфера при достижении размера">
   </div>
   <div class="form-group">
     <label for="cottage-monitoring-snapshot_interval">Snapshot interval (s, 0=off)</label>
@@ -64,7 +72,7 @@
   </div>
   <div class="form-group">
     <button type="button" id="cottage-monitoring-apply-lowload" class="btn btn-default">Применить настройки для снижения нагрузки</button>
-    <span class="help-block">throttle=30, event_sleep=0.02, loop_sleep=0.15</span>
+    <span class="help-block">throttle=30, batch_interval=1.5, batch_max_size=50, debug_level=1</span>
   </div>
 </form>
 
@@ -77,6 +85,9 @@
     $('#' + APP + '-throttle').val(30);
     $('#' + APP + '-event_sleep').val(0.02);
     $('#' + APP + '-loop_sleep').val(0.15);
+    $('#' + APP + '-batch_interval').val(1.5);
+    $('#' + APP + '-batch_max_size').val(50);
+    $('#' + APP + '-debug_level').val(1);
     el.triggerHandler('config-check');
   });
 
@@ -112,6 +123,9 @@
     var buffer_size = parseInt($('#' + APP + '-buffer_size').val(), 10) || 0;
     var event_sleep = parseFloat($('#' + APP + '-event_sleep').val()) || 0.02;
     var loop_sleep = parseFloat($('#' + APP + '-loop_sleep').val()) || 0.15;
+    var batch_interval = parseFloat($('#' + APP + '-batch_interval').val()) || 1.5;
+    var batch_max_size = parseInt($('#' + APP + '-batch_max_size').val(), 10) || 50;
+    var debug_level = parseInt($('#' + APP + '-debug_level').val(), 10) || 0;
 
     if (!validId(house_id, 'house_id')) {
       alert('house_id: 1-64 chars [a-zA-Z0-9_-]');
@@ -162,7 +176,6 @@
       return;
     }
     var client_id = $.trim($('#' + APP + '-client_id').val());
-    var debug = $('#' + APP + '-debug').prop('checked');
 
     el.triggerHandler('config-save', {
       house_id: house_id,
@@ -174,7 +187,9 @@
       mqtt_password: mqtt_password,
       mqtt_use_tls: true,
       client_id: client_id,
-      debug: debug,
+      debug_level: debug_level,
+      batch_interval: batch_interval,
+      batch_max_size: batch_max_size,
       snapshot_interval: snapshot_interval,
       throttle: throttle,
       buffer_size: buffer_size,

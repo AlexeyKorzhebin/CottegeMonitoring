@@ -53,10 +53,18 @@ async def handle_message(message: aiomqtt.Message) -> None:
         from cottage_monitoring.services.state_service import handle_state
 
         await handle_state(house_id, device_id, parsed.params["ga"], payload)
+    elif msg_type == MessageType.STATE_BATCH:
+        from cottage_monitoring.services.state_service import handle_states_batch
+
+        await handle_states_batch(house_id, device_id, payload)
     elif msg_type == MessageType.EVENT:
         from cottage_monitoring.services.event_service import handle_event
 
         await handle_event(house_id, device_id, payload)
+    elif msg_type == MessageType.EVENT_BATCH:
+        from cottage_monitoring.services.event_service import handle_events_batch
+
+        await handle_events_batch(house_id, device_id, payload)
     elif msg_type == MessageType.META_FULL:
         from cottage_monitoring.services.schema_service import handle_full_meta
 

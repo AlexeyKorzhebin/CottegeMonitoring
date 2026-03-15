@@ -14,7 +14,9 @@
 | mqtt_username, mqtt_password | Учётные данные MQTT |
 | mqtt_use_tls | TLS (всегда включён) |
 | client_id | Опционально (по умолчанию house_id-device_id) |
-| debug | Включить log/alert |
+| debug_level | 0=выкл, 1=логи сброса буфера, 2=все отладочные логи |
+| batch_interval | Интервал отправки буфера (с), 0 = немедленно |
+| batch_max_size | Сброс буфера при достижении размера, 0 = без лимита |
 | snapshot_interval | Периодический snapshot (с), 0 = выкл |
 | throttle | Макс. events/с, 0 = без ограничения |
 | buffer_size | Размер буфера при offline |

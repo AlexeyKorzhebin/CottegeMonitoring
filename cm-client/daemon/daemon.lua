@@ -11,14 +11,22 @@ local function get_cfg(key, default)
   return config.get('cottage-monitoring', key, default)
 end
 
-local debug_en = (get_cfg('debug', 'false') == 'true' or get_cfg('debug', false) == true)
+-- debug_level: 0=off, 1=batch flush (time, size), 2=verbose (all debug logs)
+local function get_debug_level()
+  local dl = get_cfg('debug_level', '')
+  if dl ~= '' and dl ~= nil then
+    return tonumber(dl) or 0
+  end
+  return (get_cfg('debug', 'false') == 'true' or get_cfg('debug', false) == true) and 1 or 0
+end
+local debug_level = get_debug_level()
 
 local function dlog(...)
-  if debug_en then log(...) end
+  if debug_level >= 2 then log(...) end
 end
 
 local function dalert(fmt, ...)
-  if debug_en then alert(fmt, ...) end
+  if debug_level >= 2 then alert(fmt, ...) end
 end
 
 -- Config
@@ -35,6 +43,8 @@ local snapshot_interval = tonumber(get_cfg('snapshot_interval', 0)) or 0
 local throttle = tonumber(get_cfg('throttle', 30)) or 30
 local event_sleep = tonumber(get_cfg('event_sleep', 0.02)) or 0.02
 local loop_sleep = tonumber(get_cfg('loop_sleep', 0.15)) or 0.15
+local batch_interval = tonumber(get_cfg('batch_interval', 1.5)) or 1.5
+local batch_max_size = tonumber(get_cfg('batch_max_size', 50)) or 50
 
 if client_id == '' or client_id == 'auto' then
   client_id = (house_id or '') .. '-' .. (device_id or '')
@@ -45,6 +55,10 @@ local base_topic = ((env_mode == 'dev') and 'dev/' or '') .. 'cm/' .. house_id .
 
 -- Buffer (RAM) when MQTT disconnected
 local buffer = {}
+
+-- Batch buffer: accumulate events before sending (reduces MQTT load)
+local event_batch = {}
+local last_batch_flush_ts = 0
 
 local function buf_add(entry)
   if buffer_size <= 0 then return end
@@ -88,6 +102,39 @@ local function do_publish(topic, payload, qos, retain)
   else
     buf_add({ topic = full_topic, payload = payload, qos = qos or 1, retain = retain or false })
     return false
+  end
+end
+
+-- Flush batch buffer: один send events/batch + один send state/batch (снижает нагрузку на контроллер)
+local function flush_batch(reason)
+  if #event_batch == 0 then return end
+  local sec0, usec0 = os.microtime()
+  local n = #event_batch
+  local state_by_ga = {}
+  for _, item in ipairs(event_batch) do
+    state_by_ga[item.ga] = item.state
+  end
+  local events_arr = {}
+  for _, item in ipairs(event_batch) do
+    local ok, evt = pcall(json.decode, item.evt)
+    if ok and evt then table.insert(events_arr, evt) end
+  end
+  local states_arr = {}
+  for ga, payload in pairs(state_by_ga) do
+    local ok, s = pcall(json.decode, payload)
+    if ok and s and ga then s.ga = ga; table.insert(states_arr, s) end
+  end
+  if #events_arr > 0 then
+    do_publish('events/batch', json.encode({ events = events_arr }), 0, false)
+  end
+  if #states_arr > 0 then
+    do_publish('state/batch', json.encode({ states = states_arr }), 1, false)
+  end
+  event_batch = {}
+  last_batch_flush_ts = os.time()
+  local dur = os.udifftime(sec0, usec0)
+  if debug_level >= 1 then
+    log(string.format('CM batch flush: reason=%s dur=%.2fs size=%d states=%d', reason or 'flush', dur, n, #states_arr))
   end
 end
 
@@ -243,14 +290,21 @@ lb:sethandler('groupwrite', function(event)
     datatype = obj.datatype or 0,
     value = val
   })
-  do_publish('events', evt_payload, 0, false)
   local state_payload = json.encode({
     ts = ts,
     value = val,
     datatype = obj.datatype or 0
   })
   local ga_safe = (obj.address or dst or ''):gsub('/', '-')
-  do_publish('state/ga/' .. ga_safe, state_payload, 1, true)
+  if batch_interval > 0 then
+    table.insert(event_batch, { evt = evt_payload, ga = ga_safe, state = state_payload })
+    if batch_max_size > 0 and #event_batch >= batch_max_size then
+      flush_batch('size')
+    end
+  else
+    do_publish('events', evt_payload, 0, false)
+    do_publish('state/ga/' .. ga_safe, state_payload, 1, true)
+  end
   if event_sleep > 0 then os.sleep(event_sleep) end
 end)
 
@@ -429,9 +483,16 @@ if mqtt_host and mqtt_host ~= '' then
 end
 
 dlog('Cottage Monitoring daemon starting')
+last_batch_flush_ts = os.time()
 
 while true do
   lb:step()
+  if batch_interval > 0 and #event_batch > 0 then
+    local now = os.time()
+    if now - last_batch_flush_ts >= batch_interval then
+      flush_batch('timer')
+    end
+  end
   if mqtt_client then
     if reconnect_scheduled and not mqtt_connected_flag then
       reconnect_scheduled = false
