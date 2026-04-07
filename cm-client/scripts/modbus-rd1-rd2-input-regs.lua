@@ -8,7 +8,7 @@
     Для Modbus TCP на LM после open нужен connect() (форум/KB), иначе Bad file descriptor.
   • READ_STRATEGY 'block' — один readinputregisters(start,n); 'single' — по одному адресу (док.RD).
     Блочный ответ на части LM — N чисел как N return values; скрипт собирает в таблицу.
-  • Температура: value = mult * (raw - raw_zero) / div (таблица CAL; в outputs можно mult/raw_zero/div).
+  • Температура: value = mult * (raw - raw_zero) / div (таблица CAL; в outputs можно mult/raw_zero/div; см. CAL_25 для .25).
   • Запись: grp.checkupdate(addr, value, delta) — третий аргумент: минимальная дельта (°C) для обновления шины.
 
   API: docs/LogicMachine Modbus RTU Master Lua API.pdf + tcp()/connect() для TCP.
@@ -19,10 +19,19 @@
   true (отладка): сводки raw_registers, строка на каждый grp, замеры modbus_only и main() dur.
 ]]
 
--- Глобальная калибровка: grp.checkupdate('1/3/?', 20 * (x - 2258) / 145)
+-- Глобальная калибровка (5 В, rd1/rd2): grp.checkupdate('1/3/?', 20 * (x - 2258) / 145)
 local CAL = {
     mult = 20,
     raw_zero = 2258,
+    div = 145,
+}
+
+-- 192.168.100.25 (~3.3 В): тот же mult/div, raw_zero по эталону (raw=1133 → 11 °C).
+-- 11 = 20 * (1133 - raw_zero) / 145  ⇒  raw_zero = 1133 - 11*145/20 = 1053.25
+-- Вторая точка (наклон) при необходимости: подобрать div или mult по второму (raw, T).
+local CAL_25 = {
+    mult = 20,
+    raw_zero = 1053.25,
     div = 145,
 }
 
@@ -83,6 +92,17 @@ local DEVICES = {
             { addr = '1/3/11' }, -- IR14
             { addr = '1/3/14' }, -- IR15
             { addr = '1/3/15' }, -- IR16
+        },
+    },
+    {
+        host = '192.168.100.25',
+        port = 502,
+        unit_id = 25,
+        start_ir = 18,
+        count = 1,
+        outputs = {
+            -- IR18: своя калибровка (3.3 В), см. CAL_25
+            { addr = '1/3/16', mult = CAL_25.mult, raw_zero = CAL_25.raw_zero, div = CAL_25.div },
         },
     },
 }
