@@ -20,6 +20,8 @@ dependencies = [
     "prometheus-client>=0.21",
     "structlog>=24.4",
     "mcp>=1.0",
+    "pymorphy3>=2.0",
+    "pymorphy3-dicts-ru>=2.4",
 ]
 
 [project.optional-dependencies]

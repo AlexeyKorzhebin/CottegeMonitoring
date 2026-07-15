@@ -49,6 +49,27 @@ def test_query_matches_outdoor_russian_to_outside_tag() -> None:
     assert _query_matches("кухня", o) is False
 
 
+def test_query_matches_russian_cases() -> None:
+    from cottage_monitoring.services.object_resolver import _query_matches
+
+    kitchen = _obj("1/1/7", "Свет - кухня", "1floor,control,light")
+    porch = _obj("1/1/1", "Свет - крыльцо", "control,light,outside")
+    terrace = _obj("1/1/5", "Свет - терраса", "control,light,outside")
+    guest = _obj("1/1/3", "Свет - гостевая", "1floor,control,light")
+    nastya = _obj("1/1/9", "Свет - спальня Насти", "1floor,control,light")
+
+    assert _query_matches("кухне", kitchen) is True
+    assert _query_matches("свет в кухне", kitchen) is True
+    assert _query_matches("кухню", kitchen) is True
+    assert _query_matches("крыльце", porch) is True
+    assert _query_matches("террасу", terrace) is True
+    assert _query_matches("гостевой", guest) is True
+    assert _query_matches("в гостевую", guest) is True
+    assert _query_matches("настиной", nastya) is True
+    assert _query_matches("террасу", kitchen) is False
+    assert _query_matches("кухне", porch) is False
+
+
 async def test_resolve_kitchen_light_unique(db_session) -> None:
     import pytest
     from cottage_monitoring.services.house_service import ensure_house

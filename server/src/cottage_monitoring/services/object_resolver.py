@@ -2,16 +2,58 @@
 
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass
 from enum import StrEnum
-from typing import Literal
+from functools import lru_cache
+from typing import TYPE_CHECKING, Literal
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from cottage_monitoring.models.object import Object
 
+if TYPE_CHECKING:
+    from pymorphy3 import MorphAnalyzer
+
 ResolveStatus = Literal["ok", "not_found", "ambiguous"]
+
+_TOKEN_RE = re.compile(r"[a-zA-Zа-яА-ЯёЁ0-9]+")
+
+# Tokens that appear in almost every query/name and must not drive matching.
+_STOP_LEMMAS = frozenset(
+    {
+        "свет",
+        "освещение",
+        "статус",
+        "температура",
+        "темп",
+        "датчик",
+        "значение",
+        "комната",
+        "этаж",
+        "уставка",
+        "контроль",
+        "control",
+        "light",
+        "status",
+        "temp",
+        "sensor",
+        "floor",
+        "heat",
+        "setpoint",
+    }
+)
+
+# Map surface / lemma forms to the tokens used in object names/tags.
+_SYNONYMS = {
+    "зал": "гостиная",
+    "гостиная": "гостиная",
+    "настя": "настин",
+    "наст": "настин",  # pymorphy sometimes yields this for «Насте»
+    "настина": "настин",
+    "тим": "тимин",
+}
 
 
 class ObjectRole(StrEnum):
@@ -152,20 +194,59 @@ def _roles_for_kind(kind: DiscoverKind | None) -> set[ObjectRole] | None:
     return mapping[kind]
 
 
+@lru_cache(maxsize=1)
+def _morph() -> MorphAnalyzer:
+    import pymorphy3
+
+    return pymorphy3.MorphAnalyzer()
+
+
+def _tokens(text: str) -> list[str]:
+    return [t for t in _TOKEN_RE.findall(text.lower().replace("ё", "е")) if len(t) >= 2]
+
+
+@lru_cache(maxsize=4096)
+def _lemma(token: str) -> str:
+    parses = _morph().parse(token)
+    if not parses:
+        return token
+    return parses[0].normal_form.replace("ё", "е")
+
+
+def _normalized_lemmas(text: str) -> set[str]:
+    """Surface tokens + lemmas + synonym expansions for fuzzy matching."""
+    out: set[str] = set()
+    for token in _tokens(text):
+        variants = {token, _lemma(token)}
+        expanded: set[str] = set()
+        for v in variants:
+            expanded.add(v)
+            for src, dst in _SYNONYMS.items():
+                if src in v or v == src:
+                    expanded.add(dst)
+                    if src in v and src != v:
+                        expanded.add(v.replace(src, dst))
+        out |= expanded
+    return out
+
+
+def _significant_lemmas(text: str) -> set[str]:
+    return {
+        lemma
+        for lemma in _normalized_lemmas(text)
+        if lemma not in _STOP_LEMMAS and len(lemma) >= 3
+    }
+
+
 def _query_matches(query: str | None, obj: Object) -> bool:
     if not query:
         return True
-    q = query.lower().strip()
-    name = (obj.name or "").lower()
-    tags = (obj.tags or "").lower()
-    synonyms = {
-        "зал": "гостиная",
-        "гостиная": "гостиная",
-        "настя": "настин",
-        "тим": "тимин",
-    }
+    q = query.lower().strip().replace("ё", "е")
+    name = (obj.name or "").lower().replace("ё", "е")
+    tags = (obj.tags or "").lower().replace("ё", "е")
+
     expanded = {q}
-    for src, dst in synonyms.items():
+    for src, dst in _SYNONYMS.items():
         if src in q:
             expanded.add(q.replace(src, dst))
     # Outdoor lights are tagged "outside" (EN); agents usually ask in Russian.
@@ -185,7 +266,13 @@ def _query_matches(query: str | None, obj: Object) -> bool:
     for token in expanded:
         if token in name or token in tags:
             return True
-    return False
+
+    # Morphological match: «кухне»/«кухню» → «кухня», «крыльце» → «крыльцо».
+    query_sig = _significant_lemmas(q)
+    if not query_sig:
+        return False
+    name_sig = _significant_lemmas(f"{name} {tags}")
+    return bool(query_sig & name_sig)
 
 
 def _exclude_master_unless_requested(obj: Object, query: str | None) -> bool:
