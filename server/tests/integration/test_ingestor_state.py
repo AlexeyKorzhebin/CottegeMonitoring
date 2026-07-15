@@ -9,7 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from cottage_monitoring.models.house import House
 from cottage_monitoring.models.state import CurrentState
 from cottage_monitoring.services.house_service import ensure_house
-from cottage_monitoring.services.state_service import handle_state
+from cottage_monitoring.services.state_service import handle_state, storage_ga, upsert_current_state
 
 pytestmark = pytest.mark.integration
 
@@ -17,7 +17,7 @@ SAMPLE_PAYLOAD = {"ts": 1730000000, "value": True, "datatype": 1001}
 
 
 async def test_state_upsert_new(db_session: AsyncSession) -> None:
-    """First state for a GA → insert into current_state."""
+    """First state for a GA → insert into current_state (dash-canonical)."""
     house_id = "house-state-new"
     ga = "1/1/1"
     await ensure_house(house_id, session=db_session)
@@ -29,11 +29,12 @@ async def test_state_upsert_new(db_session: AsyncSession) -> None:
 
     result = await db_session.execute(
         select(CurrentState).where(
-            CurrentState.house_id == house_id, CurrentState.ga == ga
+            CurrentState.house_id == house_id, CurrentState.ga == storage_ga(ga)
         )
     )
     row = result.scalar_one_or_none()
     assert row is not None
+    assert row.ga == "1-1-1"
     assert row.value is True
     assert row.datatype == 1001
     assert row.ts is not None
@@ -53,13 +54,59 @@ async def test_state_upsert_existing(db_session: AsyncSession) -> None:
 
     result = await db_session.execute(
         select(CurrentState).where(
-            CurrentState.house_id == house_id, CurrentState.ga == ga
+            CurrentState.house_id == house_id, CurrentState.ga == storage_ga(ga)
         )
     )
     row = result.scalar_one_or_none()
     assert row is not None
     assert row.value is False
     assert row.ts is not None
+
+
+async def test_state_rejects_older_ts(db_session: AsyncSession) -> None:
+    """Stale retained MQTT must not overwrite a newer current_state."""
+    house_id = "house-state-older"
+    ga = "1-2-1"
+    await ensure_house(house_id, session=db_session)
+    await upsert_current_state(
+        house_id, "lm-main", ga, ts_epoch=1730001000, value=True, datatype=1001, session=db_session
+    )
+    await db_session.commit()
+
+    applied = await upsert_current_state(
+        house_id, "lm-main", ga, ts_epoch=1730000000, value=False, datatype=1001, session=db_session
+    )
+    await db_session.commit()
+    assert applied is False
+
+    result = await db_session.execute(
+        select(CurrentState).where(CurrentState.house_id == house_id, CurrentState.ga == ga)
+    )
+    row = result.scalar_one_or_none()
+    assert row is not None
+    assert row.value is True
+
+
+async def test_state_slash_and_dash_same_row(db_session: AsyncSession) -> None:
+    """Slash event GA and dash MQTT GA must not create duplicate rows."""
+    house_id = "house-state-fmt"
+    await ensure_house(house_id, session=db_session)
+    await handle_state(
+        house_id, "lm-main", "1/2/5", {"ts": 1730000000, "value": False, "datatype": 1001}, session=db_session
+    )
+    await db_session.commit()
+    await handle_state(
+        house_id, "lm-main", "1-2-5", {"ts": 1730000500, "value": True, "datatype": 1001}, session=db_session
+    )
+    await db_session.commit()
+
+    result = await db_session.execute(
+        select(CurrentState).where(CurrentState.house_id == house_id)
+    )
+    rows = result.scalars().all()
+    assert len(rows) == 1
+    assert rows[0].ga == "1-2-5"
+    assert rows[0].value is True
 
 
 async def test_state_server_received_ts(db_session: AsyncSession) -> None:
@@ -72,7 +119,7 @@ async def test_state_server_received_ts(db_session: AsyncSession) -> None:
 
     result = await db_session.execute(
         select(CurrentState).where(
-            CurrentState.house_id == house_id, CurrentState.ga == ga
+            CurrentState.house_id == house_id, CurrentState.ga == storage_ga(ga)
         )
     )
     row = result.scalar_one_or_none()
@@ -97,5 +144,5 @@ async def test_state_multiple_gas(db_session: AsyncSession) -> None:
     assert len(rows) == 2
 
     ga_values = {(r.ga, r.value) for r in rows}
-    assert ("1/1/1", True) in ga_values
-    assert ("1/3/1", 21.5) in ga_values
+    assert ("1-1-1", True) in ga_values
+    assert ("1-3-1", 21.5) in ga_values

@@ -63,3 +63,12 @@ class RedisCache:
     def is_connected(self) -> bool:
         """Whether Redis connection is active."""
         return self._client is not None
+
+    async def incr_with_ttl(self, key: str, ttl_seconds: int) -> int:
+        """Increment counter and set TTL on first increment."""
+        if not self._client:
+            raise RuntimeError("Redis not connected. Call connect() first.")
+        count = await self._client.incr(key)
+        if count == 1:
+            await self._client.expire(key, ttl_seconds)
+        return int(count)

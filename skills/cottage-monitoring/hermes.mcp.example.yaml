@@ -1,0 +1,6 @@
+# Localhost-only MCP (same host as CottageMonitoring). Do not expose publicly.
+mcp_servers:
+  cottage:
+    url: http://127.0.0.1:8321/mcp
+    headers:
+      Authorization: "Bearer ${COTTAGE_API_KEY}"

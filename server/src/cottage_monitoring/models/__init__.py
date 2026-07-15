@@ -1,3 +1,4 @@
+from cottage_monitoring.models.api_key import ApiKey
 from cottage_monitoring.models.base import Base
 from cottage_monitoring.models.command import Command
 from cottage_monitoring.models.device import Device
@@ -8,6 +9,7 @@ from cottage_monitoring.models.schema_version import SchemaVersion
 from cottage_monitoring.models.state import CurrentState
 
 __all__ = [
+    "ApiKey",
     "Base",
     "Command",
     "CurrentState",

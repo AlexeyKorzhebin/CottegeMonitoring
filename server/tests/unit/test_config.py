@@ -40,7 +40,7 @@ class TestSettingsDefaults:
         _clear_test_env(monkeypatch)
         s = Settings()
         assert s.api_port == 8321
-        assert s.api_host == "0.0.0.0"
+        assert s.api_host == "127.0.0.1"
 
     def test_logging_defaults(self, monkeypatch):
         _clear_test_env(monkeypatch)

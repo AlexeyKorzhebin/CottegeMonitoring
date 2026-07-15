@@ -45,23 +45,28 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     setup_logging()
     logger.info("starting", env=settings.env, mqtt_topics=settings.mqtt_subscription_topics)
 
-    await redis_cache.connect()
+    # FastMCP Streamable HTTP requires session_manager.run() in the parent lifespan
+    # when the MCP Starlette app is mounted (child lifespan is not started).
+    from cottage_monitoring.mcp.server import mcp as mcp_server
 
-    mqtt_task = asyncio.create_task(_mqtt_loop())
-    retry_task = asyncio.create_task(_command_retry_loop())
+    async with mcp_server.session_manager.run():
+        await redis_cache.connect()
 
-    yield
+        mqtt_task = asyncio.create_task(_mqtt_loop())
+        retry_task = asyncio.create_task(_command_retry_loop())
 
-    logger.info("shutting_down")
-    await mqtt_client.disconnect()
-    for task in (mqtt_task, retry_task):
-        task.cancel()
-        try:
-            await task
-        except asyncio.CancelledError:
-            pass
-    await redis_cache.disconnect()
-    await engine.dispose()
+        yield
+
+        logger.info("shutting_down")
+        await mqtt_client.disconnect()
+        for task in (mqtt_task, retry_task):
+            task.cancel()
+            try:
+                await task
+            except asyncio.CancelledError:
+                pass
+        await redis_cache.disconnect()
+        await engine.dispose()
 
 
 app = FastAPI(
@@ -70,8 +75,15 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
+from cottage_monitoring.auth.middleware import ApiKeyAuthMiddleware  # noqa: E402
+
+app.add_middleware(ApiKeyAuthMiddleware)
+
 from cottage_monitoring.api.diagnostics import diagnostics_router  # noqa: E402
 from cottage_monitoring.api.router import api_router  # noqa: E402
+from cottage_monitoring.mcp.server import create_mcp_app  # noqa: E402
 
 app.include_router(api_router, prefix="/api/v1")
 app.include_router(diagnostics_router)
+# Create MCP ASGI app eagerly so session_manager exists before lifespan.run()
+app.mount("/mcp", create_mcp_app())

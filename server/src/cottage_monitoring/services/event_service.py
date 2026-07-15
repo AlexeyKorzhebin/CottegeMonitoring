@@ -22,7 +22,11 @@ async def handle_event(
     *,
     session: AsyncSession | None = None,
 ) -> None:
-    """Append event to events table (all fields + raw_json + server_received_ts)."""
+    """Append event to events table (all fields + raw_json + server_received_ts).
+
+    Also mirrors value into current_state so agents stay fresh even if retained
+    MQTT state/ga topics are stale or state/batch was lost (QoS 0 events still land).
+    """
     own_session = session is None
     if own_session:
         session = async_session_factory()
@@ -51,6 +55,21 @@ async def handle_event(
         lag = time.time() - ts_epoch
         if lag > 0:
             LAG_SECONDS.labels(house_id=house_id).observe(lag)
+
+        # Dual-write: keep current_state aligned with live events.
+        ga = payload.get("ga")
+        if ga is not None and "value" in payload:
+            from cottage_monitoring.services.state_service import upsert_current_state
+
+            await upsert_current_state(
+                house_id,
+                device_id,
+                ga,
+                ts_epoch=ts_epoch or 0,
+                value=payload.get("value"),
+                datatype=payload.get("datatype", 0) or 0,
+                session=session,
+            )
 
         if own_session:
             await session.commit()
@@ -102,6 +121,20 @@ async def handle_events_batch(
             lag = time.time() - ts_epoch
             if lag > 0:
                 LAG_SECONDS.labels(house_id=house_id).observe(lag)
+
+            ga = evt.get("ga")
+            if ga is not None and "value" in evt:
+                from cottage_monitoring.services.state_service import upsert_current_state
+
+                await upsert_current_state(
+                    house_id,
+                    device_id,
+                    ga,
+                    ts_epoch=ts_epoch or 0,
+                    value=evt.get("value"),
+                    datatype=evt.get("datatype", 0) or 0,
+                    session=session,
+                )
 
         if own_session:
             await session.commit()

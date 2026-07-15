@@ -16,4 +16,5 @@ COPY alembic.ini .
 
 ENV PYTHONUNBUFFERED=1
 
-CMD ["sh", "-c", "exec uvicorn cottage_monitoring.main:app --host 0.0.0.0 --port ${API_PORT:-8321}"]
+# Bind localhost by default — MCP/API are for same-host agents (OpenClaw), not the public internet.
+CMD ["sh", "-c", "exec uvicorn cottage_monitoring.main:app --host ${API_HOST:-127.0.0.1} --port ${API_PORT:-8321}"]

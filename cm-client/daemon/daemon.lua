@@ -128,7 +128,26 @@ local function flush_batch(reason)
     do_publish('events/batch', json.encode({ events = events_arr }), 0, false)
   end
   if #states_arr > 0 then
+    -- Non-retained batch for efficient ingest…
     do_publish('state/batch', json.encode({ states = states_arr }), 1, false)
+    -- …and also update retained state/ga/<ga> so MQTT restarts don't
+    -- re-play stale retained values from the last full snapshot.
+    local pub_cnt = 0
+    for _, s in ipairs(states_arr) do
+      if s and s.ga then
+        local ga_safe = tostring(s.ga):gsub('/', '-')
+        local ok_enc, payload = pcall(json.encode, {
+          ts = s.ts,
+          value = s.value,
+          datatype = s.datatype or 0,
+        })
+        if ok_enc and payload then
+          do_publish('state/ga/' .. ga_safe, payload, 1, true)
+          pub_cnt = pub_cnt + 1
+          if pub_cnt >= 30 then pub_cnt = 0; os.sleep(0.02) end
+        end
+      end
+    end
   end
   event_batch = {}
   last_batch_flush_ts = os.time()

@@ -23,7 +23,7 @@ class Settings(BaseSettings):
 
     # API
     api_port: int = 8321
-    api_host: str = "0.0.0.0"
+    api_host: str = "127.0.0.1"
 
     # Logging
     log_level: str = "INFO"
@@ -34,6 +34,10 @@ class Settings(BaseSettings):
     # Commands
     cmd_timeout_seconds: int = 60
     cmd_max_retries: int = 2
+
+    # Auth / MCP
+    auth_required: bool = False
+    mcp_write_rate_limit_per_minute: int = 30
 
     @property
     def mqtt_subscription_topic(self) -> str:
