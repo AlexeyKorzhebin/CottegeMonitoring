@@ -77,3 +77,18 @@ From `manage_warm_floor.lua`:
 - Настя / Настина комната
 - Тим / Тимина / Тимнина комната
 - уличное / улица / outdoor / двор / снаружи → tag `outside` (крыльцо, терраса, балкон)
+
+Query matching lemmatizes Russian cases (`кухне`/`кухню` → кухня, `крыльце` → крыльцо). Prefer natural language queries.
+
+## Ops: create API key
+
+On elion (image has console script)::
+
+```bash
+sudo docker run --rm --network=host \
+  --env-file /etc/cottage-monitoring/cottage-monitoring.prod.env \
+  --entrypoint cottage-create-api-key cottage-monitoring:latest \
+  --house <house_id> --name openclaw --scopes read,write
+```
+
+Prints `api_key=cm_…` once — store under `~/.openclaw/secrets/`.

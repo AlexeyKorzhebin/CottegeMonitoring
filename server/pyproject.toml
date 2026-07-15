@@ -35,6 +35,9 @@ dev = [
     "mypy>=1.14",
 ]
 
+[project.scripts]
+cottage-create-api-key = "cottage_monitoring.cli.create_api_key:main"
+
 [tool.setuptools.packages.find]
 where = ["src"]
 
