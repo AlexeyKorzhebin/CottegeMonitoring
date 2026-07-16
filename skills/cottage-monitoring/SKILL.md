@@ -19,8 +19,9 @@ MCP/API bind to **loopback only** (`127.0.0.1`) on the elion host — no public 
 
 1. Prefer tools via mcporter alias `cottage` → prod `http://127.0.0.1:8321/mcp`.
 2. Optional alias `cottage-dev` → `http://127.0.0.1:8322/mcp`.
-3. `mcporter list cottage --schema` then `mcporter call cottage.<tool> ...`.
-4. See `references/openclaw-connection.md` on the OpenClaw host.
+3. `mcporter call cottage.<tool> ...` (tools are known from this skill — avoid `list` before writes).
+4. **Session reuse:** `lifecycle: "keep-alive"` in mcporter config + `mcporter daemon` running (see `references/openclaw-connection.md`).
+5. See `references/openclaw-connection.md` on the OpenClaw host.
 
 ### Hermes example (`~/.hermes/config.yaml`)
 
