@@ -335,9 +335,9 @@ async def resolve_objects(
 
     if not matches:
         return ResolveResult(status="not_found", matches=[])
-    if len(matches) > 1 and role is None:
-        # Prefer control over status when kind=light and writing isn't specified
-        if kind == DiscoverKind.LIGHT and query:
+    if len(matches) > 1:
+        # Prefer control over status only when the caller did not already request a role.
+        if role is None and kind == DiscoverKind.LIGHT and query:
             controls = [m for m in matches if m.role == ObjectRole.LIGHT_CONTROL]
             if len(controls) == 1:
                 return ResolveResult(status="ok", matches=controls)

@@ -14,7 +14,7 @@ from starlette.routing import Route
 
 from cottage_monitoring.auth.context import ApiKeyContext
 from cottage_monitoring.auth.middleware import ApiKeyAuthMiddleware
-from cottage_monitoring.mcp.server import _require_scope, mcp
+from cottage_monitoring.mcp.server import mcp
 
 
 def test_mcp_registers_expected_tools() -> None:
@@ -39,6 +39,8 @@ def test_mcp_registers_expected_tools() -> None:
 
 
 def test_require_scope_denies_missing_write() -> None:
+    from cottage_monitoring.mcp.server import _require_scope
+
     ctx = ApiKeyContext(
         key_id=uuid4(),
         house_id="house1",
@@ -48,11 +50,14 @@ def test_require_scope_denies_missing_write() -> None:
     err = _require_scope(ctx, "write")
     assert err is not None
     payload = json.loads(err)
+    assert payload["status"] == "error"
     assert payload["code"] == 403
     assert "write" in payload["error"].lower()
 
 
 def test_require_scope_allows_write() -> None:
+    from cottage_monitoring.mcp.server import _require_scope
+
     ctx = ApiKeyContext(
         key_id=uuid4(),
         house_id="house1",
@@ -60,6 +65,58 @@ def test_require_scope_allows_write() -> None:
         name="rw",
     )
     assert _require_scope(ctx, "write") is None
+
+
+def test_with_session_maps_http_exception_to_json() -> None:
+    from fastapi import HTTPException
+
+    from cottage_monitoring.mcp.server import _with_session
+
+    async def boom(_session):
+        raise HTTPException(status_code=404, detail="No light found for: test")
+
+    payload = json.loads(asyncio.run(_with_session(boom)))
+    assert payload == {"status": "error", "code": 404, "error": "No light found for: test"}
+
+
+def test_set_light_tool_returns_ambiguous_without_http_error() -> None:
+    from cottage_monitoring.mcp import server as mcp_server
+
+    ctx = ApiKeyContext(
+        key_id=uuid4(),
+        house_id="house1",
+        scopes=frozenset({"read", "write"}),
+        name="rw",
+    )
+    fake_session = MagicMock()
+    cm = MagicMock()
+    cm.__aenter__ = AsyncMock(return_value=fake_session)
+    cm.__aexit__ = AsyncMock(return_value=None)
+
+    async def _run() -> str:
+        with (
+            patch.object(mcp_server, "get_current_api_key_context", return_value=ctx),
+            patch.object(mcp_server.agent_actions, "check_write_rate_limit", AsyncMock()),
+            patch.object(mcp_server, "async_session_factory", return_value=cm),
+            patch.object(
+                mcp_server.agent_actions,
+                "set_light",
+                AsyncMock(
+                    return_value={
+                        "status": "ambiguous",
+                        "candidates": [
+                            {"name": "Свет - гостиная", "ga": "1/1/3"},
+                            {"name": "Свет - гостиная торшер", "ga": "1/1/8"},
+                        ],
+                    }
+                ),
+            ),
+        ):
+            return await mcp_server.set_light(query="гостиная торшер", on=True)
+
+    payload = json.loads(asyncio.run(_run()))
+    assert payload["status"] == "ambiguous"
+    assert len(payload["candidates"]) == 2
 
 
 def test_auth_middleware_rejects_mcp_without_key(monkeypatch) -> None:
@@ -121,6 +178,7 @@ def test_set_climate_tool_requires_write_scope() -> None:
             return await mcp_server.set_climate(query="кухня", setpoint_c=24.0)
 
     payload = json.loads(asyncio.run(_run()))
+    assert payload["status"] == "error"
     assert payload["code"] == 403
 
 

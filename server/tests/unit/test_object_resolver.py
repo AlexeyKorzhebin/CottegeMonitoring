@@ -70,6 +70,32 @@ def test_query_matches_russian_cases() -> None:
     assert _query_matches("кухне", porch) is False
 
 
+def test_resolve_ambiguous_with_explicit_light_role(monkeypatch) -> None:
+    import asyncio
+
+    from cottage_monitoring.services import object_resolver
+
+    living = _obj("1/1/3", "Свет - гостиная", "control,light")
+    floor_lamp = _obj("1/1/8", "Свет - гостиная торшер", "control,light")
+
+    async def fake_load(_session, _house_id: str) -> list[Object]:
+        return [living, floor_lamp]
+
+    monkeypatch.setattr(object_resolver, "load_active_objects", fake_load)
+
+    result = asyncio.run(
+        resolve_objects(
+            None,  # type: ignore[arg-type]
+            "h1",
+            query="гостиная торшер",
+            kind="light",
+            role=ObjectRole.LIGHT_CONTROL,
+        )
+    )
+    assert result.status == "ambiguous"
+    assert len(result.matches) == 2
+
+
 async def test_resolve_kitchen_light_unique(db_session) -> None:
     import pytest
     from cottage_monitoring.services.house_service import ensure_house

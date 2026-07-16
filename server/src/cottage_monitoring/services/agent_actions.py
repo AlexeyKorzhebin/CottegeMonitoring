@@ -290,7 +290,8 @@ async def set_light(
             "candidates": [{"name": m.name, "ga": m.ga} for m in result.matches],
         }
     obj = result.single
-    assert obj is not None
+    if obj is None:
+        raise HTTPException(status_code=500, detail="Resolver returned ok without a match")
     return await _resolve_device_and_send(session, house_id, obj.ga, on, comment=f"mcp set_light {query}")
 
 
@@ -356,7 +357,8 @@ async def set_climate_setpoint(
             "candidates": [{"name": m.name, "ga": m.ga} for m in result.matches],
         }
     obj = result.single
-    assert obj is not None
+    if obj is None:
+        raise HTTPException(status_code=500, detail="Resolver returned ok without a match")
     out = await _resolve_device_and_send(
         session, house_id, obj.ga, setpoint_c, comment=f"mcp set_climate {query}"
     )
