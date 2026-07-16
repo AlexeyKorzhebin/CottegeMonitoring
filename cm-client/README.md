@@ -31,6 +31,16 @@
 ./deploy/deploy-lftp.sh 192.168.100.130 apps LM_apps123
 ```
 
+Учётные данные контроллера (LAN):
+- **FTP**: `apps` / `LM_apps123`
+- **Веб**: `admin` / `adminLM123` (`http://192.168.100.130/`)
+
+Рестарт daemon после деплоя:
+```bash
+curl -u admin:adminLM123 -H "Referer: http://192.168.100.130/" \
+  "http://192.168.100.130/apps/request.lp?action=restart&name=cottage-monitoring"
+```
+
 Или вручную:
 ```bash
 lftp -u apps,LM_apps123 ftp://192.168.100.130 -e "
@@ -65,8 +75,27 @@ Daemon автоматически регистрируется. Путь: `/daem
 5. **Выгрузить в файл** — JSON с объектами
 6. **Выгрузить в MQTT** — принудительная публикация meta+snapshot
 
+## Надёжность (v1.1)
+
+- **Reconnect с backoff**: при обрыве MQTT daemon повторяет `reconnect`/`connect` с задержкой 2→60 с (не одноразовая попытка).
+- **Проверка `loop()`**: ненулевой код → помечает соединение разорванным.
+- **pcall** вокруг connect и тела главного цикла — ошибка итерации не убивает daemon.
+- **Heartbeat**: `storage.cm_heartbeat` каждый цикл; при долгом offline (>300 с) — пересоздание MQTT-клиента.
+- **Watchdog (Resident)**: `scripts/watchdog-resident.lua` — soft (`cm_force_restart`) → hard (HTTP restart), cooldown 5 мин. Перед деплоем: `wd_pause.lp` / `wd_hold.lp`.
+- **Диагностика**: UI + `health_get.lp` + retained `…/v1/status/health`.
+- **MQTT loop**: всегда вызывать `loop()` (и offline); ошибка loop — только numeric `rc ~= 0` (иначе reconnect-storm на LM).
+- **Деплой daemon**: FTP `daemon/cottage-monitoring/daemon.lua`, цикл stop→put→start.
+
+### Установка watchdog
+
+1. LM → **Scripting** → **Resident** → Add
+2. Name: `CM watchdog`, Sleep: `60`, Active: on
+3. Вставить содержимое `cm-client/scripts/watchdog-resident.lua`
+4. Save
+
 ## Проверка
 
 - **Status**: Daemon зелёный в Apps
+- **Диагностика** в UI: MQTT online, heartbeat age, reconnects
 - **Выгрузить в файл** — скачивание JSON
 - **Выгрузить в MQTT** — meta + snapshot при подключённом MQTT

@@ -469,6 +469,25 @@ MQTT subscriber запускается как background task в FastAPI lifespa
 
 ---
 
+## R-010: Аудит безопасности и live-hardening (2026-07)
+
+### Контекст
+
+Аудит облачной части + security-review: MQTT без ACL, дефолт `auth_required=False`, слабая валидация команд, открытые docs, просроченная копия cert у mosquitto.
+
+### Решение (внедрено)
+
+- **MQTT ACL** на elion: пользователь контроллера `lm_estate` ограничен `cm/house/#`; localhost:1883 для сервера без изменений.
+- **Auth**: в `ENV=production` auth обязателен (fail-fast); write-scope на mutating REST/MCP; валидация value/batch в `command_validation.py`; MCP rate-limit fail-closed; docs off в prod.
+- **Образ**: `cottage-monitoring:0.2.4` (локальный build → docker load на elion).
+- **Cert mosquitto**: sync из Let's Encrypt через deploy-hook + short-chain для совместимости с LM (детали в 002 R-013).
+
+### Альтернативы / отложено
+
+Ротация секретов в репозитории, non-root container, полный TLS verify на LM — отдельно.
+
+---
+
 ## Сводка решений
 
 | ID | Тема | Решение | Альтернатива |
@@ -476,9 +495,10 @@ MQTT subscriber запускается как background task в FastAPI lifespa
 | R-001 | Классификация объектов | instant + timeseries маркировка в objects table | Единый pipeline без маркировки |
 | R-002 | Кеш состояния | Redis HSET per house | In-memory dict, только PostgreSQL |
 | R-003 | API фреймворк | FastAPI | aiohttp, Django, Flask |
-| R-004 | Деплой | Docker + systemd (оба) | Только Docker |
+| R-004 | Деплой | Docker + systemd; build локально | Сборка на сервере (запрещено) |
 | R-005 | Логирование | structlog + RotatingFile + JSON | loguru, python-json-logger |
 | R-006 | Nginx | Reverse proxy на порт 8321 | Порт 8080 (стандартный, может конфликтовать) |
 | R-007 | MQTT клиент | aiomqtt (async) | paho-mqtt (sync) |
 | R-008 | БД | PostgreSQL 16 + TimescaleDB | Только PostgreSQL |
 | R-009 | Валидация команд | По datatype + tags из objects table | Без валидации |
+| R-010 | Security hardening | ACL + auth defaults + 0.2.4 + cert hook | Открытый брокер / auth off |

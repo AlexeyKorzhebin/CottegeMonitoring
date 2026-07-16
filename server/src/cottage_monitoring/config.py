@@ -37,7 +37,8 @@ class Settings(BaseSettings):
     cmd_max_retries: int = 2
 
     # Auth / MCP
-    auth_required: bool = False
+    # None → secure default resolved by env: enabled in production, off in dev/test.
+    auth_required: bool | None = None
     mcp_write_rate_limit_per_minute: int = 30
 
     # Dev diagnostics: persist MCP/command timing rows to operation_traces table
@@ -47,6 +48,17 @@ class Settings(BaseSettings):
     def _default_trace_persist(self):
         if self.trace_persist is None:
             self.trace_persist = self.env == "dev"
+        return self
+
+    @model_validator(mode="after")
+    def _resolve_auth_required(self):
+        prod = self.env in ("production", "prod")
+        if self.auth_required is None:
+            # Secure-by-default in production; open only in dev/test for convenience.
+            self.auth_required = prod
+        # Fail-fast footgun guard: production must never run with auth disabled.
+        if prod and not self.auth_required:
+            raise ValueError("AUTH_REQUIRED must be true when ENV=production")
         return self
 
     @property

@@ -9,12 +9,17 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from cottage_monitoring.auth.deps import require_write_scope
 from cottage_monitoring.db.session import get_session
 from cottage_monitoring.models.command import Command
 from cottage_monitoring.models.house import House
 from cottage_monitoring.models.object import Object
 from cottage_monitoring.schemas.command import CommandCreate, CommandRead
 from cottage_monitoring.services.command_service import send_command
+from cottage_monitoring.services.command_validation import (
+    validate_batch_size,
+    validate_command_value,
+)
 
 router = APIRouter()
 
@@ -27,7 +32,11 @@ def _build_items(body: CommandCreate) -> list[dict]:
     return [{"ga": body.ga, "value": body.value}]
 
 
-@router.post("/houses/{house_id}/commands", status_code=201)
+@router.post(
+    "/houses/{house_id}/commands",
+    status_code=201,
+    dependencies=[Depends(require_write_scope)],
+)
 async def create_command(
     house_id: str,
     body: CommandCreate,
@@ -42,6 +51,7 @@ async def create_command(
         raise HTTPException(status_code=400, detail="House is inactive")
 
     items = _build_items(body)
+    validate_batch_size(len(items))
 
     # Resolve device_id: explicit from request, or auto-resolve from GA → object.device_id
     device_id = body.device_id
@@ -53,6 +63,7 @@ async def create_command(
         obj = obj_result.scalar_one_or_none()
         if obj is None:
             raise HTTPException(status_code=400, detail=f"Unknown GA: {ga}")
+        validate_command_value(obj.datatype, item["value"], ga)
         if device_id is None and obj.device_id:
             device_id = obj.device_id
 

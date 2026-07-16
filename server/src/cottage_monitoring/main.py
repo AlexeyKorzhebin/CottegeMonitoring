@@ -69,10 +69,15 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         await engine.dispose()
 
 
+_is_prod = settings.env in ("production", "prod")
 app = FastAPI(
     title="CottageMonitoring",
     version="0.1.0",
     lifespan=lifespan,
+    # Disable interactive docs / schema in production (info-disclosure hardening).
+    docs_url=None if _is_prod else "/docs",
+    redoc_url=None if _is_prod else "/redoc",
+    openapi_url=None if _is_prod else "/openapi.json",
 )
 
 from cottage_monitoring.auth.middleware import ApiKeyAuthMiddleware  # noqa: E402

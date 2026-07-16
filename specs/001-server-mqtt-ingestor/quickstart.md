@@ -86,10 +86,9 @@ sudo -u postgres createdb -O cottage cottage_monitoring_dev   # dev/staging
 sudo -u postgres psql -d cottage_monitoring -c "CREATE EXTENSION IF NOT EXISTS timescaledb;"
 sudo -u postgres psql -d cottage_monitoring_dev -c "CREATE EXTENSION IF NOT EXISTS timescaledb;"
 
-# 5. Деплой приложения (сборка Docker-образа)
-sudo cp -r server/ /opt/cottage-monitoring/
-cd /opt/cottage-monitoring/server
-sudo docker build -t cottage-monitoring:latest -f deploy/Dockerfile .
+# 5. Деплой приложения — НЕ собирать на elion.
+# Локально: docker build --platform linux/amd64 -t cottage-monitoring:0.2.4 …
+# Затем: docker save | ssh elion docker load (см. секцию «Обновление приложения»).
 
 # 6. Конфигурация
 sudo cp deploy/cottage-monitoring.prod.env /etc/cottage-monitoring/
@@ -176,20 +175,48 @@ sudo docker run --rm --network=host \
   cottage-monitoring:latest alembic upgrade head
 ```
 
-### Обновление приложения (на elion)
+### Обновление приложения (локальная сборка → elion)
+
+По правилам репозитория: **код на сервер не копировать**. Сборка на Mac/CI, на elion только load/pull + restart.
 
 ```bash
-cd /opt/cottage-monitoring/server
-sudo git pull  # или sudo cp -r ...
-sudo docker build -t cottage-monitoring:latest -f deploy/Dockerfile .
-# Миграции (если есть новые)
-sudo docker run --rm --network=host \
-  --env-file /etc/cottage-monitoring/cottage-monitoring.prod.env \
-  cottage-monitoring:latest alembic upgrade head
-# Перезапуск
-sudo systemctl restart cottage-monitoring
-sudo systemctl restart cottage-monitoring-dev  # если dev запущен
+# Локально (из server/)
+docker build --platform linux/amd64 -t cottage-monitoring:0.2.4 -f deploy/Dockerfile .
+docker save cottage-monitoring:0.2.4 | ssh elion 'sudo docker load'
+# На elion: обновить IMAGE в systemd unit, затем:
+ssh elion 'sudo systemctl daemon-reload && sudo systemctl restart cottage-monitoring'
+# Миграции (если есть) — одноразовый контейнер с prod.env
 ```
+
+Текущий prod/dev pin: **`cottage-monitoring:0.2.4`** (см. `server/deploy/IMAGE_PIN.yaml`).
+
+---
+
+## Production security / ops (аудит 2026-07, статус)
+
+### Сделано в 0.2.4 + live elion
+
+| Тема | Статус |
+|------|--------|
+| `AUTH_REQUIRED` в prod | `true` (+ fail-fast если ENV=production и auth off) |
+| Write-scope на REST/MCP mutating | включено |
+| Валидация значений команд | `command_validation.py` (тип/батч) |
+| MCP rate-limit | fail-closed (in-memory fallback) |
+| `/docs`, `/openapi` в prod | отключены в приложении |
+| MQTT ACL | `lm_estate` → только `cm/house/#` (файл ACL у mosquitto) |
+| TLS cert mosquitto | renew через certbot + hook; **short-chain для LM** (см. 002 research R-013) |
+| API listen | `127.0.0.1:8321/8322` за nginx/localhost |
+
+### Отложено / техдолг
+
+- Ротация секретов (LM admin/FTP в git-спеках, watchdog hardcoded creds)
+- Полная валидация CA на клиенте LM (сейчас insecure по умолчанию)
+- Docker non-root / отказ от `--network=host`
+- Retention TimescaleDB, персистентный MQTT publisher
+
+### Автообновление сертификата MQTT
+
+**Да.** certbot.timer + `preferred_chain = ISRG Root X1` + `/etc/letsencrypt/renewal-hooks/deploy/10-mosquitto.sh` копирует подходящую цепочку в `/etc/mosquitto/certs` и делает reload. После August 2026 renew — проверить, что у mosquitto снова **2** PEM-блока (иначе LM не подключится).
 
 ---
 

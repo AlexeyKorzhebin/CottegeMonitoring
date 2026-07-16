@@ -9,9 +9,18 @@
 
 - LogicMachine с поддержкой Apps и MQTT (mosquitto library)
 - **Доступ к контроллеру**: FTP `ftp://apps@192.168.100.130`, рабочая директория `/data/apps/store/data/cottage-monitoring` (SCP не поддерживается)
-- **FTP-учётные данные (временный пароль)**: user `apps`, password `LM_apps123`
-- MQTT-брокер сервера мониторинга (elion.black-castle.ru:8883, TLS)
-- Учётные данные MQTT (логин/пароль) от администратора брокера
+- **FTP-учётные данные**: user `apps`, password `LM_apps123`
+- **Веб-интерфейс LM** (`http://192.168.100.130/`): user `admin`, password `adminLM123` (локальная сеть)
+- **Рестарт daemon**: надёжнее **stop → upload → start**, чем `restart` (restart иногда не убивает старый процесс):
+  ```bash
+  curl -u admin:adminLM123 -H "Referer: http://192.168.100.130/" \
+    "http://192.168.100.130/apps/request.lp?action=stop&name=cottage-monitoring"
+  # …залить daemon.lua…
+  curl -u admin:adminLM123 -H "Referer: http://192.168.100.130/" \
+    "http://192.168.100.130/apps/request.lp?action=start&name=cottage-monitoring"
+  ```
+- MQTT-брокер: `elion.black-castle.ru:8883` (TLS), user `lm_estate`, ACL только `cm/house/#`
+- Health JSON: `http://192.168.100.130/apps/data/cottage-monitoring/health_get.lp` (Basic Auth + Referer)
 
 ---
 
@@ -19,7 +28,9 @@
 
 ### 1. Копирование файлов на контроллер
 
-Контроллер не поддерживает SCP, используется **lftp** (FTP):
+Контроллер не поддерживает SCP, используется **lftp** (FTP).
+
+**Критично:** runtime daemon читается из **`/daemon/cottage-monitoring/daemon.lua`**, не из `data/cottage-monitoring/daemon/`. Заливать нужно в FTP-путь `daemon/cottage-monitoring`.
 
 **Рекомендуется** — скрипт деплоя (загружает приложение и daemon):
 ```bash
@@ -29,6 +40,7 @@
 **Вручную (вся директория)**:
 ```bash
 lftp -u apps,LM_apps123 ftp://192.168.100.130 -e "
+set xfer:clobber yes
 cd data/cottage-monitoring
 lcd cm-client
 mirror -R .
@@ -36,9 +48,10 @@ bye
 "
 ```
 
-**Один файл** (например, обновлённый daemon):
+**Один файл** (обновлённый daemon — правильный путь):
 ```bash
 lftp -u apps,LM_apps123 ftp://192.168.100.130 -e "
+set xfer:clobber yes
 cd daemon/cottage-monitoring
 lcd cm-client/daemon
 put daemon.lua
@@ -87,9 +100,25 @@ Daemon автоматически регистрируется при устан
 
 ## Проверка работы
 
-1. **Status**: В списке Apps daemon должен быть запущен (зелёный индикатор)
-2. **MQTT**: На сервере мониторинга проверить поступление событий и state
-3. **Команды**: Отправить команду через API `POST /api/v1/houses/{house_id}/commands` — свет/обогрев должен среагировать
+1. **Health**: `health_get.lp` → `mqtt_connected:true`, растущий `heartbeat`, стабильный `started_ts`
+2. **MQTT → сервер**: на elion в логах `schema_processed` / `device_status_updated`; в БД `houses.last_seen` свежий
+3. **Команды (обратно)**: `POST /api/v1/houses/house/commands` (API key + write scope) или тест с localhost MQTT:
+   ```bash
+   mosquitto_pub -h 127.0.0.1 -p 1883 -t 'cm/house/lm-main/v1/cmd' \
+     -m '{"request_id":"t1","ga":"1/1/1","value":false}'
+   # ack: cm/house/lm-main/v1/cmd/ack
+   ```
+
+### Watchdog (Resident)
+
+Скрипт `cm-client/scripts/watchdog-resident.lua` — soft (`cm_force_restart`) → hard (HTTP restart), cooldown 5 мин.
+
+Перед деплоем daemon на время приглушить watchdog:
+```bash
+curl -u admin:adminLM123 -H "Referer: http://192.168.100.130/apps/" \
+  "http://192.168.100.130/apps/data/cottage-monitoring/wd_pause.lp"
+# или wd_hold.lp — без фейкового mqtt_connected
+```
 
 ---
 
@@ -120,8 +149,21 @@ Daemon автоматически регистрируется при устан
 1. **Первый запуск:** daemon не активен, пока не сохранён конфиг (Config → Save).
 2. **После отключения питания:** daemon может не запуститься автоматически.
 
-**Что делать:** Config → Save (можно без изменений) — daemon перезапустится. Альтернатива — HTTP-запрос (с паролем администратора):
+**Что делать:** Config → Save (можно без изменений) — daemon перезапустится. Альтернатива — HTTP stop/start (см. выше).
 
-```
-http://IP/apps/request.lp?password=ADMINPASSWORD&action=restart&name=cottage-monitoring
-```
+---
+
+## Operational notes (2026-07)
+
+### Daemon v1.1.1 — надёжность MQTT на LM
+
+- **Всегда** вызывать `client:loop(...)` даже пока offline — иначе TLS handshake не завершится и `ON_CONNECT` не придёт.
+- Возврат `loop()` на LM часто `true` (успех). Ошибкой считать **только** `type(rc)=='number' and rc~=0`. Иначе reconnect-storm.
+- Полный «толстый» daemon (~25KB, десятки top-level `local`) на этой LM может не стартовать; рабочий путь — компактный код (таблицы `C`/`S`, меньше локалей). Текущий runtime ~10KB: MQTT + localbus + meta/cmd.
+- Деплой: `set xfer:clobber yes` в lftp, путь `daemon/cottage-monitoring/daemon.lua`.
+
+### TLS к брокеру
+
+- Клиент по умолчанию: `tls_insecure_set(true)` (проверка выкл). Опции `mqtt_tls_verify` / `mqtt_cafile` — opt-in.
+- На брокере для LM нужна **короткая** цепочка (2 PEM, issuer R12 / ISRG Root X1). Цепочка YR2 (3 блока) → handshake `protocol error` / unexpected EOF на старом OpenSSL LM.
+- Автообновление: certbot `preferred_chain = ISRG Root X1` + deploy-hook `/etc/letsencrypt/renewal-hooks/deploy/10-mosquitto.sh` копирует short-chain в `/etc/mosquitto/certs` и reload mosquitto. Текущий cert (fullchain2) валиден до **2026-08-10**; после renew проверить, что в mosquitto снова 2 блока.

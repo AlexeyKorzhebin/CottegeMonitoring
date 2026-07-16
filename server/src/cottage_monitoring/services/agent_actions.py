@@ -18,6 +18,10 @@ from cottage_monitoring.models.house import House
 from cottage_monitoring.models.object import Object
 from cottage_monitoring.models.state import CurrentState
 from cottage_monitoring.services.command_service import send_command
+from cottage_monitoring.services.command_validation import (
+    validate_batch_size,
+    validate_command_value,
+)
 from cottage_monitoring.services.object_resolver import (
     AUTO_HEATING_GA,
     ENERGY_SUMMARY_GAS,
@@ -403,6 +407,7 @@ async def set_commands(
     """Send arbitrary GA/value pairs grouped by device_id in minimal batches."""
     if not items:
         raise HTTPException(status_code=400, detail="items must not be empty")
+    validate_batch_size(len(items))
 
     normalized: list[dict[str, Any]] = []
     for item in items:
@@ -426,6 +431,7 @@ async def set_commands(
         obj = objs.get(ga)
         if obj is None:
             raise HTTPException(status_code=400, detail=f"Unknown GA: {ga}")
+        validate_command_value(obj.datatype, value, ga)
         if not obj.device_id:
             raise HTTPException(status_code=400, detail=f"Cannot resolve device_id for {ga}")
 
@@ -707,13 +713,35 @@ async def get_command_status(
     }
 
 
+_inmem_write_rate: dict[Any, list[float]] = {}
+
+
+def _inmem_rate_check(key_id: Any, limit: int) -> None:
+    """Fail-closed sliding-window limiter used when Redis is unavailable."""
+    now = time.monotonic()
+    bucket = _inmem_write_rate.setdefault(key_id, [])
+    cutoff = now - 60
+    bucket[:] = [ts for ts in bucket if ts > cutoff]
+    if len(bucket) >= limit:
+        raise HTTPException(status_code=429, detail="Write rate limit exceeded")
+    bucket.append(now)
+
+
 async def check_write_rate_limit(ctx: ApiKeyContext) -> None:
     from cottage_monitoring.config import settings
     from cottage_monitoring.deps import redis_cache
 
-    if not redis_cache.is_connected:
-        return
-    key = f"mcp:write_rate:{ctx.key_id}"
-    count = await redis_cache.incr_with_ttl(key, 60)
-    if count > settings.mcp_write_rate_limit_per_minute:
-        raise HTTPException(status_code=429, detail="Write rate limit exceeded")
+    limit = settings.mcp_write_rate_limit_per_minute
+    if redis_cache.is_connected:
+        try:
+            key = f"mcp:write_rate:{ctx.key_id}"
+            count = await redis_cache.incr_with_ttl(key, 60)
+            if count > limit:
+                raise HTTPException(status_code=429, detail="Write rate limit exceeded")
+            return
+        except HTTPException:
+            raise
+        except Exception:
+            # Redis error mid-flight → fall back to in-memory rather than fail-open.
+            pass
+    _inmem_rate_check(ctx.key_id, limit)

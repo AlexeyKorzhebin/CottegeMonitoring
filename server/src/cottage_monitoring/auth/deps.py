@@ -100,6 +100,21 @@ def require_scope(ctx: ApiKeyContext, scope: str) -> None:
         )
 
 
+async def require_write_scope(request: Request) -> None:
+    """Enforce 'write' scope on mutating REST endpoints.
+
+    No-op when auth is disabled (dev/test). When enabled, the auth middleware
+    has already authenticated the key and verified house access; here we add the
+    scope check so a read-only key cannot mutate.
+    """
+    if not settings.auth_required:
+        return
+    ctx = getattr(request.state, "api_key_context", None)
+    if ctx is None:
+        raise HTTPException(status_code=401, detail="API key required")
+    require_scope(ctx, "write")
+
+
 def assert_house_access(ctx: ApiKeyContext, house_id: str) -> None:
     if ctx.house_id != house_id:
         raise HTTPException(status_code=403, detail="API key not valid for this house")

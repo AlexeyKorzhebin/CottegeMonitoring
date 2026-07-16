@@ -6,6 +6,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from cottage_monitoring.auth.deps import require_write_scope
 from cottage_monitoring.db.session import get_session
 from cottage_monitoring.models.device import Device
 from cottage_monitoring.models.house import House
@@ -121,7 +122,7 @@ async def get_house(
     ).model_dump(mode="json")
 
 
-@router.patch("/houses/{house_id}")
+@router.patch("/houses/{house_id}", dependencies=[Depends(require_write_scope)])
 async def update_house(
     house_id: str,
     body: HouseUpdate,

@@ -28,6 +28,16 @@
 http://IP/apps/request.lp?password=ADMINPASSWORD&action=restart&name=YOURAPPNAME
 ```
 
+Для нашего контроллера (`192.168.100.130`) работает HTTP Basic Auth:
+```bash
+curl -u admin:adminLM123 -H "Referer: http://192.168.100.130/" \
+  "http://192.168.100.130/apps/request.lp?action=restart&name=cottage-monitoring"
+```
+
+**Веб-доступ (LAN)**: user `admin`, password `adminLM123`.
+**FTP**: user `apps`, password `LM_apps123`.
+```
+
 Форма после успешного `config-save` инициирует рестарт через `apps/request.lp?action=restart&name=<appname>`.
 
 ### Альтернативы
@@ -308,7 +318,8 @@ FR-010: TLS обязателен. На контроллере может не б
 
 **Целевой путь на LogicMachine**: `/data/apps/store/data/cottage-monitoring/`
 
-**FTP**: `ftp://apps@192.168.100.130`
+**FTP**: `ftp://apps@192.168.100.130` (user `apps`, password `LM_apps123`)  
+**Web**: `http://192.168.100.130/` (user `admin`, password `adminLM123`, LAN)
 
 **lftp — вся директория**:
 ```bash
@@ -339,6 +350,50 @@ bye
 
 ---
 
+## R-011: Runtime-путь daemon и лимиты Lua на LM (2026-07)
+
+### Контекст
+
+Деплой в `data/cottage-monitoring/daemon/` не подхватывается Apps. После рестарта работал старый код.
+
+### Решение
+
+- Runtime: **`/daemon/cottage-monitoring/daemon.lua`** (FTP: `daemon/cottage-monitoring`).
+- Надёжный цикл деплоя: `stop` → `put` → `start` (не полагаться на `restart`).
+- Слишком большой daemon / много top-level `local` — процесс не стартует. Держать компактный код (таблицы конфига/состояния, меньше локалей). Рабочий размер порядка ~10KB.
+
+---
+
+## R-012: mosquitto `loop()` на LM — handshake и код возврата (2026-07)
+
+### Контекст
+
+При reconnect без вызова `loop()` TCP к :8883 устанавливался, но MQTT/TLS не завершался (`ON_CONNECT` не приходил). После «успешного» connect код трактовал `loop()==true` как ошибку (`true ~= 0`) и устраивал reconnect-storm.
+
+### Решение
+
+1. Вызывать `client:loop(timeout)` **на каждой итерации**, и online, и offline.
+2. Ошибкой считать только `type(rc) == 'number' and rc ~= 0`.
+3. Heartbeat/`cm_mqtt_connected` писать каждый цикл; watchdog soft→hard по stale heartbeat / mqtt offline >10 мин.
+
+---
+
+## R-013: TLS-цепочка брокера, совместимая с LM (2026-07)
+
+### Контекст
+
+Let's Encrypt live `fullchain` с intermediate **YR2** (3 PEM) ломает handshake на старом OpenSSL LogicMachine. Короткая цепочка **R12** (2 PEM) работает.
+
+### Решение
+
+- На mosquitto: `/etc/mosquitto/certs/fullchain.pem` + `privkey.pem` (копия, не live-symlink).
+- certbot: `preferred_chain = ISRG Root X1`.
+- Deploy-hook `10-mosquitto.sh`: если live >2 блоков — взять валидный 2-block из archive, copy + reload mosquitto.
+- **Автообновление включено**; после renew проверять `grep -c BEGIN` == 2 в mosquitto certs.
+- Клиент: по умолчанию `tls_insecure`; opt-in `mqtt_tls_verify` / `mqtt_cafile`.
+
+---
+
 ## Сводка решений
 
 | ID | Тема | Решение |
@@ -351,5 +406,8 @@ bye
 | R-006 | Логирование | dlog/dalert при config.debug |
 | R-007 | Буфер offline | RAM table, FIFO, buffer_size |
 | R-008 | Meta чанки | chunk по 50–100 объектов |
-| R-009 | TLS | tls_insecure_set для MVP |
-| R-010 | Деплой | lftp FTP ftp://apps@192.168.100.130, путь /data/apps/store/data/cottage-monitoring/ |
+| R-009 | TLS | tls_insecure по умолчанию; verify opt-in |
+| R-010 | Деплой | lftp → `daemon/cottage-monitoring` + `data/cottage-monitoring` |
+| R-011 | LM limits | компактный daemon, stop/start, runtime path |
+| R-012 | loop() | всегда pump; numeric rc only |
+| R-013 | Broker cert | short-chain + certbot hook auto-renew |

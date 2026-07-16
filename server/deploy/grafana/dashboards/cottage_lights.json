@@ -1,0 +1,206 @@
+{
+  "id": null,
+  "uid": "cottage-lights",
+  "title": "Cottage — Lights",
+  "tags": [
+    "cottage",
+    "lights"
+  ],
+  "timezone": "browser",
+  "schemaVersion": 39,
+  "version": 1,
+  "editable": true,
+  "graphTooltip": 1,
+  "refresh": "30s",
+  "time": {
+    "from": "now-24h",
+    "to": "now"
+  },
+  "annotations": {
+    "list": []
+  },
+  "links": [
+    {
+      "title": "Overview",
+      "type": "link",
+      "url": "/grafana/d/cottage-overview/",
+      "icon": "home",
+      "keepTime": true,
+      "targetBlank": false
+    },
+    {
+      "title": "Electricity",
+      "type": "link",
+      "url": "/grafana/d/cottage-energy/",
+      "icon": "bolt",
+      "keepTime": true,
+      "targetBlank": false
+    },
+    {
+      "title": "Climate",
+      "type": "link",
+      "url": "/grafana/d/cottage-climate/",
+      "icon": "cloud",
+      "keepTime": true,
+      "targetBlank": false
+    },
+    {
+      "title": "Lights",
+      "type": "link",
+      "url": "/grafana/d/cottage-lights/",
+      "icon": "circle",
+      "keepTime": true,
+      "targetBlank": false
+    },
+    {
+      "title": "Batteries",
+      "type": "link",
+      "url": "/grafana/d/cottage-batteries/",
+      "icon": "battery",
+      "keepTime": true,
+      "targetBlank": false
+    },
+    {
+      "title": "Все Cottage",
+      "type": "dashboards",
+      "tags": [
+        "cottage"
+      ],
+      "asDropdown": true,
+      "includeVars": false,
+      "keepTime": true,
+      "targetBlank": false
+    }
+  ],
+  "panels": [
+    {
+      "id": 1,
+      "type": "text",
+      "title": "",
+      "gridPos": {
+        "h": 2,
+        "w": 24,
+        "x": 0,
+        "y": 0
+      },
+      "targets": [],
+      "options": {
+        "mode": "markdown",
+        "content": "**Cottage:** [Overview](/grafana/d/cottage-overview/) · [Electricity](/grafana/d/cottage-energy/) · [Climate](/grafana/d/cottage-climate/) · [Lights](/grafana/d/cottage-lights/) · [Batteries](/grafana/d/cottage-batteries/)"
+      },
+      "transparent": true
+    },
+    {
+      "id": 2,
+      "type": "table",
+      "title": "Свет сейчас",
+      "datasource": {
+        "type": "postgres",
+        "uid": "cottage-monitoring-pg"
+      },
+      "gridPos": {
+        "h": 12,
+        "w": 8,
+        "x": 0,
+        "y": 2
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "rawQuery": true,
+          "format": "table",
+          "rawSql": "SELECT\n  CASE WHEN CASE WHEN lower(cs.value #>> '{}') IN ('true','t','1') THEN 1 ELSE 0 END = 1 THEN '💡' ELSE '⭘' END AS icon,\n  o.name AS room,\n  CASE WHEN CASE WHEN lower(cs.value #>> '{}') IN ('true','t','1') THEN 1 ELSE 0 END = 1 THEN 'ON' ELSE 'OFF' END AS state,\n  cs.ts AS updated\nFROM objects o\nJOIN current_state cs ON cs.house_id = o.house_id AND replace(cs.ga, '-', '/') = o.ga\nWHERE o.house_id = 'house'\n  AND o.tags LIKE '%light%' AND o.tags LIKE '%control%'\nORDER BY CASE WHEN CASE WHEN lower(cs.value #>> '{}') IN ('true','t','1') THEN 1 ELSE 0 END = 1 THEN 0 ELSE 1 END, room"
+        }
+      ],
+      "description": "💡 вкл / ⭘ выкл. Источник: control 1/1/* (не status 1/2/*)."
+    },
+    {
+      "id": 3,
+      "type": "timeseries",
+      "title": "Свет 1 этаж (0/1)",
+      "datasource": {
+        "type": "postgres",
+        "uid": "cottage-monitoring-pg"
+      },
+      "gridPos": {
+        "h": 6,
+        "w": 16,
+        "x": 8,
+        "y": 2
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "rawQuery": true,
+          "format": "time_series",
+          "rawSql": "SELECT\n  $__timeGroupAlias(e.ts, $__interval),\n  max(CASE WHEN lower(e.value #>> '{}') IN ('true','t','1') THEN 1 ELSE 0 END) FILTER (WHERE e.ga = '1/2/6') AS \"Гостиная\",\n  max(CASE WHEN lower(e.value #>> '{}') IN ('true','t','1') THEN 1 ELSE 0 END) FILTER (WHERE e.ga = '1/2/7') AS \"Кухня\",\n  max(CASE WHEN lower(e.value #>> '{}') IN ('true','t','1') THEN 1 ELSE 0 END) FILTER (WHERE e.ga = '1/2/4') AS \"Спальня\",\n  max(CASE WHEN lower(e.value #>> '{}') IN ('true','t','1') THEN 1 ELSE 0 END) FILTER (WHERE e.ga = '1/2/3') AS \"Холл\",\n  max(CASE WHEN lower(e.value #>> '{}') IN ('true','t','1') THEN 1 ELSE 0 END) FILTER (WHERE e.ga = '1/2/2') AS \"Тамбур\",\n  max(CASE WHEN lower(e.value #>> '{}') IN ('true','t','1') THEN 1 ELSE 0 END) FILTER (WHERE e.ga = '1/2/9') AS \"Серверная\"\nFROM events e\nWHERE e.house_id = 'house'\n  AND e.ga IN ('1/2/6','1/2/7','1/2/4','1/2/3','1/2/2','1/2/9')\n  AND $__timeFilter(e.ts)\nGROUP BY 1 ORDER BY 1"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "fillOpacity": 10,
+            "spanNulls": false,
+            "insertNulls": 172800000,
+            "lineInterpolation": "linear"
+          }
+        }
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "none"
+        }
+      }
+    },
+    {
+      "id": 4,
+      "type": "timeseries",
+      "title": "Свет 2 этаж / улица (0/1)",
+      "datasource": {
+        "type": "postgres",
+        "uid": "cottage-monitoring-pg"
+      },
+      "gridPos": {
+        "h": 6,
+        "w": 16,
+        "x": 8,
+        "y": 8
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "rawQuery": true,
+          "format": "time_series",
+          "rawSql": "SELECT\n  $__timeGroupAlias(e.ts, $__interval),\n  max(CASE WHEN lower(e.value #>> '{}') IN ('true','t','1') THEN 1 ELSE 0 END) FILTER (WHERE e.ga = '1/2/12') AS \"Настя\",\n  max(CASE WHEN lower(e.value #>> '{}') IN ('true','t','1') THEN 1 ELSE 0 END) FILTER (WHERE e.ga = '1/2/13') AS \"Тим\",\n  max(CASE WHEN lower(e.value #>> '{}') IN ('true','t','1') THEN 1 ELSE 0 END) FILTER (WHERE e.ga = '1/2/14') AS \"Кабинет\",\n  max(CASE WHEN lower(e.value #>> '{}') IN ('true','t','1') THEN 1 ELSE 0 END) FILTER (WHERE e.ga = '1/2/15') AS \"Холл 2эт\",\n  max(CASE WHEN lower(e.value #>> '{}') IN ('true','t','1') THEN 1 ELSE 0 END) FILTER (WHERE e.ga = '1/2/1') AS \"Крыльцо\",\n  max(CASE WHEN lower(e.value #>> '{}') IN ('true','t','1') THEN 1 ELSE 0 END) FILTER (WHERE e.ga = '1/2/5') AS \"Терраса\"\nFROM events e\nWHERE e.house_id = 'house'\n  AND e.ga IN ('1/2/12','1/2/13','1/2/14','1/2/15','1/2/1','1/2/5')\n  AND $__timeFilter(e.ts)\nGROUP BY 1 ORDER BY 1"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "fillOpacity": 10,
+            "spanNulls": false,
+            "insertNulls": 172800000,
+            "lineInterpolation": "linear"
+          }
+        }
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "none"
+        }
+      }
+    }
+  ]
+}

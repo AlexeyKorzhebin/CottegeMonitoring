@@ -147,3 +147,43 @@
 .cm-field-row label { margin-bottom: 0; }
 
 .cm-save { margin-top: 1rem; }
+
+/* Health / diagnostics */
+.cm-health-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 0.75rem;
+}
+.cm-health-title {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-muted);
+}
+.cm-badge {
+  font-size: 11px;
+  font-weight: 600;
+  padding: 0.15rem 0.5rem;
+  border-radius: 999px;
+}
+.cm-badge-on { background: #d1fae5; color: var(--success); }
+.cm-badge-off { background: #fee2e2; color: #b91c1c; }
+.cm-badge-unknown { background: var(--border); color: var(--text-muted); }
+
+.cm-health-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.5rem 1rem;
+  margin: 0;
+}
+.cm-health-grid dt {
+  font-size: 11px;
+  color: var(--text-muted);
+  margin: 0;
+}
+.cm-health-grid dd {
+  font-size: 13px;
+  margin: 0.1rem 0 0;
+  word-break: break-word;
+}
+.cm-health-wide { grid-column: 1 / -1; }

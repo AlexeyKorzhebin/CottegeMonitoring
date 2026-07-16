@@ -14,6 +14,20 @@
   </div>
 
   <div class="cm-card">
+    <div class="cm-health-head">
+      <span class="cm-health-title">Диагностика</span>
+      <span id="health-mqtt-badge" class="cm-badge cm-badge-unknown">…</span>
+    </div>
+    <dl id="health-grid" class="cm-health-grid">
+      <div><dt>Uptime</dt><dd id="h-uptime">—</dd></div>
+      <div><dt>Heartbeat</dt><dd id="h-heartbeat">—</dd></div>
+      <div><dt>Reconnects</dt><dd id="h-reconnects">—</dd></div>
+      <div><dt>Watchdog</dt><dd id="h-watchdog">—</dd></div>
+      <div class="cm-health-wide"><dt>Last error</dt><dd id="h-error">—</dd></div>
+    </dl>
+  </div>
+
+  <div class="cm-card">
     <button type="button" class="cm-config-toggle" id="config-toggle" aria-expanded="false" aria-controls="config-body">Параметры подключения</button>
     <div id="config-body" class="cm-config-body" style="display:none;">
       <form id="cottage-monitoring-config">
@@ -122,6 +136,38 @@ $(function() {
     }).fail(function() {});
   }
   loadConfig();
+
+  function fmtAge(sec) {
+    if (sec == null) return '—';
+    if (sec < 60) return sec + 's';
+    if (sec < 3600) return Math.floor(sec / 60) + 'm';
+    return Math.floor(sec / 3600) + 'h ' + Math.floor((sec % 3600) / 60) + 'm';
+  }
+
+  function loadHealth() {
+    $.get('health_get.lp', function(data) {
+      try {
+        var h = typeof data === 'string' ? JSON.parse(data) : data;
+        var $badge = $('#health-mqtt-badge');
+        if (h.mqtt_connected) {
+          $badge.text('MQTT online').removeClass('cm-badge-off cm-badge-unknown').addClass('cm-badge-on');
+        } else {
+          $badge.text('MQTT offline').removeClass('cm-badge-on cm-badge-unknown').addClass('cm-badge-off');
+        }
+        $('#h-uptime').text(fmtAge(h.uptime));
+        $('#h-heartbeat').text(h.heartbeat_age != null ? fmtAge(h.heartbeat_age) + ' ago' : '—');
+        $('#h-reconnects').text(h.reconnect_count != null ? h.reconnect_count : '—');
+        var wd = (h.watchdog_restarts || 0) + ' restarts';
+        if (h.watchdog_last_reason) wd += ' (' + h.watchdog_last_reason + ')';
+        $('#h-watchdog').text(wd);
+        $('#h-error').text(h.last_error || '—');
+      } catch (e) {}
+    }).fail(function() {
+      $('#health-mqtt-badge').text('n/a').removeClass('cm-badge-on cm-badge-off').addClass('cm-badge-unknown');
+    });
+  }
+  loadHealth();
+  setInterval(loadHealth, 15000);
 
   function validId(s) {
     return s && typeof s === 'string' && s.length <= 64 && /^[a-zA-Z0-9_-]+$/.test(s);

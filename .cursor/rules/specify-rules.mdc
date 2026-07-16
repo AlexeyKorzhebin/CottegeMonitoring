@@ -1,0 +1,61 @@
+---
+description: Project Development Guidelines
+globs: ["**/*"]
+alwaysApply: true
+---
+
+# CottegeMonitoring Development Guidelines
+
+Auto-generated from all feature plans. Last updated: 2026-03-01
+
+## Active Technologies
+- Lua 5.1 (embedded in LogicMachine) + mosquitto (MQTT client), localbus (KNX events), grp (objects), json, config, encdec (SHA256 для schema_hash) (002-logicmachine-mqtt-client)
+- config.get/set для настроек; storage — опционально для буфера (предпочтительно RAM) (002-logicmachine-mqtt-client)
+
+- Python 3.12 + FastAPI, uvicorn, aiomqtt (asyncio MQTT client), SQLAlchemy 2.x (async), asyncpg, redis[hiredis], alembic, pydantic v2, prometheus-client, structlog (001-server-mqtt-ingestor)
+
+## Project Structure
+
+```text
+backend/
+frontend/
+tests/
+```
+
+## Commands
+
+cd src [ONLY COMMANDS FOR ACTIVE TECHNOLOGIES][ONLY COMMANDS FOR ACTIVE TECHNOLOGIES] pytest [ONLY COMMANDS FOR ACTIVE TECHNOLOGIES][ONLY COMMANDS FOR ACTIVE TECHNOLOGIES] ruff check .
+
+## Code Style
+
+Python 3.12: Follow standard conventions
+
+## Recent Changes
+- 002-logicmachine-mqtt-client: Added Lua 5.1 (embedded in LogicMachine) + mosquitto (MQTT client), localbus (KNX events), grp (objects), json, config, encdec (SHA256 для schema_hash)
+
+- 001-server-mqtt-ingestor: Added Python 3.12 + FastAPI, uvicorn, aiomqtt (asyncio MQTT client), SQLAlchemy 2.x (async), asyncpg, redis[hiredis], alembic, pydantic v2, prometheus-client, structlog
+
+<!-- MANUAL ADDITIONS START -->
+
+## Deployment
+
+- **Код на сервер не пересылать**: сборка Docker образа выполняется локально. На сервере (elion) — только `docker pull` / `docker run` / systemd.
+- Не использовать `rsync`, `scp` или `git clone` на сервер для деплоя кода.
+- Workflow: локально `docker build` → `docker save` / push в registry → на elion `docker load` / `docker pull` → migrations + systemctl restart.
+
+## SSH Tunnels
+
+- **Право создавать туннели**: AI может создавать любые SSH-туннели к сервисам на elion (`ssh elion`) по мере необходимости, без дополнительного согласования.
+- Доступ к консоли: `ssh elion`.
+- **Скрипты туннеля**:
+  - `server/scripts/tunnel-start.sh` — поднять туннель (фоновый режим). Порты: 5432 PG, 6379 Redis, 1883 MQTT, 8322 REST dev.
+  - `server/scripts/tunnel-stop.sh` — остановить туннель.
+- Вызов: `./server/scripts/tunnel-start.sh`, `./server/scripts/tunnel-stop.sh` (из корня проекта).
+
+## Dev Database Cleanup
+
+- **Очистка таблиц dev-БД**: `cd server && python scripts/cleanup_dev_db.py`
+- Требуется `DB_URL` в `.env` или `.env.test`. Для удалённой БД — туннель (`./server/scripts/tunnel-start.sh`).
+- Очищает: events, houses, devices, objects, current_state, schema_versions, commands.
+
+<!-- MANUAL ADDITIONS END -->
