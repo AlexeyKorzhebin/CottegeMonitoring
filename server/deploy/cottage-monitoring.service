@@ -9,14 +9,16 @@ Restart=always
 RestartSec=5
 ExecStartPre=-/usr/bin/docker stop cottage-monitoring
 ExecStartPre=-/usr/bin/docker rm cottage-monitoring
-# --network=host kept intentionally: PG/Redis/Mosquitto on elion localhost.
-# Hardening: non-root image USER + drop capabilities / no-new-privileges.
+# Bridge network + host-gateway: reach PG/Redis/MQTT on elion via host.docker.internal.
+# Publish API only on host loopback. Non-root + cap-drop.
 ExecStart=/usr/bin/docker run --name cottage-monitoring \
-  --network=host \
+  --add-host=host.docker.internal:host-gateway \
+  -p 127.0.0.1:8321:8321 \
   --user 999:999 \
   --cap-drop=ALL \
   --security-opt=no-new-privileges:true \
   --env-file /etc/cottage-monitoring/cottage-monitoring.prod.env \
+  -e API_HOST=0.0.0.0 \
   -v /var/log/cottage-monitoring/prod:/var/log/cottage-monitoring \
   cottage-monitoring:0.2.5
 ExecStartPost=/opt/cottage-monitoring/wait_http_health.sh http://127.0.0.1:8321/health 30

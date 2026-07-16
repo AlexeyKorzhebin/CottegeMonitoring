@@ -7,8 +7,8 @@ image_digest: ""
 overlay_retired: true
 replaces_overlay: "cottage-monitoring:0.2.4"
 notes: |
-  v0.2.5: persistent MQTT publisher, events retention/compression + QoS1 dedup,
+  v0.2.5 (+ host-gateway deploy): bridge network, host.docker.internal,
+  elion-bind-docker0.sh (PG/Redis/MQTT on 172.17.0.1 + route_localnet/UFW),
+  API published only on 127.0.0.1:8321/8322.
+  Also: persistent MQTT publisher, events retention/compression + QoS1 dedup,
   ingest lag gauge, GA helpers, Docker non-root (uid 999) + cap-drop.
-  v0.2.4: security hardening — auth_required secure-by-default in prod (fail-fast),
-  write-scope enforcement on REST mutating endpoints, command value validation
-  (datatype/batch), MCP write rate-limit fail-closed w/o Redis, docs/openapi disabled in prod.

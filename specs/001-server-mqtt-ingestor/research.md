@@ -190,7 +190,8 @@ CMD ["uvicorn", "cottage_monitoring.main:app", "--host", "0.0.0.0", "--port", "8
 #### Systemd + Docker (два инстанса на elion)
 
 Оба инстанса (prod и dev) запускаются как Docker-контейнеры, управляемые systemd.
-Контейнеры используют `--network=host` для доступа к PostgreSQL, Redis и Mosquitto на localhost.
+Сеть: **bridge** + `--add-host=host.docker.internal:host-gateway`; API `-p 127.0.0.1:8321:8321`.
+Хостовые PG/Redis/MQTT:1883 слушают также `172.17.0.1` (`deploy/elion-bind-docker0.sh` + `route_localnet`/UFW).
 
 ```ini
 # cottage-monitoring.service (PRODUCTION — порт 8321)
@@ -206,10 +207,13 @@ RestartSec=5
 ExecStartPre=-/usr/bin/docker stop cottage-monitoring
 ExecStartPre=-/usr/bin/docker rm cottage-monitoring
 ExecStart=/usr/bin/docker run --name cottage-monitoring \
-  --network=host \
+  --add-host=host.docker.internal:host-gateway \
+  -p 127.0.0.1:8321:8321 \
+  --user 999:999 --cap-drop=ALL --security-opt=no-new-privileges:true \
   --env-file /etc/cottage-monitoring/cottage-monitoring.prod.env \
+  -e API_HOST=0.0.0.0 \
   -v /var/log/cottage-monitoring/prod:/var/log/cottage-monitoring \
-  cottage-monitoring:latest
+  cottage-monitoring:0.2.5
 ExecStop=/usr/bin/docker stop cottage-monitoring
 StandardOutput=journal
 StandardError=journal
@@ -232,10 +236,13 @@ RestartSec=5
 ExecStartPre=-/usr/bin/docker stop cottage-monitoring-dev
 ExecStartPre=-/usr/bin/docker rm cottage-monitoring-dev
 ExecStart=/usr/bin/docker run --name cottage-monitoring-dev \
-  --network=host \
+  --add-host=host.docker.internal:host-gateway \
+  -p 127.0.0.1:8322:8322 \
+  --user 999:999 --cap-drop=ALL --security-opt=no-new-privileges:true \
   --env-file /etc/cottage-monitoring/cottage-monitoring.dev.env \
+  -e API_HOST=0.0.0.0 \
   -v /var/log/cottage-monitoring/dev:/var/log/cottage-monitoring \
-  cottage-monitoring-dev:latest
+  cottage-monitoring:0.2.5
 ExecStop=/usr/bin/docker stop cottage-monitoring-dev
 StandardOutput=journal
 StandardError=journal
@@ -247,24 +254,29 @@ WantedBy=multi-user.target
 #### Сборка и деплой образов
 
 ```bash
-cd /opt/cottage-monitoring/server
-docker build -t cottage-monitoring:latest -f deploy/Dockerfile .
+# Локально: docker build --platform linux/amd64 … → docker save | ssh elion docker load
+# Один раз на elion: sudo bash deploy/elion-bind-docker0.sh
 
-# Миграции (через одноразовый контейнер)
-docker run --rm --network=host \
+# Миграции (через одноразовый контейнер с host-gateway)
+docker run --rm --add-host=host.docker.internal:host-gateway \
   --env-file /etc/cottage-monitoring/cottage-monitoring.prod.env \
-  cottage-monitoring:latest alembic upgrade head
+  cottage-monitoring:0.2.5 alembic upgrade head
 
-docker run --rm --network=host \
+docker run --rm --add-host=host.docker.internal:host-gateway \
   --env-file /etc/cottage-monitoring/cottage-monitoring.dev.env \
-  cottage-monitoring:latest alembic upgrade head
+  cottage-monitoring:0.2.5 alembic upgrade head
 ```
+
+**Ключевые решения**:
+- bridge + `host.docker.internal:host-gateway` (не `--network=host`)
+- API только на host loopback: `-p 127.0.0.1:8321:8321`
+- PG/Redis/MQTT:1883 дополнительно на `172.17.0.1` + `route_localnet`/UFW docker0
 
 ### Обоснование
 
 - Docker: единый артефакт для prod, dev и CI — одинаковая среда везде.
 - Systemd: управление жизненным циклом контейнеров (restart, logging, boot).
-- `--network=host`: контейнер напрямую использует host PostgreSQL/Redis/MQTT на localhost.
+- bridge + host-gateway: изоляция контейнера при доступе к хостовым PG/Redis/MQTT.
 - Две базы + два MQTT-префикса: полная изоляция dev от production на одном сервере.
 - SSH tunnel: простой способ подключения с dev-машины без VPN.
 
@@ -484,7 +496,7 @@ MQTT subscriber запускается как background task в FastAPI lifespa
 
 ### Альтернативы / отложено
 
-Ротация секретов в репозитории, non-root container, полный TLS verify на LM — отдельно.
+Ротация локальных секретов (LM admin/FTP в спеках, пароли env) — отдельно.
 
 ---
 
@@ -495,7 +507,7 @@ MQTT subscriber запускается как background task в FastAPI lifespa
 | R-001 | Классификация объектов | instant + timeseries маркировка в objects table | Единый pipeline без маркировки |
 | R-002 | Кеш состояния | Redis HSET per house | In-memory dict, только PostgreSQL |
 | R-003 | API фреймворк | FastAPI | aiohttp, Django, Flask |
-| R-004 | Деплой | Docker + systemd; build локально | Сборка на сервере (запрещено) |
+| R-004 | Деплой | Docker + systemd; bridge + host-gateway | `--network=host` (отвергнуто после hardening) |
 | R-005 | Логирование | structlog + RotatingFile + JSON | loguru, python-json-logger |
 | R-006 | Nginx | Reverse proxy на порт 8321 | Порт 8080 (стандартный, может конфликтовать) |
 | R-007 | MQTT клиент | aiomqtt (async) | paho-mqtt (sync) |

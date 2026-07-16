@@ -60,7 +60,7 @@ mosquitto_pub -h localhost -t "dev/cm/house-01/lm-main/v1/events" \
 ## Вариант 2: Production (Docker + systemd на elion)
 
 Приложение работает как Docker-контейнер, управляемый systemd. Контейнер использует
-`--network=host` для доступа к PostgreSQL, Redis и Mosquitto на localhost.
+bridge + `host.docker.internal:host-gateway` (см. `deploy/elion-bind-docker0.sh`); API публикуется на `127.0.0.1:8321`.
 
 Все команды выполняются на сервере `elion` (`ssh elion`).
 
@@ -181,14 +181,16 @@ sudo docker run --rm --network=host \
 
 ```bash
 # Локально (из server/)
-docker build --platform linux/amd64 -t cottage-monitoring:0.2.4 -f deploy/Dockerfile .
-docker save cottage-monitoring:0.2.4 | ssh elion 'sudo docker load'
-# На elion: обновить IMAGE в systemd unit, затем:
+docker build --platform linux/amd64 -t cottage-monitoring:0.2.5 -f deploy/Dockerfile .
+docker save cottage-monitoring:0.2.5 | ssh elion 'sudo docker load'
+# Один раз на elion: sudo bash deploy/elion-bind-docker0.sh
+# Env: host.docker.internal; systemd: bridge + -p 127.0.0.1:8321:8321
 ssh elion 'sudo systemctl daemon-reload && sudo systemctl restart cottage-monitoring'
-# Миграции (если есть) — одноразовый контейнер с prod.env
 ```
 
-Текущий prod/dev pin: **`cottage-monitoring:0.2.4`** (см. `server/deploy/IMAGE_PIN.yaml`).
+Сеть: **bridge** + `host.docker.internal:host-gateway` (не `--network=host`).
+
+Текущий pin: **`cottage-monitoring:0.2.5`** (`server/deploy/IMAGE_PIN.yaml`).
 
 ---
 
@@ -211,18 +213,19 @@ ssh elion 'sudo systemctl daemon-reload && sudo systemctl restart cottage-monito
 | Event QoS1 dedup | unique `(house_id,device_id,seq,ts)` (alembic 007) |
 | Ingest lag gauge | `ingestor_lag_current_seconds` |
 | GA helpers | `utils/ga.py` (slash API / dash storage) |
-| Docker non-root | uid/gid 999, `--cap-drop=ALL`, `--network=host` оставлен (localhost PG/Redis/MQTT) |
+| Docker non-root | uid/gid 999, `--cap-drop=ALL` |
+| Docker network | bridge + `host.docker.internal:host-gateway`; API `-p 127.0.0.1:8321:8321` |
+| Host deps for bridge | PG/Redis/MQTT:1883 also on `172.17.0.1` (`elion-bind-docker0.sh`) |
 | Telegram alerts secrets | `/etc/cottage-monitoring/telegram.env` |
 
 ### Клиент LM
 
 - `mqtt_tls_verify` + `mqtt_cafile` (ISRG Root X1 в `cm-client/certs/`)
-- Проверка cert брокера: `server/scripts/check_mosquitto_cert.sh` (2 PEM, >14d)
+- Проверка cert брокера: `server/scripts/check_mosquitto_cert.sh`
 
 ### Отложено
 
-- Полный отказ от `--network=host` (нужна отдельная docker network + DNS к сервисам)
-- Ротация паролей LM admin/FTP в репозитории/спеках
+- Ротация локальных секретов (LM admin/FTP в спеках/watchdog, пароли в env на elion)
 
 ### Автообновление сертификата MQTT
 

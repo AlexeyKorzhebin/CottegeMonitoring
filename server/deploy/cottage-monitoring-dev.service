@@ -10,11 +10,13 @@ RestartSec=5
 ExecStartPre=-/usr/bin/docker stop cottage-monitoring-dev
 ExecStartPre=-/usr/bin/docker rm cottage-monitoring-dev
 ExecStart=/usr/bin/docker run --name cottage-monitoring-dev \
-  --network=host \
+  --add-host=host.docker.internal:host-gateway \
+  -p 127.0.0.1:8322:8322 \
   --user 999:999 \
   --cap-drop=ALL \
   --security-opt=no-new-privileges:true \
   --env-file /etc/cottage-monitoring/cottage-monitoring.dev.env \
+  -e API_HOST=0.0.0.0 \
   -v /var/log/cottage-monitoring/dev:/var/log/cottage-monitoring \
   cottage-monitoring:0.2.5
 ExecStartPost=/opt/cottage-monitoring/wait_http_health.sh http://127.0.0.1:8322/health 30
