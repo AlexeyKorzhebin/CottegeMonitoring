@@ -226,7 +226,9 @@ ssh elion 'sudo systemctl daemon-reload && sudo systemctl restart cottage-monito
 
 ### Автообновление сертификата MQTT
 
-**Да.** certbot.timer + `preferred_chain = ISRG Root X1` + `/etc/letsencrypt/renewal-hooks/deploy/10-mosquitto.sh`. После renew: `sudo ./server/scripts/check_mosquitto_cert.sh` (или на elion).
+**Да.** certbot.timer + `preferred_chain = ISRG Root X1` + `/etc/letsencrypt/renewal-hooks/deploy/10-mosquitto.sh`.
+
+**Мониторинг:** ежедневно `check_mosquitto_cert_alert.sh` (2 PEM + запас ≥14 дней). При FAIL — syslog и **Telegram** (`/etc/cottage-monitoring/telegram.env`). Лог: `/var/log/cottage-monitoring/cert-check.log`.
 
 ---
 
