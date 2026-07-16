@@ -2,9 +2,11 @@
 
 from __future__ import annotations
 
+import time
 import uuid
 from typing import Any
 
+import structlog
 from fastapi import HTTPException
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -22,9 +24,11 @@ from cottage_monitoring.services.object_resolver import (
     HEATING_DIAG_GAS,
     DiscoverKind,
     ObjectRole,
+    _is_zone_query,
     resolve_objects,
 )
 
+logger = structlog.get_logger(__name__)
 
 def _norm_ga(ga: str) -> str:
     """Normalize GA to slash form used by objects schema (1/2/3).
@@ -269,6 +273,122 @@ async def _resolve_device_and_send(
         "ga": ga,
         "value": value,
         "status": cmd.status,
+    }
+
+
+async def _send_light_batch(
+    session: AsyncSession,
+    house_id: str,
+    *,
+    targets: list[tuple[str, str]],
+    value: bool,
+    comment: str,
+) -> dict[str, Any]:
+    """Publish one MQTT batch command for multiple GAs on the same device."""
+    if not targets:
+        raise HTTPException(status_code=400, detail="No lights to change")
+
+    device_id: str | None = None
+    items: list[dict[str, Any]] = []
+    for ga, _name in targets:
+        obj_result = await session.execute(
+            select(Object).where(Object.house_id == house_id, Object.ga == ga)
+        )
+        obj = obj_result.scalar_one_or_none()
+        if obj is None:
+            raise HTTPException(status_code=400, detail=f"Unknown GA: {ga}")
+        if not obj.device_id:
+            raise HTTPException(status_code=400, detail=f"Cannot resolve device_id for {ga}")
+        if device_id is None:
+            device_id = obj.device_id
+        elif obj.device_id != device_id:
+            raise HTTPException(
+                status_code=400,
+                detail="Lights span multiple devices; narrow the query",
+            )
+        items.append({"ga": ga, "value": value})
+
+    payload: dict[str, Any] = {"items": items, "comment": comment}
+    t0 = time.perf_counter()
+    cmd = await send_command(house_id, device_id, payload, session=session)
+    await session.commit()
+    send_ms = round((time.perf_counter() - t0) * 1000)
+    logger.info(
+        "set_lights_batch_sent",
+        house_id=house_id,
+        request_id=str(cmd.request_id),
+        item_count=len(items),
+        send_ms=send_ms,
+    )
+    return {
+        "request_id": str(cmd.request_id),
+        "status": cmd.status,
+        "item_count": len(items),
+        "send_ms": send_ms,
+    }
+
+
+async def set_lights(
+    session: AsyncSession,
+    house_id: str,
+    *,
+    query: str,
+    on: bool,
+    skip_unchanged: bool = True,
+) -> dict[str, Any]:
+    """Turn multiple lights on/off in one MQTT batch (zone queries like «1 этаж»)."""
+    t0 = time.perf_counter()
+    states = await _get_state_map(session, house_id)
+    result = await resolve_objects(
+        session, house_id, query=query, kind=DiscoverKind.LIGHT, role=ObjectRole.LIGHT_CONTROL
+    )
+    if not result.matches:
+        raise HTTPException(status_code=404, detail=f"No lights found for: {query}")
+
+    if len(result.matches) > 1 and not _is_zone_query(query):
+        return {
+            "status": "ambiguous",
+            "candidates": [{"name": m.name, "ga": m.ga} for m in result.matches],
+        }
+
+    skipped: list[dict[str, Any]] = []
+    to_change: list[tuple[str, str]] = []
+    for m in result.matches:
+        current = states.get(m.ga)
+        current_on = bool(current) if current is not None else None
+        if skip_unchanged and current_on is not None and current_on == on:
+            skipped.append({"name": m.name, "ga": m.ga, "on": current_on})
+            continue
+        to_change.append((m.ga, m.name))
+
+    if not to_change:
+        elapsed_ms = round((time.perf_counter() - t0) * 1000)
+        return {
+            "status": "ok",
+            "request_id": None,
+            "changed": [],
+            "skipped": skipped,
+            "note": "All matching lights already in target state",
+            "elapsed_ms": elapsed_ms,
+        }
+
+    out = await _send_light_batch(
+        session,
+        house_id,
+        targets=to_change,
+        value=on,
+        comment=f"mcp set_lights {query}",
+    )
+    elapsed_ms = round((time.perf_counter() - t0) * 1000)
+    return {
+        "status": out["status"],
+        "request_id": out["request_id"],
+        "changed": [{"name": name, "ga": ga, "on": on} for ga, name in to_change],
+        "skipped": skipped,
+        "batch": True,
+        "item_count": out["item_count"],
+        "send_ms": out["send_ms"],
+        "elapsed_ms": elapsed_ms,
     }
 
 

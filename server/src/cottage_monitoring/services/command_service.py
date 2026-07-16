@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import time
 import uuid
 from datetime import UTC, datetime
 
@@ -10,7 +11,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from cottage_monitoring.db.session import async_session_factory
-from cottage_monitoring.metrics import COMMAND_LATENCY, COMMAND_TIMEOUT_TOTAL
+from cottage_monitoring.metrics import COMMAND_LATENCY, COMMAND_SEND_TOTAL, COMMAND_TIMEOUT_TOTAL
 from cottage_monitoring.models.command import Command
 
 logger = structlog.get_logger(__name__)
@@ -44,7 +45,6 @@ async def handle_ack(
             return
 
         ack_status = payload.get("status", "ok")
-        logger.info("cmd_ack_applied", request_id=request_id_str, status=ack_status)
 
         now = datetime.now(UTC)
 
@@ -55,6 +55,12 @@ async def handle_ack(
 
         latency = (now - cmd.ts_sent).total_seconds()
         COMMAND_LATENCY.labels(house_id=house_id).observe(latency)
+        logger.info(
+            "cmd_ack_applied",
+            request_id=request_id_str,
+            status=ack_status,
+            latency_ms=round(latency * 1000),
+        )
 
         if was_timeout:
             logger.info("late_ack_received", request_id=request_id_str, status=ack_status)
@@ -106,7 +112,21 @@ async def send_command(
             from cottage_monitoring.deps import mqtt_client
 
             topic = f"{settings.mqtt_topic_prefix}cm/{house_id}/{device_id}/v1/cmd"
+            t_pub = time.perf_counter()
             await mqtt_client.publish(topic, json.dumps(mqtt_payload))
+            publish_ms = round((time.perf_counter() - t_pub) * 1000)
+            batch = "items" in mqtt_payload
+            item_count = len(mqtt_payload["items"]) if batch else 1
+            COMMAND_SEND_TOTAL.labels(house_id=house_id, batch=str(batch).lower()).inc()
+            logger.info(
+                "command_sent",
+                request_id=str(request_id),
+                house_id=house_id,
+                device_id=device_id,
+                batch=batch,
+                item_count=item_count,
+                publish_ms=publish_ms,
+            )
         except Exception:
             logger.exception("mqtt_publish_failed", house_id=house_id, device_id=device_id, request_id=str(request_id))
 

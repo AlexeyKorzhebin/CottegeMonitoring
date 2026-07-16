@@ -13,7 +13,7 @@ ExecStart=/usr/bin/docker run --name cottage-monitoring \
   --network=host \
   --env-file /etc/cottage-monitoring/cottage-monitoring.prod.env \
   -v /var/log/cottage-monitoring/prod:/var/log/cottage-monitoring \
-  cottage-monitoring:0.2.0
+  cottage-monitoring:0.2.1
 ExecStartPost=/opt/cottage-monitoring/wait_http_health.sh http://127.0.0.1:8321/health 30
 ExecStop=/usr/bin/docker stop cottage-monitoring
 StandardOutput=journal

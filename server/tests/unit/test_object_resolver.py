@@ -5,6 +5,8 @@ from cottage_monitoring.services.object_resolver import (
     resolve_objects,
 )
 
+import pytest
+
 
 def _obj(ga: str, name: str, tags: str) -> Object:
     return Object(
@@ -70,6 +72,14 @@ def test_query_matches_russian_cases() -> None:
     assert _query_matches("кухне", porch) is False
 
 
+def test_query_matches_floor_tag() -> None:
+    from cottage_monitoring.services.object_resolver import _query_matches
+
+    o = _obj("1/1/7", "Свет - кухня", "1floor,control,light")
+    assert _query_matches("1 этаж", o) is True
+    assert _query_matches("свет на первом этаже", o) is True
+
+
 def test_resolve_ambiguous_with_explicit_light_role(monkeypatch) -> None:
     import asyncio
 
@@ -96,11 +106,10 @@ def test_resolve_ambiguous_with_explicit_light_role(monkeypatch) -> None:
     assert len(result.matches) == 2
 
 
+@pytest.mark.integration
+@pytest.mark.asyncio
 async def test_resolve_kitchen_light_unique(db_session) -> None:
-    import pytest
     from cottage_monitoring.services.house_service import ensure_house
-
-    pytestmark = pytest.mark.integration
 
     house_id = "resolver-test-house"
     await ensure_house(house_id, session=db_session)

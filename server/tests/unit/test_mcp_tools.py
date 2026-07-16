@@ -27,6 +27,7 @@ def test_mcp_registers_expected_tools() -> None:
         "get_sensors",
         "list_lights",
         "set_light",
+        "set_lights",
         "get_climate",
         "set_climate",
         "get_energy_status",

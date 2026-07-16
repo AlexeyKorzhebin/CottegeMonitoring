@@ -3,16 +3,21 @@
 from __future__ import annotations
 
 import json
+import time
 from collections.abc import Awaitable, Callable
 from typing import Any, TypeVar
 
+import structlog
 from fastapi import HTTPException
 from mcp.server.fastmcp import FastMCP
 from mcp.server.transport_security import TransportSecuritySettings
 
 from cottage_monitoring.auth.context import ApiKeyContext, get_current_api_key_context
 from cottage_monitoring.db.session import async_session_factory
+from cottage_monitoring.metrics import MCP_TOOL_DURATION
 from cottage_monitoring.services import agent_actions
+
+logger = structlog.get_logger(__name__)
 
 T = TypeVar("T")
 
@@ -65,15 +70,24 @@ def _require_scope(ctx: ApiKeyContext, scope: str) -> str | None:
 async def _with_session(
     action: Callable[..., Awaitable[T]],
     *args: Any,
+    tool: str = "unknown",
     **kwargs: Any,
 ) -> str:
     """Run a DB-backed action; map HTTPException to MCP JSON error contract."""
+    t0 = time.perf_counter()
     try:
         async with async_session_factory() as session:
             data = await action(session, *args, **kwargs)
     except HTTPException as exc:
         detail = exc.detail if isinstance(exc.detail, str) else str(exc.detail)
+        elapsed_ms = round((time.perf_counter() - t0) * 1000)
+        MCP_TOOL_DURATION.labels(tool=tool).observe((time.perf_counter() - t0))
+        logger.info("mcp_tool_error", tool=tool, code=exc.status_code, elapsed_ms=elapsed_ms)
         return _error_json(exc.status_code, detail)
+    elapsed = time.perf_counter() - t0
+    MCP_TOOL_DURATION.labels(tool=tool).observe(elapsed)
+    elapsed_ms = round(elapsed * 1000)
+    logger.info("mcp_tool_done", tool=tool, elapsed_ms=elapsed_ms)
     return _json(data)
 
 
@@ -82,7 +96,7 @@ async def get_house_status() -> str:
     ctx = _require_ctx()
     if err := _require_scope(ctx, "read"):
         return err
-    return await _with_session(agent_actions.get_house_status, ctx.house_id)
+    return await _with_session(agent_actions.get_house_status, ctx.house_id, tool="get_house_status")
 
 
 @mcp.tool(description="Find objects by name/query and kind: light, temp, climate, sensor, energy, heating, appliance, all.")
@@ -95,6 +109,7 @@ async def discover(query: str = "", kind: str = "all") -> str:
         ctx.house_id,
         query=query or None,
         kind=kind,
+        tool="discover",
     )
 
 
@@ -112,6 +127,7 @@ async def get_temperature(query: str = "") -> str:
         agent_actions.get_temperatures,
         ctx.house_id,
         query=query or None,
+        tool="get_temperature",
     )
 
 
@@ -125,6 +141,7 @@ async def get_sensors(query: str = "", kind: str = "sensor") -> str:
         ctx.house_id,
         query=query or None,
         kind=kind,
+        tool="get_sensors",
     )
 
 
@@ -133,10 +150,12 @@ async def list_lights(query: str = "") -> str:
     ctx = _require_ctx()
     if err := _require_scope(ctx, "read"):
         return err
-    return await _with_session(agent_actions.list_lights, ctx.house_id, query=query or None)
+    return await _with_session(
+        agent_actions.list_lights, ctx.house_id, query=query or None, tool="list_lights"
+    )
 
 
-@mcp.tool(description="Turn a light on or off by room/name query.")
+@mcp.tool(description="Turn a light on or off by room/name query (single fixture).")
 async def set_light(query: str, on: bool) -> str:
     ctx = _require_ctx()
     if err := _require_scope(ctx, "write"):
@@ -147,6 +166,29 @@ async def set_light(query: str, on: bool) -> str:
         ctx.house_id,
         query=query,
         on=on,
+        tool="set_light",
+    )
+
+
+@mcp.tool(
+    description=(
+        "Turn multiple lights on/off in one MQTT batch. Use for zones: «1 этаж», «уличное», "
+        "«2 этаж». Skips fixtures already in target state (skip_unchanged=true by default). "
+        "Prefer over looping set_light — one request_id, one ack."
+    )
+)
+async def set_lights(query: str, on: bool, skip_unchanged: bool = True) -> str:
+    ctx = _require_ctx()
+    if err := _require_scope(ctx, "write"):
+        return err
+    await agent_actions.check_write_rate_limit(ctx)
+    return await _with_session(
+        agent_actions.set_lights,
+        ctx.house_id,
+        query=query,
+        on=on,
+        skip_unchanged=skip_unchanged,
+        tool="set_lights",
     )
 
 
@@ -160,7 +202,9 @@ async def get_climate(query: str = "") -> str:
     ctx = _require_ctx()
     if err := _require_scope(ctx, "read"):
         return err
-    return await _with_session(agent_actions.get_climate, ctx.house_id, query=query or None)
+    return await _with_session(
+        agent_actions.get_climate, ctx.house_id, query=query or None, tool="get_climate"
+    )
 
 
 @mcp.tool(
@@ -184,6 +228,7 @@ async def set_climate(
         query=query,
         setpoint_c=setpoint_c,
         force_relay=force_relay,
+        tool="set_climate",
     )
 
 
@@ -197,7 +242,7 @@ async def get_energy_status() -> str:
     ctx = _require_ctx()
     if err := _require_scope(ctx, "read"):
         return err
-    return await _with_session(agent_actions.get_energy_status, ctx.house_id)
+    return await _with_session(agent_actions.get_energy_status, ctx.house_id, tool="get_energy_status")
 
 
 @mcp.tool(
@@ -210,7 +255,9 @@ async def get_heating_diagnostics() -> str:
     ctx = _require_ctx()
     if err := _require_scope(ctx, "read"):
         return err
-    return await _with_session(agent_actions.get_heating_diagnostics, ctx.house_id)
+    return await _with_session(
+        agent_actions.get_heating_diagnostics, ctx.house_id, tool="get_heating_diagnostics"
+    )
 
 
 @mcp.tool(
@@ -223,7 +270,7 @@ async def get_kettle() -> str:
     ctx = _require_ctx()
     if err := _require_scope(ctx, "read"):
         return err
-    return await _with_session(agent_actions.get_kettle, ctx.house_id)
+    return await _with_session(agent_actions.get_kettle, ctx.house_id, tool="get_kettle")
 
 
 @mcp.tool(
@@ -237,7 +284,7 @@ async def set_kettle(on: bool) -> str:
     if err := _require_scope(ctx, "write"):
         return err
     await agent_actions.check_write_rate_limit(ctx)
-    return await _with_session(agent_actions.set_kettle, ctx.house_id, on=on)
+    return await _with_session(agent_actions.set_kettle, ctx.house_id, on=on, tool="set_kettle")
 
 
 @mcp.tool(description="Poll command status by request_id after set_light/set_climate/set_kettle.")
@@ -245,7 +292,9 @@ async def get_command_status(request_id: str) -> str:
     ctx = _require_ctx()
     if err := _require_scope(ctx, "read"):
         return err
-    return await _with_session(agent_actions.get_command_status, ctx.house_id, request_id)
+    return await _with_session(
+        agent_actions.get_command_status, ctx.house_id, request_id, tool="get_command_status"
+    )
 
 
 def create_mcp_app():

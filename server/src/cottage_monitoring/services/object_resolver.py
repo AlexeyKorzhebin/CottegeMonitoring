@@ -45,6 +45,24 @@ _STOP_LEMMAS = frozenset(
     }
 )
 
+_FLOOR_TAG_RE = re.compile(
+    r"(?:^|\s)(?P<num>[12])\s*этаж|"
+    r"перв\w*\s+этаж|"
+    r"втор\w*\s+этаж",
+    re.IGNORECASE,
+)
+
+
+def _is_zone_query(query: str) -> bool:
+    """Broad area queries (floor/outside) may target multiple lights in one batch."""
+    q = query.lower().strip().replace("ё", "е")
+    if _FLOOR_TAG_RE.search(q):
+        return True
+    if any(token in q for token in ("1floor", "2floor", "outside", "outdoor", "улич", "снаружи", "двор")):
+        return True
+    return False
+
+
 # Map surface / lemma forms to the tokens used in object names/tags.
 _SYNONYMS = {
     "зал": "гостиная",
@@ -263,6 +281,15 @@ def _query_matches(query: str | None, obj: Object) -> bool:
         )
     ) or q in {"двор", "дворе", "на улице"}:
         expanded.add("outside")
+    floor_match = _FLOOR_TAG_RE.search(q)
+    if floor_match:
+        num = floor_match.group("num")
+        if num:
+            expanded.add(f"{num}floor")
+        elif "перв" in q:
+            expanded.add("1floor")
+        elif "втор" in q:
+            expanded.add("2floor")
     for token in expanded:
         if token in name or token in tags:
             return True

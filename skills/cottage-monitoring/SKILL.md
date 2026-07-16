@@ -44,7 +44,8 @@ Store `COTTAGE_API_KEY` in env — never commit it.
 | «Температура пола» | `get_temperature` — source `floor` (`1/3/*`) |
 | «Влажность» | `get_sensors` kind=sensor |
 | «Свет в …» read | `list_lights` / `discover` kind=light |
-| «Включи/выключи свет» | `set_light` |
+| «Включи/выключи свет» (одна лампа/комната) | `set_light` |
+| «Выключи свет на 1 этаже» / зона / улица | `set_lights` — **один batch**, не цикл `set_light` |
 | «Отопление / тёплые полы» read | `get_climate` + `get_heating_diagnostics` |
 | «Поставь 22 градуса» (ТП) | `set_climate` — **setpoint only** |
 | «Сколько жрём электричества» | `get_energy_status` |
@@ -68,6 +69,7 @@ From `manage_warm_floor.lua`:
 - If `discover` or `set_*` returns `ambiguous`, ask the user which room/device.
 - Read before write when unsure.
 - Do not spam commands; one action per user request.
+- **Performance:** never loop `set_light` for a floor/zone — use `set_lights` once. One `get_command_status` per `request_id`, not per lamp. `cmd_timeout` is 60s — N sequential commands can take minutes.
 - API key = full house access within scopes (`read` / `write`).
 - Prefer loopback MCP; do not expose `/mcp` publicly.
 

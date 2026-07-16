@@ -34,6 +34,19 @@ COMMAND_TIMEOUT_TOTAL = Counter(
     ["house_id"],
 )
 
+MCP_TOOL_DURATION = Histogram(
+    "mcp_tool_duration_seconds",
+    "MCP tool handler wall time",
+    ["tool"],
+    buckets=(0.01, 0.05, 0.1, 0.25, 0.5, 1.0, 2.5, 5.0, 10.0, 30.0),
+)
+
+COMMAND_SEND_TOTAL = Counter(
+    "ingestor_command_send_total",
+    "Commands published to MQTT",
+    ["house_id", "batch"],
+)
+
 SCHEMA_CHANGES_TOTAL = Counter(
     "ingestor_schema_changes_total",
     "Total schema changes detected",

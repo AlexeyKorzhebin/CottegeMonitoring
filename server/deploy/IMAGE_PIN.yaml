@@ -1,15 +1,11 @@
 # CottageMonitoring image pin (source of truth: GitHub AlexeyKorzhebin/CottegeMonitoring)
 
-version: "0.2.0"
+version: "0.2.1"
 git_ref: "main"
-image_tag: "cottage-monitoring:0.2.0"
-# Fill digest after build: docker image inspect cottage-monitoring:0.2.0 --format '{{index .RepoDigests 0}}'
-image_digest: "sha256:40b239bcb64c77fdd0938779e2f4a6cebe356bcef0df79ab038fb20f0468211a"
+image_tag: "cottage-monitoring:0.2.1"
+image_digest: ""
 overlay_retired: true
 replaces_overlay: "cottage-monitoring:structured-errors-20260716"
 notes: |
-  v0.2.0 includes overlay fixes upstream:
-  - ambiguous resolver when explicit role matches multiple objects
-  - MCP JSON error contract via mcp/server _with_session
-  - pymorphy3 Russian case matching (from 0.1.x line)
-  Deploy: build amd64 locally, tag 0.2.0, install wait_http_health.sh to /opt/cottage-monitoring/
+  v0.2.1: set_lights batch MCP tool, skip unchanged state, mcp_tool_duration metrics,
+  structured logs (mcp_tool_done, command_sent, cmd_ack_applied latency_ms).
