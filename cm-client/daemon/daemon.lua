@@ -159,9 +159,13 @@ local function setup_client()
       local results = {}
       for _, it in ipairs(items) do
         local rok, rerr = pcall(grp.write, it.ga, it.value)
-        table.insert(results, { ga = it.ga, applied = rok and true or false, error = rok and nil or tostring(rerr) })
+        local row = { ga = it.ga, applied = rok and true or false }
+        if not rok then row.error = tostring(rerr) end
+        table.insert(results, row)
       end
-      do_pub('cmd/ack', json.encode({ request_id = msg.request_id, results = results, ts = os.time() }), 1, false)
+      local rid = tostring(msg.request_id or '')
+      local ack_rel = (rid ~= '') and ('cmd/ack/' .. rid) or 'cmd/ack'
+      do_pub(ack_rel, json.encode({ request_id = msg.request_id, results = results, ts = os.time() }), 1, false)
     elseif topic:match('/rpc/req/') then
       local ok, msg = pcall(json.decode, payload)
       if not ok or not msg then return end
