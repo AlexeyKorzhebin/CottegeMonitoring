@@ -394,6 +394,30 @@ Let's Encrypt live `fullchain` с intermediate **YR2** (3 PEM) ломает hand
 
 ---
 
+## R-014: Boolean `false` в Lua и топик cmd/ack (2026-07)
+
+### Контекст
+
+Инцидент: бот включил свет в холле 2 этажа, затем команда «выключить 2 этаж» / разбор — сервер показывал `timeout`, в `current_state`/`events` для bool OFF уходили `null`, физика и телеметрия расходились.
+
+Две отдельные ошибки в компактном daemon:
+
+1. **Ack-топик.** Публикация в голый `cmd/ack` — сервер ждёт `cmd/ack/{request_id}` (`topic_parser` / FR-021). `grp.write` на LM при этом мог выполниться, но команда в БД оставалась `timeout`.
+2. **Идиома `ok and v or nil`.** В Lua при `v == false` выражение даёт `nil`. Использовалось после `pcall(grp.getvalue, …)` в snapshot и в localbus handler → MQTT `events`/`state` для выключенного света без `value` или с `null`, БД портилась.
+
+### Решение
+
+- Ack: `(rid ~= '') and ('cmd/ack/' .. rid) or 'cmd/ack'` — всегда с `request_id`, когда он есть.
+- `safe_getvalue(addr)`: `if okv then return v end` (не `ok and v or nil`).
+- `coerce_cmd_value` для `0`/`1`/`"true"`/`"false"`; **не** маппить `nil→false` (ломает уставки/non-bool).
+- В ack results можно эхоить применённый `value` для отладки.
+
+### Проверка
+
+После `grp.write(…, false)` в MQTT должно быть `"value":false` (не отсутствие поля / `null`). Команда через API → статус `ok`, не `timeout`.
+
+---
+
 ## Сводка решений
 
 | ID | Тема | Решение |
@@ -411,3 +435,4 @@ Let's Encrypt live `fullchain` с intermediate **YR2** (3 PEM) ломает hand
 | R-011 | LM limits | компактный daemon, stop/start, runtime path |
 | R-012 | loop() | всегда pump; numeric rc only |
 | R-013 | Broker cert | short-chain + certbot hook auto-renew |
+| R-014 | bool false / ack | `safe_getvalue`; `cmd/ack/{request_id}` |

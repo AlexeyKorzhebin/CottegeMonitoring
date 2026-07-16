@@ -7,7 +7,7 @@ storage.set('cm_mqtt_connected', false)
 storage.set('mqtt_connected', false)
 storage.set('cm_last_error', '')
 storage.set('cm_reconnect_count', 0)
-storage.set('cm_boot', 'v111b_start')
+storage.set('cm_boot', 'v111c_start')
 
 local config = require('config')
 local json = require('json')
@@ -23,6 +23,19 @@ local function set_err(e) pcall(storage.set, 'cm_last_error', tostring(e or ''))
 local function loop_failed(rc)
   -- LM binding: success may be true/nil/0; only numeric ~= 0 is an error
   return type(rc) == 'number' and rc ~= 0
+end
+-- IMPORTANT: never use `ok and v or nil` — when v is false, Lua yields nil.
+local function safe_getvalue(addr)
+  local okv, v = pcall(grp.getvalue, addr)
+  if okv then return v end
+  return nil
+end
+-- Normalize common bool encodings from MQTT/JSON (do NOT map nil→false:
+-- nil must stay nil so non-bool commands are not corrupted).
+local function coerce_cmd_value(v)
+  if v == 0 or v == '0' or v == 'false' or v == 'False' then return false end
+  if v == 1 or v == '1' or v == 'true' or v == 'True' then return true end
+  return v
 end
 
 local C = {
@@ -105,7 +118,7 @@ local function publish_meta()
   local pub_cnt = 0
   for _, o in ipairs(sorted) do
     local val = o.value
-    if val == nil then local okv, v = pcall(grp.getvalue, o.address); val = okv and v or nil end
+    if val == nil then val = safe_getvalue(o.address) end
     do_pub('state/ga/' .. (o.address or ''):gsub('/', '-'), json.encode({ ts = ts, value = val, datatype = o.datatype or 0 }), 1, true)
     pub_cnt = pub_cnt + 1
     if pub_cnt >= 30 then pub_cnt = 0; os.sleep(0.02) end
@@ -158,8 +171,9 @@ local function setup_client()
       if not items then return end
       local results = {}
       for _, it in ipairs(items) do
-        local rok, rerr = pcall(grp.write, it.ga, it.value)
-        local row = { ga = it.ga, applied = rok and true or false }
+        local wval = coerce_cmd_value(it.value)
+        local rok, rerr = pcall(grp.write, it.ga, wval)
+        local row = { ga = it.ga, applied = (rok == true), value = wval }
         if not rok then row.error = tostring(rerr) end
         table.insert(results, row)
       end
@@ -192,7 +206,7 @@ lb:sethandler('groupwrite', function(event)
   local obj = grp.find(dst)
   if not obj then return end
   local val = event.value
-  if val == nil then local okv, v = pcall(grp.getvalue, dst); val = okv and v or nil end
+  if val == nil then val = safe_getvalue(dst) end
   local ts = os.time()
   S.seq = S.seq + 1
   do_pub('events', json.encode({ ts = ts, seq = S.seq, type = 'knx.groupwrite', ga = obj.address or dst,

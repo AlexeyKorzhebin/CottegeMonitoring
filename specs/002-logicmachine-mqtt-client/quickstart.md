@@ -106,8 +106,9 @@ Daemon автоматически регистрируется при устан
    ```bash
    mosquitto_pub -h 127.0.0.1 -p 1883 -t 'cm/house/lm-main/v1/cmd' \
      -m '{"request_id":"t1","ga":"1/1/1","value":false}'
-   # ack: cm/house/lm-main/v1/cmd/ack
+   # ack: cm/house/lm-main/v1/cmd/ack/t1   (не голый cmd/ack — иначе timeout на сервере)
    ```
+   Bool `false` в events/state должен остаться `false`, не `null` (см. research R-014: нельзя `ok and v or nil` в Lua).
 
 ### Watchdog (Resident)
 
