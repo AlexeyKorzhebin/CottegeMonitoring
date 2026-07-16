@@ -194,6 +194,31 @@ async def set_lights(query: str, on: bool, skip_unchanged: bool = True) -> str:
 
 @mcp.tool(
     description=(
+        "Send arbitrary GA/value commands in batch. Input: items=[{ga,value}, ...]. "
+        "Server groups items by device and sends minimal number of MQTT commands."
+    )
+)
+async def set_commands(
+    items: list[dict[str, Any]],
+    comment: str = "",
+    skip_unchanged: bool = True,
+) -> str:
+    ctx = _require_ctx()
+    if err := _require_scope(ctx, "write"):
+        return err
+    await agent_actions.check_write_rate_limit(ctx)
+    return await _with_session(
+        agent_actions.set_commands,
+        ctx.house_id,
+        items=items,
+        comment=comment or None,
+        skip_unchanged=skip_unchanged,
+        tool="set_commands",
+    )
+
+
+@mcp.tool(
+    description=(
         "Underfloor heating: setpoints, floor/room temps, relay status, auto algorithm state. "
         "Setpoint alone does not enable heating — relays are managed by auto balancing (1/7/1)."
     )

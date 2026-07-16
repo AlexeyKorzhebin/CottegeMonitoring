@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+from unittest.mock import AsyncMock
 
 from cottage_monitoring.models.object import Object
 from cottage_monitoring.services.object_resolver import ObjectRole, _is_zone_query, resolve_objects
@@ -93,3 +94,71 @@ def test_set_lights_ambiguous_non_zone(monkeypatch) -> None:
     )
     assert result["status"] == "ambiguous"
     assert len(result["candidates"]) == 2
+
+
+def test_set_commands_groups_by_device(monkeypatch) -> None:
+    from cottage_monitoring.services import agent_actions
+
+    a = _obj("1/1/7", "Свет - кухня", "1floor,control,light")
+    a.device_id = "dev-a"
+    b = _obj("1/1/9", "Свет - коридор", "1floor,control,light")
+    b.device_id = "dev-a"
+    c = _obj("33/1/39", "ble_teapot_RK-M173S_cmd", "ble,control")
+    c.device_id = "dev-b"
+
+    class _Result:
+        def __init__(self, rows):
+            self._rows = rows
+
+        def scalars(self):
+            class _S:
+                def __init__(self, rows):
+                    self._rows = rows
+
+                def all(self):
+                    return self._rows
+
+            return _S(self._rows)
+
+    class _Session:
+        def __init__(self):
+            self.committed = False
+
+        async def execute(self, _query):
+            return _Result([a, b, c])
+
+        async def commit(self):
+            self.committed = True
+
+    monkeypatch.setattr(agent_actions, "_get_state_map", AsyncMock(return_value={"1/1/9": False}))
+
+    sent = []
+
+    async def fake_send(house_id, device_id, payload, *, session=None):
+        sent.append((house_id, device_id, payload))
+
+        class _Cmd:
+            request_id = "rid"
+
+        return _Cmd()
+
+    monkeypatch.setattr(agent_actions, "send_command", fake_send)
+
+    session = _Session()
+    result = asyncio.run(
+        agent_actions.set_commands(
+            session,  # type: ignore[arg-type]
+            "h1",
+            items=[
+                {"ga": "1/1/7", "value": False},
+                {"ga": "1/1/9", "value": False},  # unchanged -> skip
+                {"ga": "33/1/39", "value": True},
+            ],
+            skip_unchanged=True,
+        )
+    )
+
+    assert result["status"] == "sent"
+    assert len(result["commands"]) == 2
+    assert len(result["skipped"]) == 1
+    assert session.committed is True

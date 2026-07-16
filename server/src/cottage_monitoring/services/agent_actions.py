@@ -392,6 +392,75 @@ async def set_lights(
     }
 
 
+async def set_commands(
+    session: AsyncSession,
+    house_id: str,
+    *,
+    items: list[dict[str, Any]],
+    comment: str | None = None,
+    skip_unchanged: bool = True,
+) -> dict[str, Any]:
+    """Send arbitrary GA/value pairs grouped by device_id in minimal batches."""
+    if not items:
+        raise HTTPException(status_code=400, detail="items must not be empty")
+
+    normalized: list[dict[str, Any]] = []
+    for item in items:
+        ga = str(item.get("ga", "")).strip()
+        if not ga or "value" not in item:
+            raise HTTPException(status_code=400, detail="Each item must contain ga and value")
+        normalized.append({"ga": ga, "value": item["value"]})
+
+    states = await _get_state_map(session, house_id)
+    gas = [i["ga"] for i in normalized]
+    objs_result = await session.execute(
+        select(Object).where(Object.house_id == house_id, Object.ga.in_(gas))
+    )
+    objs = {o.ga: o for o in objs_result.scalars().all()}
+
+    skipped: list[dict[str, Any]] = []
+    by_device: dict[str, list[dict[str, Any]]] = {}
+    for item in normalized:
+        ga = item["ga"]
+        value = item["value"]
+        obj = objs.get(ga)
+        if obj is None:
+            raise HTTPException(status_code=400, detail=f"Unknown GA: {ga}")
+        if not obj.device_id:
+            raise HTTPException(status_code=400, detail=f"Cannot resolve device_id for {ga}")
+
+        current = states.get(ga)
+        if skip_unchanged and current is not None and current == value:
+            skipped.append({"ga": ga, "value": value, "current": current})
+            continue
+
+        by_device.setdefault(obj.device_id, []).append({"ga": ga, "value": value})
+
+    if not by_device:
+        return {
+            "status": "ok",
+            "commands": [],
+            "skipped": skipped,
+            "note": "All items already in requested state",
+        }
+
+    commands: list[dict[str, Any]] = []
+    for device_id, device_items in by_device.items():
+        payload: dict[str, Any] = {"items": device_items}
+        if comment:
+            payload["comment"] = comment
+        cmd = await send_command(house_id, device_id, payload, session=session)
+        commands.append(
+            {
+                "request_id": str(cmd.request_id),
+                "device_id": device_id,
+                "item_count": len(device_items),
+            }
+        )
+    await session.commit()
+    return {"status": "sent", "commands": commands, "skipped": skipped}
+
+
 async def set_light(
     session: AsyncSession,
     house_id: str,
