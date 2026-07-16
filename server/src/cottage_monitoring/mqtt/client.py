@@ -1,4 +1,4 @@
-"""MQTT client wrapper with TLS, auth, auto-reconnect."""
+"""MQTT client wrapper with TLS, auth, auto-reconnect, persistent publisher."""
 
 import asyncio
 import ssl
@@ -32,6 +32,8 @@ class MqttClient:
         self._connected = False
         self._backoff = 1.0
         self._shutdown = False
+        self._pub_client: aiomqtt.Client | None = None
+        self._pub_lock = asyncio.Lock()
 
     def _build_client_kwargs(self, *, for_publish: bool = False) -> dict:
         client_id = (self._client_id or "cottage-monitoring") + ("-pub" if for_publish else "")
@@ -54,6 +56,7 @@ class MqttClient:
     async def disconnect(self) -> None:
         """Signal the messages() loop to stop on next reconnect cycle."""
         self._shutdown = True
+        await self.stop_publisher()
 
     def subscribe(self, topic: str | list[str]) -> None:
         """Set topic(s) for subscription. Actual subscription happens in messages()."""
@@ -63,11 +66,52 @@ class MqttClient:
         """Set topic for subscription. Connection established in messages() loop."""
         self.subscribe(topic)
 
+    async def start_publisher(self) -> None:
+        """Open a long-lived publish connection (separate client_id -pub)."""
+        async with self._pub_lock:
+            if self._pub_client is not None:
+                return
+            kwargs = self._build_client_kwargs(for_publish=True)
+            client = aiomqtt.Client(**kwargs)
+            await client.__aenter__()
+            self._pub_client = client
+            logger.info("mqtt_publisher_started", host=self._host, port=self._port)
+
+    async def stop_publisher(self) -> None:
+        """Close the persistent publisher if open."""
+        async with self._pub_lock:
+            if self._pub_client is None:
+                return
+            try:
+                await self._pub_client.__aexit__(None, None, None)
+            except Exception:
+                logger.warning("mqtt_publisher_stop_error", exc_info=True)
+            self._pub_client = None
+            logger.info("mqtt_publisher_stopped")
+
     async def publish(self, topic: str, payload: str | bytes, qos: int = 1) -> None:
-        """Publish message. Uses separate client_id (-pub suffix) to avoid kicking the subscriber."""
-        kwargs = self._build_client_kwargs(for_publish=True)
-        async with aiomqtt.Client(**kwargs) as client:
-            await client.publish(topic, payload, qos=qos)
+        """Publish via persistent publisher; reconnect once on failure."""
+        async with self._pub_lock:
+            if self._pub_client is None:
+                kwargs = self._build_client_kwargs(for_publish=True)
+                client = aiomqtt.Client(**kwargs)
+                await client.__aenter__()
+                self._pub_client = client
+            try:
+                await self._pub_client.publish(topic, payload, qos=qos)
+                return
+            except aiomqtt.MqttError:
+                logger.warning("mqtt_publish_reconnect", topic=topic)
+                try:
+                    await self._pub_client.__aexit__(None, None, None)
+                except Exception:
+                    pass
+                self._pub_client = None
+                kwargs = self._build_client_kwargs(for_publish=True)
+                client = aiomqtt.Client(**kwargs)
+                await client.__aenter__()
+                self._pub_client = client
+                await self._pub_client.publish(topic, payload, qos=qos)
 
     async def messages(self) -> AsyncIterator[aiomqtt.Message]:
         """Async generator that yields messages with auto-reconnect on disconnect."""

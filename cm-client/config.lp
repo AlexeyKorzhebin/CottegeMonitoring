@@ -35,6 +35,16 @@
     <input type="checkbox" id="cottage-monitoring-mqtt_use_tls" checked disabled title="TLS always enabled">
   </div>
   <div class="form-group">
+    <label for="cottage-monitoring-mqtt_tls_verify">
+      <input type="checkbox" id="cottage-monitoring-mqtt_tls_verify"> Verify broker certificate
+    </label>
+    <span class="help-block">Requires ISRG Root X1 at mqtt_cafile (short-chain broker cert)</span>
+  </div>
+  <div class="form-group">
+    <label for="cottage-monitoring-mqtt_cafile">CA file (optional)</label>
+    <input type="text" id="cottage-monitoring-mqtt_cafile" class="form-control" placeholder="/data/apps/store/data/cottage-monitoring/certs/isrg-root-x1.pem">
+  </div>
+  <div class="form-group">
     <label for="cottage-monitoring-client_id">Client ID (optional)</label>
     <input type="text" id="cottage-monitoring-client_id" class="form-control" placeholder="auto" maxlength="64">
   </div>
@@ -186,6 +196,8 @@
       mqtt_username: mqtt_username,
       mqtt_password: mqtt_password,
       mqtt_use_tls: true,
+      mqtt_tls_verify: $('#' + APP + '-mqtt_tls_verify').is(':checked'),
+      mqtt_cafile: $.trim($('#' + APP + '-mqtt_cafile').val()),
       client_id: client_id,
       debug_level: debug_level,
       batch_interval: batch_interval,

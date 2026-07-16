@@ -39,8 +39,9 @@ def _norm_ga(ga: str) -> str:
 
     MQTT/current_state historically may store dash form (1-2-3).
     """
-    return ga.replace("-", "/")
+    from cottage_monitoring.utils.ga import ga_to_slash
 
+    return ga_to_slash(ga)
 
 async def _get_state_map(session: AsyncSession, house_id: str) -> dict[str, Any]:
     if redis_cache.is_connected:

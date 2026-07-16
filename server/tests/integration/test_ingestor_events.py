@@ -47,8 +47,8 @@ async def test_event_append(db_session: AsyncSession) -> None:
     assert row.value is True
 
 
-async def test_event_duplicate_accepted(db_session: AsyncSession) -> None:
-    """Same event twice → both rows saved (no unique constraint, QoS 1 duplicates OK)."""
+async def test_event_duplicate_deduped(db_session: AsyncSession) -> None:
+    """Same event twice → one row (QoS1 dedup on house/device/seq/ts)."""
     house_id = "house-event-dup"
     result_before = await db_session.execute(
         select(func.count()).select_from(Event).where(Event.house_id == house_id)
@@ -62,7 +62,7 @@ async def test_event_duplicate_accepted(db_session: AsyncSession) -> None:
         select(func.count()).select_from(Event).where(Event.house_id == house_id)
     )
     count = result.scalar_one()
-    assert count == count_before + 2
+    assert count == count_before + 1
 
 
 async def test_event_server_received_ts(db_session: AsyncSession) -> None:

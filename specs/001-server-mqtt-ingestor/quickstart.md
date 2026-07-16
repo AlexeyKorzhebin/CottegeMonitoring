@@ -194,7 +194,7 @@ ssh elion 'sudo systemctl daemon-reload && sudo systemctl restart cottage-monito
 
 ## Production security / ops (аудит 2026-07, статус)
 
-### Сделано в 0.2.4 + live elion
+### Сделано в 0.2.5 + live elion
 
 | Тема | Статус |
 |------|--------|
@@ -203,20 +203,30 @@ ssh elion 'sudo systemctl daemon-reload && sudo systemctl restart cottage-monito
 | Валидация значений команд | `command_validation.py` (тип/батч) |
 | MCP rate-limit | fail-closed (in-memory fallback) |
 | `/docs`, `/openapi` в prod | отключены в приложении |
-| MQTT ACL | `lm_estate` → только `cm/house/#` (файл ACL у mosquitto) |
-| TLS cert mosquitto | renew через certbot + hook; **short-chain для LM** (см. 002 research R-013) |
-| API listen | `127.0.0.1:8321/8322` за nginx/localhost |
+| MQTT ACL | `lm_estate` → только `cm/house/#` |
+| TLS cert mosquitto | certbot + short-chain hook; check: `server/scripts/check_mosquitto_cert.sh` |
+| API listen | `127.0.0.1:8321/8322` |
+| Persistent MQTT publisher | lifespan `start_publisher` |
+| Events retention/compression | 365d retention, compress after 7d (alembic 006) |
+| Event QoS1 dedup | unique `(house_id,device_id,seq,ts)` (alembic 007) |
+| Ingest lag gauge | `ingestor_lag_current_seconds` |
+| GA helpers | `utils/ga.py` (slash API / dash storage) |
+| Docker non-root | uid/gid 999, `--cap-drop=ALL`, `--network=host` оставлен (localhost PG/Redis/MQTT) |
+| Telegram alerts secrets | `/etc/cottage-monitoring/telegram.env` |
 
-### Отложено / техдолг
+### Клиент LM
 
-- Ротация секретов (LM admin/FTP в git-спеках, watchdog hardcoded creds)
-- Полная валидация CA на клиенте LM (сейчас insecure по умолчанию)
-- Docker non-root / отказ от `--network=host`
-- Retention TimescaleDB, персистентный MQTT publisher
+- `mqtt_tls_verify` + `mqtt_cafile` (ISRG Root X1 в `cm-client/certs/`)
+- Проверка cert брокера: `server/scripts/check_mosquitto_cert.sh` (2 PEM, >14d)
+
+### Отложено
+
+- Полный отказ от `--network=host` (нужна отдельная docker network + DNS к сервисам)
+- Ротация паролей LM admin/FTP в репозитории/спеках
 
 ### Автообновление сертификата MQTT
 
-**Да.** certbot.timer + `preferred_chain = ISRG Root X1` + `/etc/letsencrypt/renewal-hooks/deploy/10-mosquitto.sh` копирует подходящую цепочку в `/etc/mosquitto/certs` и делает reload. После August 2026 renew — проверить, что у mosquitto снова **2** PEM-блока (иначе LM не подключится).
+**Да.** certbot.timer + `preferred_chain = ISRG Root X1` + `/etc/letsencrypt/renewal-hooks/deploy/10-mosquitto.sh`. После renew: `sudo ./server/scripts/check_mosquitto_cert.sh` (или на elion).
 
 ---
 

@@ -54,7 +54,9 @@ async def get_object(
     session: AsyncSession = Depends(get_session),
 ) -> dict:
     """Get single object details. GA in URL uses dashes: 1-1-1 → 1/1/1."""
-    ga = ga.replace("-", "/")
+    from cottage_monitoring.utils.ga import ga_to_slash
+
+    ga = ga_to_slash(ga)
 
     result = await session.execute(
         select(Object).where(Object.house_id == house_id, Object.ga == ga)

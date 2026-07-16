@@ -53,15 +53,21 @@ DB password: `/etc/cottage-monitoring/grafana-db.password` (server only, not in 
 
 ### Alerts (Telegram)
 
+Secrets file on elion (preferred):
+
+```bash
+# /etc/cottage-monitoring/telegram.env  (root:root 600)
+TELEGRAM_BOT_TOKEN=...
+TELEGRAM_CHAT_ID=...
+```
+
+Example: `server/deploy/telegram.env.example`. Fallback: OpenClaw gateway process env.
+
 ```bash
 ./server/deploy/grafana/deploy_alerts.sh
 ```
 
-Creates contact point `cottage-telegram` (bot token + chat from OpenClaw env on elion),
-notification route `team=cottage`, and alert rule **Cottage house offline or stale**
-(`online_status != online` OR `last_seen` older than 15 minutes, `for: 5m`).
-
-Email alerting is not configured.
+Creates contact point `cottage-telegram`, route `team=cottage`, alert **Cottage house offline or stale**.
 
 ## Notes
 

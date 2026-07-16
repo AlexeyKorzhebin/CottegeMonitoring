@@ -51,6 +51,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
 
     async with mcp_server.session_manager.run():
         await redis_cache.connect()
+        await mqtt_client.start_publisher()
 
         mqtt_task = asyncio.create_task(_mqtt_loop())
         retry_task = asyncio.create_task(_command_retry_loop())

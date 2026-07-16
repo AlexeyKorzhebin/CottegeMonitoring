@@ -87,7 +87,9 @@ async def get_state_by_ga(
     session: AsyncSession = Depends(get_session),
 ) -> dict:
     """Current state for a single GA. GA in URL uses dashes: 1-1-1 → 1/1/1."""
-    ga = ga.replace("-", "/")
+    from cottage_monitoring.utils.ga import ga_to_slash
+
+    ga = ga_to_slash(ga)
 
     # Try Redis
     if redis_cache.is_connected:

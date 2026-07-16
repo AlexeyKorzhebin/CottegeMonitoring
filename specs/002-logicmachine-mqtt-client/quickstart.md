@@ -164,6 +164,5 @@ curl -u admin:adminLM123 -H "Referer: http://192.168.100.130/apps/" \
 
 ### TLS к брокеру
 
-- Клиент по умолчанию: `tls_insecure_set(true)` (проверка выкл). Опции `mqtt_tls_verify` / `mqtt_cafile` — opt-in.
-- На брокере для LM нужна **короткая** цепочка (2 PEM, issuer R12 / ISRG Root X1). Цепочка YR2 (3 блока) → handshake `protocol error` / unexpected EOF на старом OpenSSL LM.
-- Автообновление: certbot `preferred_chain = ISRG Root X1` + deploy-hook `/etc/letsencrypt/renewal-hooks/deploy/10-mosquitto.sh` копирует short-chain в `/etc/mosquitto/certs` и reload mosquitto. Текущий cert (fullchain2) валиден до **2026-08-10**; после renew проверить, что в mosquitto снова 2 блока.
+- Клиент по умолчанию: `tls_insecure_set(true)`. Opt-in: `mqtt_tls_verify=true` + `mqtt_cafile` (ISRG Root X1 в `certs/isrg-root-x1.pem`). Включить: `tls_verify_on.lp`, откат: `tls_verify_off.lp`.
+- На брокере для LM нужна **короткая** цепочка (2 PEM). Автообновление: certbot + hook. Проверка: `server/scripts/check_mosquitto_cert.sh`.

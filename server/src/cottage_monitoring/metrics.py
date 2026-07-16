@@ -15,6 +15,12 @@ LAG_SECONDS = Histogram(
     buckets=(0.1, 0.25, 0.5, 1.0, 2.5, 5.0, 10.0),
 )
 
+LAG_CURRENT = Gauge(
+    "ingestor_lag_current_seconds",
+    "Most recent ingestion lag in seconds per house",
+    ["house_id"],
+)
+
 HOUSE_STATUS = Gauge(
     "ingestor_house_status",
     "House online status (1=online, 0=offline)",

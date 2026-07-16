@@ -6,13 +6,67 @@ import time
 from datetime import UTC, datetime
 
 import structlog
+from sqlalchemy import text
+from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from cottage_monitoring.db.session import async_session_factory
-from cottage_monitoring.metrics import LAG_SECONDS
+from cottage_monitoring.metrics import LAG_CURRENT, LAG_SECONDS
 from cottage_monitoring.models.event import Event
+from cottage_monitoring.utils.ga import ga_to_slash
 
 logger = structlog.get_logger(__name__)
+
+
+def _observe_lag(house_id: str, ts_epoch: float) -> None:
+    lag = time.time() - (ts_epoch or 0)
+    if lag > 0:
+        LAG_SECONDS.labels(house_id=house_id).observe(lag)
+        LAG_CURRENT.labels(house_id=house_id).set(lag)
+
+
+async def _insert_event(
+    session: AsyncSession,
+    *,
+    house_id: str,
+    device_id: str,
+    ts: datetime,
+    seq: int | None,
+    type_: str | None,
+    ga: str | None,
+    object_id: int | None,
+    name: str | None,
+    datatype: int | None,
+    value,
+    raw_json: dict,
+    server_received_ts: datetime,
+) -> None:
+    values = dict(
+        house_id=house_id,
+        device_id=device_id,
+        ts=ts,
+        seq=seq,
+        type=type_,
+        ga=ga,
+        object_id=object_id,
+        name=name,
+        datatype=datatype,
+        value=value,
+        raw_json=raw_json,
+        server_received_ts=server_received_ts,
+    )
+    if seq is not None:
+        stmt = (
+            insert(Event)
+            .values(**values)
+            .on_conflict_do_nothing(
+                index_elements=["house_id", "device_id", "seq", "ts"],
+                index_where=text("seq IS NOT NULL"),
+            )
+        )
+        await session.execute(stmt)
+    else:
+        session.add(Event(**values))
 
 
 async def handle_event(
@@ -26,6 +80,7 @@ async def handle_event(
 
     Also mirrors value into current_state so agents stay fresh even if retained
     MQTT state/ga topics are stale or state/batch was lost (QoS 0 events still land).
+    QoS1 duplicates (same house/device/seq/ts) are ignored via unique index.
     """
     own_session = session is None
     if own_session:
@@ -35,14 +90,17 @@ async def handle_event(
         ts_epoch = payload.get("ts", 0)
         ts = datetime.fromtimestamp(ts_epoch, tz=UTC)
         now = datetime.now(UTC)
+        ga_raw = payload.get("ga")
+        ga = ga_to_slash(ga_raw) if ga_raw is not None else None
 
-        event = Event(
+        await _insert_event(
+            session,
             house_id=house_id,
             device_id=device_id,
             ts=ts,
             seq=payload.get("seq"),
-            type=payload.get("type"),
-            ga=payload.get("ga"),
+            type_=payload.get("type"),
+            ga=ga,
             object_id=payload.get("id"),
             name=payload.get("name"),
             datatype=payload.get("datatype"),
@@ -50,14 +108,9 @@ async def handle_event(
             raw_json=payload,
             server_received_ts=now,
         )
-        session.add(event)
 
-        lag = time.time() - ts_epoch
-        if lag > 0:
-            LAG_SECONDS.labels(house_id=house_id).observe(lag)
+        _observe_lag(house_id, ts_epoch)
 
-        # Dual-write: keep current_state aligned with live events.
-        ga = payload.get("ga")
         if ga is not None and "value" in payload:
             from cottage_monitoring.services.state_service import upsert_current_state
 
@@ -103,13 +156,16 @@ async def handle_events_batch(
                 continue
             ts_epoch = evt.get("ts", 0)
             ts = datetime.fromtimestamp(ts_epoch, tz=UTC)
-            event = Event(
+            ga_raw = evt.get("ga")
+            ga = ga_to_slash(ga_raw) if ga_raw is not None else None
+            await _insert_event(
+                session,
                 house_id=house_id,
                 device_id=device_id,
                 ts=ts,
                 seq=evt.get("seq"),
-                type=evt.get("type"),
-                ga=evt.get("ga"),
+                type_=evt.get("type"),
+                ga=ga,
                 object_id=evt.get("id"),
                 name=evt.get("name"),
                 datatype=evt.get("datatype"),
@@ -117,12 +173,8 @@ async def handle_events_batch(
                 raw_json=evt,
                 server_received_ts=now,
             )
-            session.add(event)
-            lag = time.time() - ts_epoch
-            if lag > 0:
-                LAG_SECONDS.labels(house_id=house_id).observe(lag)
+            _observe_lag(house_id, ts_epoch)
 
-            ga = evt.get("ga")
             if ga is not None and "value" in evt:
                 from cottage_monitoring.services.state_service import upsert_current_state
 
@@ -138,7 +190,7 @@ async def handle_events_batch(
 
         if own_session:
             await session.commit()
-        logger.debug("events_batch_processed", house_id=house_id, count=len(events_data))
+
     finally:
         if own_session:
             await session.close()

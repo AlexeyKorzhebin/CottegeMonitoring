@@ -38,7 +38,12 @@ local C = {
   loop_sleep = tonumber(cfg('loop_sleep', 0.15)) or 0.15,
   throttle = tonumber(cfg('throttle', 30)) or 30,
   event_sleep = tonumber(cfg('event_sleep', 0.02)) or 0.02,
+  mqtt_cafile = cfg('mqtt_cafile', '') or '',
 }
+do
+  local tv = tostring(cfg('mqtt_tls_verify', '') or ''):lower()
+  C.mqtt_tls_verify = (tv == '1' or tv == 'true' or tv == 'yes')
+end
 if C.client_id == '' or C.client_id == 'auto' then C.client_id = C.house_id .. '-' .. C.device_id end
 C.base = ((C.env_mode == 'dev') and 'dev/' or '') .. 'cm/' .. C.house_id .. '/' .. C.device_id .. '/v1/'
 
@@ -111,7 +116,16 @@ local function setup_client()
   local client = mqtt.new(C.client_id, true)
   client:login_set(C.mqtt_username, C.mqtt_password)
   client:version_set(mqtt.PROTOCOL_V311)
-  pcall(function() client:tls_insecure_set(true) end)
+  if C.mqtt_tls_verify then
+    local ca = C.mqtt_cafile
+    if ca == '' then
+      ca = '/data/apps/store/data/cottage-monitoring/certs/isrg-root-x1.pem'
+    end
+    pcall(function() client:tls_set(ca) end)
+    pcall(function() client:tls_insecure_set(false) end)
+  else
+    pcall(function() client:tls_insecure_set(true) end)
+  end
   client:will_set(C.base .. 'status/offline', json.encode({ ts = os.time(), status = 'offline' }), 1, true)
   client:callback_set('ON_CONNECT', function()
     S.connected = true

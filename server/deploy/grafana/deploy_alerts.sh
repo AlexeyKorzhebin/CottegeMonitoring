@@ -13,17 +13,26 @@ set -euo pipefail
 GRAFANA_URL="${GRAFANA_URL:-http://127.0.0.1:3000}"
 TOKEN=$(sudo cat /etc/cottage-monitoring/grafana-mcp.token)
 
-# Telegram credentials from OpenClaw gateway process
-GW_PID=$(pgrep -f "gateway --port 18789" | head -1 || true)
-if [[ -z "${GW_PID}" ]]; then
-  echo "ERROR: OpenClaw gateway not running — cannot read TELEGRAM_BOT_TOKEN" >&2
-  exit 1
+# Telegram credentials: preferred file, fallback to OpenClaw gateway env (legacy).
+TELEGRAM_ENV=/etc/cottage-monitoring/telegram.env
+if [[ -r "$TELEGRAM_ENV" ]] || sudo test -r "$TELEGRAM_ENV"; then
+  # shellcheck disable=SC1090
+  eval "$(sudo grep -E '^(TELEGRAM_BOT_TOKEN|TELEGRAM_CHAT_ID|TELEGRAM_OWNER_ID)=' "$TELEGRAM_ENV" | sed 's/^/export /')"
+  BOT_TOKEN="${TELEGRAM_BOT_TOKEN:-}"
+  CHAT_ID="${TELEGRAM_CHAT_ID:-${TELEGRAM_OWNER_ID:-}}"
+else
+  GW_PID=$(pgrep -f "gateway --port 18789" | head -1 || true)
+  if [[ -z "${GW_PID}" ]]; then
+    echo "ERROR: missing $TELEGRAM_ENV and OpenClaw gateway not running" >&2
+    echo "Create $TELEGRAM_ENV with TELEGRAM_BOT_TOKEN=... and TELEGRAM_CHAT_ID=... (mode 600)" >&2
+    exit 1
+  fi
+  ENV_FILE="/proc/${GW_PID}/environ"
+  BOT_TOKEN=$(tr '\0' '\n' < "$ENV_FILE" | sed -n 's/^TELEGRAM_BOT_TOKEN=//p' | head -1)
+  CHAT_ID=$(tr '\0' '\n' < "$ENV_FILE" | sed -n 's/^TELEGRAM_OWNER_ID=//p' | head -1)
 fi
-ENV_FILE="/proc/${GW_PID}/environ"
-BOT_TOKEN=$(tr '\0' '\n' < "$ENV_FILE" | sed -n 's/^TELEGRAM_BOT_TOKEN=//p' | head -1)
-CHAT_ID=$(tr '\0' '\n' < "$ENV_FILE" | sed -n 's/^TELEGRAM_OWNER_ID=//p' | head -1)
 if [[ -z "${BOT_TOKEN}" || -z "${CHAT_ID}" ]]; then
-  echo "ERROR: TELEGRAM_BOT_TOKEN / TELEGRAM_OWNER_ID missing in gateway env" >&2
+  echo "ERROR: TELEGRAM_BOT_TOKEN / TELEGRAM_CHAT_ID missing" >&2
   exit 1
 fi
 echo "Telegram chat_id=${CHAT_ID} token_prefix=${BOT_TOKEN:0:6}***"

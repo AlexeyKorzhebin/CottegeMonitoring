@@ -11,27 +11,21 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from cottage_monitoring.db.session import async_session_factory
-from cottage_monitoring.metrics import LAG_SECONDS
+from cottage_monitoring.metrics import LAG_CURRENT, LAG_SECONDS
 from cottage_monitoring.models.state import CurrentState
+from cottage_monitoring.utils.ga import ga_lookup_keys, ga_to_dash
 
 logger = structlog.get_logger(__name__)
 
 
 def storage_ga(ga: str) -> str:
     """Canonical GA for current_state / Redis: dash form matching MQTT state/ga topics."""
-    return (ga or "").replace("/", "-")
+    return ga_to_dash(ga)
 
 
 def _ga_lookup_keys(ga: str) -> list[str]:
     """Both wire formats so we never fork duplicate current_state rows."""
-    dash = storage_ga(ga)
-    slash = dash.replace("-", "/")
-    keys = [dash]
-    if slash != dash:
-        keys.append(slash)
-    if ga and ga not in keys:
-        keys.append(ga)
-    return keys
+    return ga_lookup_keys(ga)
 
 
 def should_apply_state(existing_ts: datetime | None, incoming_ts: datetime) -> bool:
@@ -128,6 +122,7 @@ async def upsert_current_state(
         lag = time.time() - float(ts_epoch or 0)
         if lag > 0:
             LAG_SECONDS.labels(house_id=house_id).observe(lag)
+            LAG_CURRENT.labels(house_id=house_id).set(lag)
 
         if own_session:
             await session.commit()

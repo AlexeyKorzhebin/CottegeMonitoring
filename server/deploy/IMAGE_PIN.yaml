@@ -1,15 +1,14 @@
 # CottageMonitoring image pin (source of truth: GitHub AlexeyKorzhebin/CottegeMonitoring)
 
-version: "0.2.4"
+version: "0.2.5"
 git_ref: "main"
-image_tag: "cottage-monitoring:0.2.4"
+image_tag: "cottage-monitoring:0.2.5"
 image_digest: ""
 overlay_retired: true
-replaces_overlay: "cottage-monitoring:0.2.3"
+replaces_overlay: "cottage-monitoring:0.2.4"
 notes: |
+  v0.2.5: persistent MQTT publisher, events retention/compression + QoS1 dedup,
+  ingest lag gauge, GA helpers, Docker non-root (uid 999) + cap-drop.
   v0.2.4: security hardening — auth_required secure-by-default in prod (fail-fast),
   write-scope enforcement on REST mutating endpoints, command value validation
   (datatype/batch), MCP write rate-limit fail-closed w/o Redis, docs/openapi disabled in prod.
-  v0.2.3: operation_traces table (dev PG), trace_persist for MCP tools + command send/ack.
-  v0.2.2: set_lights batch MCP tool, skip unchanged state, mcp_tool_duration metrics,
-  structured logs (mcp_tool_done, command_sent, cmd_ack_applied latency_ms).
