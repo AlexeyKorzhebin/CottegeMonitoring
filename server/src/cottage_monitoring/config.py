@@ -1,3 +1,4 @@
+from pydantic import model_validator
 from pydantic_settings import BaseSettings
 
 
@@ -38,6 +39,15 @@ class Settings(BaseSettings):
     # Auth / MCP
     auth_required: bool = False
     mcp_write_rate_limit_per_minute: int = 30
+
+    # Dev diagnostics: persist MCP/command timing rows to operation_traces table
+    trace_persist: bool | None = None
+
+    @model_validator(mode="after")
+    def _default_trace_persist(self):
+        if self.trace_persist is None:
+            self.trace_persist = self.env == "dev"
+        return self
 
     @property
     def mqtt_subscription_topic(self) -> str:

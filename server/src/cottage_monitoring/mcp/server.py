@@ -16,6 +16,7 @@ from cottage_monitoring.auth.context import ApiKeyContext, get_current_api_key_c
 from cottage_monitoring.db.session import async_session_factory
 from cottage_monitoring.metrics import MCP_TOOL_DURATION
 from cottage_monitoring.services import agent_actions
+from cottage_monitoring.services.trace_service import record_trace
 
 logger = structlog.get_logger(__name__)
 
@@ -75,6 +76,7 @@ async def _with_session(
 ) -> str:
     """Run a DB-backed action; map HTTPException to MCP JSON error contract."""
     t0 = time.perf_counter()
+    house_id = args[0] if args and isinstance(args[0], str) else None
     try:
         async with async_session_factory() as session:
             data = await action(session, *args, **kwargs)
@@ -83,11 +85,28 @@ async def _with_session(
         elapsed_ms = round((time.perf_counter() - t0) * 1000)
         MCP_TOOL_DURATION.labels(tool=tool).observe((time.perf_counter() - t0))
         logger.info("mcp_tool_error", tool=tool, code=exc.status_code, elapsed_ms=elapsed_ms)
+        await record_trace(
+            kind="mcp_tool",
+            house_id=house_id,
+            ref=tool,
+            duration_ms=elapsed_ms,
+            status="error",
+            details={"code": exc.status_code, "error": detail},
+        )
         return _error_json(exc.status_code, detail)
     elapsed = time.perf_counter() - t0
     MCP_TOOL_DURATION.labels(tool=tool).observe(elapsed)
     elapsed_ms = round(elapsed * 1000)
     logger.info("mcp_tool_done", tool=tool, elapsed_ms=elapsed_ms)
+    status = data.get("status") if isinstance(data, dict) else None
+    await record_trace(
+        kind="mcp_tool",
+        house_id=house_id,
+        ref=tool,
+        duration_ms=elapsed_ms,
+        status=status or "ok",
+        details={"result_status": status} if status else None,
+    )
     return _json(data)
 
 

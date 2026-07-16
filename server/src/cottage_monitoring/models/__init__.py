@@ -5,6 +5,7 @@ from cottage_monitoring.models.device import Device
 from cottage_monitoring.models.event import Event
 from cottage_monitoring.models.house import House
 from cottage_monitoring.models.object import Object
+from cottage_monitoring.models.operation_trace import OperationTrace
 from cottage_monitoring.models.schema_version import SchemaVersion
 from cottage_monitoring.models.state import CurrentState
 

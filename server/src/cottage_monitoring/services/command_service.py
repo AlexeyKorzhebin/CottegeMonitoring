@@ -13,6 +13,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from cottage_monitoring.db.session import async_session_factory
 from cottage_monitoring.metrics import COMMAND_LATENCY, COMMAND_SEND_TOTAL, COMMAND_TIMEOUT_TOTAL
 from cottage_monitoring.models.command import Command
+from cottage_monitoring.services.trace_service import record_trace
 
 logger = structlog.get_logger(__name__)
 
@@ -54,12 +55,21 @@ async def handle_ack(
         cmd.results = payload.get("results")
 
         latency = (now - cmd.ts_sent).total_seconds()
+        latency_ms = round(latency * 1000)
         COMMAND_LATENCY.labels(house_id=house_id).observe(latency)
         logger.info(
             "cmd_ack_applied",
             request_id=request_id_str,
             status=ack_status,
-            latency_ms=round(latency * 1000),
+            latency_ms=latency_ms,
+        )
+        await record_trace(
+            kind="command_ack",
+            house_id=house_id,
+            ref=request_id_str,
+            duration_ms=latency_ms,
+            status=ack_status,
+            details={"device_id": cmd.device_id},
         )
 
         if was_timeout:
@@ -126,6 +136,18 @@ async def send_command(
                 batch=batch,
                 item_count=item_count,
                 publish_ms=publish_ms,
+            )
+            await record_trace(
+                kind="command_sent",
+                house_id=house_id,
+                ref=str(request_id),
+                duration_ms=publish_ms,
+                status="sent",
+                details={
+                    "device_id": device_id,
+                    "batch": batch,
+                    "item_count": item_count,
+                },
             )
         except Exception:
             logger.exception("mqtt_publish_failed", house_id=house_id, device_id=device_id, request_id=str(request_id))
