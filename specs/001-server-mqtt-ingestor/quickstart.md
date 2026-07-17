@@ -225,7 +225,32 @@ ssh elion 'sudo systemctl daemon-reload && sudo systemctl restart cottage-monito
 
 ### Отложено
 
-- Ротация локальных секретов (LM admin/FTP в спеках/watchdog, пароли в env на elion)
+- Секреты: не коммитить пароли в git — см. **R-012** (домашний уровень, без обязательной ротации).
+
+### MCP: управляемый тест команд (холл 2 этаж, 2026-07)
+
+Проверка цепочки **MCP → MQTT → LM → ack → traces** на **dev-инстансе** (`:8322`, `cottage_monitoring_dev`).
+
+**Важно:** физический LM в `env_mode=prod` подписан на `cm/house/lm-main/v1/cmd` (без префикса). Dev-контейнер по умолчанию публикует в `dev/cm/...` — **команды до LM не доходят**. Для живого теста на шину временно `MQTT_TOPIC_PREFIX=` (пусто), после теста вернуть `dev/`.
+
+```bash
+# на elion: MCP set_commands ON → sleep 30 → OFF (см. research R-011)
+# параллельно: mosquitto_sub -t 'cm/house/lm-main/v1/cmd' -t 'cm/house/lm-main/v1/cmd/#'
+```
+
+**Инструменты MCP:** `set_commands` с явным GA надёжнее, чем `set_light` по имени, если в dev-БД нет полной схемы `objects` (у `house` было 2 объекта → `set_light` → 404).
+
+**Трейсы** (`operation_traces`, `trace_persist=true` на dev по умолчанию):
+
+| kind | ref | duration_ms | смысл |
+|------|-----|-------------|--------|
+| `mcp_tool` | `set_commands` | ~20–120 | время MCP-вызова (резолв + постановка) |
+| `command_sent` | `request_id` | ~1–10 | публикация в MQTT |
+| `command_ack` | `request_id` | ≈ RTT | от `ts_sent` до ack |
+
+**RTT** (Round-Trip Time) = `ts_ack − ts_sent` в таблице `commands`. Пример живого теста: ON ~2.5 с, OFF ~0.5 с. Отдельных таймингов «только сеть» / «только grp.write» нет — они внутри `command_ack`.
+
+**API keys:** `cottage-create-api-key` внутри контейнера; временные ключи после теста — `revoked_at=now()`. Бот (OpenClaw) хранит prod/dev ключи в `~/.openclaw/secrets/` на elion (не в git).
 
 ### Автообновление сертификата MQTT
 
@@ -257,6 +282,7 @@ ssh elion 'sudo systemctl daemon-reload && sudo systemctl restart cottage-monito
 | `LOG_BACKUP_COUNT` | `10` | Number of rotated log files |
 | `CMD_TIMEOUT_SECONDS` | `60` | Command ack timeout |
 | `CMD_MAX_RETRIES` | `2` | Max command retries |
+| `TRACE_PERSIST` | auto (`true` if `ENV=dev`) | Писать `operation_traces` (MCP/command timing) |
 
 ### Env-файлы
 

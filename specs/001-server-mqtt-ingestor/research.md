@@ -496,7 +496,53 @@ MQTT subscriber запускается как background task в FastAPI lifespa
 
 ### Альтернативы / отложено
 
-Ротация локальных секретов (LM admin/FTP в спеках, пароли env) — отдельно.
+Секреты: не светить в git — **R-012** (домашний уровень).
+
+---
+
+## R-011: operation_traces и E2E-тест MCP-команд (2026-07)
+
+### Контекст
+
+Нужна наблюдаемость цепочки «бот/MCP → сервер → MQTT → LM → ack» и воспроизводимый живой тест (включить холл → 30 с → выключить).
+
+### Решение
+
+- Таблица **`operation_traces`**: `kind` ∈ {`mcp_tool`, `command_sent`, `command_ack`}, `ref` = имя tool или `request_id`, `duration_ms`, `status`, `details` (JSON).
+- **`trace_persist`**: по умолчанию `true` при `ENV=dev`, `false` в production (см. `config.py`).
+- **RTT** в `commands`: `ts_ack - ts_sent`; дублируется в `command_ack.duration_ms`.
+- **Живой тест на LM**: dev MCP (`:8322`) + временно пустой `MQTT_TOPIC_PREFIX` (см. quickstart). LM в prod слушает `cm/...`, не `dev/cm/...`.
+- **MCP tools**: для физики предпочтительно `set_commands` с GA; `set_light` требует `objects` в БД инстанса.
+- Временные API keys: `cottage-create-api-key` → revoke после теста.
+
+### Проверка (2026-07-16)
+
+`set_commands` `1/1/15` true → ack `applied:true`; через 30 с false → ack `applied:true`; traces: mcp_tool → command_sent → command_ack (ok); RTT ON ~2.5 s, OFF ~0.5 s.
+
+---
+
+## R-012: Секреты — уровень «частный дом» (не светить случайно)
+
+### Контекст
+
+Это домашняя установка, не enterprise. Цель — **не закоммитить пароли в git и не кидать их в чат/скрин**, а не регулярная ротация и разделение ролей.
+
+### Достаточно
+
+1. В `specs/**` / README — плейсхолдеры; живые пароли LM — в **локальном** `secrets/lm.env` (gitignore), шаблон `secrets/lm.env.example`.
+2. Скрипты читают файл сами: `./deploy/deploy-lftp.sh`, `./deploy/lm-apps.sh stop|start|health` — пароль в голове не нужен.
+3. На elion — `/etc/cottage-monitoring/*.env` и OpenClaw secrets как сейчас.
+4. Не коммитить `.env` / `secrets/lm.env` с реальными значениями; в чатах/скринах — не светить.
+
+### Не требуется (осознанно отложено)
+
+- Плановая ротация LM / MQTT / DB / API keys.
+- Отдельные PG-роли, age/gpg-бэкапы секретов, pre-commit-сканеры, runbook «ротация за 30 минут».
+- Смена паролей «потому что когда-то светились в git» — только если реально утек публичный репо или пароль ушёл чужим.
+
+### Критерий
+
+В tracked-файлах нет рабочих паролей. Живые LM-пароли — в gitignored `secrets/lm.env`; скрипты деплоя его читают.
 
 ---
 
@@ -514,3 +560,5 @@ MQTT subscriber запускается как background task в FastAPI lifespa
 | R-008 | БД | PostgreSQL 16 + TimescaleDB | Только PostgreSQL |
 | R-009 | Валидация команд | По datatype + tags из objects table | Без валидации |
 | R-010 | Security hardening | ACL + auth defaults + 0.2.4 + cert hook | Открытый брокер / auth off |
+| R-011 | MCP traces / E2E | `operation_traces`; RTT; dev prefix caveat | Только логи без БД |
+| R-012 | Secrets | `secrets/lm.env` локально; не в git | Ротация / enterprise |

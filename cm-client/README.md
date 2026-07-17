@@ -25,26 +25,25 @@
 
 ### 1. Копирование файлов на контроллер
 
-Контроллер не поддерживает SCP, используется **lftp** (FTP):
+Контроллер не поддерживает SCP, используется **lftp** (FTP).
+
+Пароли — в локальном `secrets/lm.env` (не в git; шаблон `secrets/lm.env.example`):
 
 ```bash
-./deploy/deploy-lftp.sh 192.168.100.130 apps LM_apps123
+cp secrets/lm.env.example secrets/lm.env   # один раз, заполнить пароли
+./deploy/deploy-lftp.sh                    # без пароля в командной строке
+./deploy/lm-apps.sh pause-wd
+./deploy/lm-apps.sh stop                   # затем upload, затем:
+./deploy/lm-apps.sh start
+./deploy/lm-apps.sh health
 ```
 
-Учётные данные контроллера (LAN):
-- **FTP**: `apps` / `LM_apps123`
-- **Веб**: `admin` / `adminLM123` (`http://192.168.100.130/`)
+Учётки контроллера (LAN): FTP `apps`, веб `admin` — значения паролей только в `secrets/lm.env`.
 
-Рестарт daemon после деплоя:
+Или вручную (пароль из env после `source secrets/lm.env`):
 ```bash
-curl -u admin:adminLM123 -H "Referer: http://192.168.100.130/" \
-  "http://192.168.100.130/apps/request.lp?action=restart&name=cottage-monitoring"
-```
-
-Или вручную:
-```bash
-lftp -u apps,LM_apps123 ftp://192.168.100.130 -e "
-cd /data/apps/store/data/cottage-monitoring
+lftp -u "$LM_FTP_USER","$LM_FTP_PASSWORD" "ftp://$LM_HOST" -e "
+cd data/cottage-monitoring
 lcd cm-client
 mirror -R .
 bye
@@ -68,7 +67,7 @@ Daemon автоматически регистрируется. Путь: `/daem
 
 ## Quickstart
 
-1. `./deploy/deploy-lftp.sh 192.168.100.130 apps LM_apps123`
+1. `./deploy/deploy-lftp.sh` (пароли из `secrets/lm.env`)
 2. LM → Apps → Install Cottage Monitoring
 3. Config → house_id, device_id, MQTT учётные данные → Save
 4. Daemon подключается к MQTT, публикует meta, snapshot, слушает groupwrite
@@ -81,7 +80,8 @@ Daemon автоматически регистрируется. Путь: `/daem
 - **Проверка `loop()`**: ненулевой код → помечает соединение разорванным.
 - **pcall** вокруг connect и тела главного цикла — ошибка итерации не убивает daemon.
 - **Heartbeat**: `storage.cm_heartbeat` каждый цикл; при долгом offline (>300 с) — пересоздание MQTT-клиента.
-- **Watchdog (Resident)**: `scripts/watchdog-resident.lua` — soft (`cm_force_restart`) → hard (HTTP restart), cooldown 5 мин. Перед деплоем: `wd_pause.lp` / `wd_hold.lp`.
+- **Watchdog (Resident)**: `scripts/watchdog-resident.lua` — soft → hard. Для hard HTTP-рестарта один раз на LM (Scripting console):
+  `config.set('cottage-monitoring', 'lm_admin_password', '…')` — пароль не в git. Перед деплоем daemon: `./deploy/lm-apps.sh pause-wd`.
 - **Диагностика**: UI + `health_get.lp` + retained `…/v1/status/health`.
 - **MQTT loop**: всегда вызывать `loop()` (и offline); ошибка loop — только numeric `rc ~= 0` (иначе reconnect-storm на LM).
 - **Деплой daemon**: FTP `daemon/cottage-monitoring/daemon.lua`, цикл stop→put→start.

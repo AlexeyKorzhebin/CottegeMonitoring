@@ -1,35 +1,43 @@
 #!/usr/bin/env bash
 # Deploy cm-client to LogicMachine controller via lftp (FTP).
-# Usage: ./deploy-lftp.sh [host] [user] [password]
-# Example: ./deploy-lftp.sh 192.168.100.130 apps <password>
-# Default: ftp://apps@192.168.100.130 per quickstart.md
+# Usage:
+#   ./deploy/deploy-lftp.sh              # host/user/pass из secrets/lm.env
+#   ./deploy/deploy-lftp.sh [host] [user] [password]   # явные аргументы
+#
+# Секреты: скопируй secrets/lm.env.example → secrets/lm.env (файл в .gitignore).
 
 set -e
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 SOURCE_DIR="$PROJECT_ROOT/cm-client"
+SECRETS_FILE="${LM_SECRETS_FILE:-$PROJECT_ROOT/secrets/lm.env}"
 
-# LM: user "apps" — FTP root может быть store ИЛИ data/cottage-monitoring (app dir)
-# store: нужно cd data/cottage-monitoring
-# app dir: уже в правильной папке, mirror в .
+if [ -f "$SECRETS_FILE" ]; then
+  # shellcheck disable=SC1090
+  set -a
+  # shellcheck source=/dev/null
+  source "$SECRETS_FILE"
+  set +a
+fi
+
 REMOTE_APP_PATH="data/cottage-monitoring"
 REMOTE_DAEMON_PATH="daemon/cottage-monitoring"
 
-HOST="${1:-192.168.100.130}"
-USER="${2:-apps}"
-PASS="${3:-}"
+HOST="${1:-${LM_HOST:-192.168.100.130}}"
+USER="${2:-${LM_FTP_USER:-apps}}"
+PASS="${3:-${LM_FTP_PASSWORD:-}}"
 
 if [ -z "$PASS" ]; then
-  echo "Usage: $0 <host> <user> <password>"
-  echo "Default host: 192.168.100.130, user: apps"
+  echo "Нет пароля FTP."
+  echo "  1) cp secrets/lm.env.example secrets/lm.env  и заполни LM_FTP_PASSWORD"
+  echo "  2) или: $0 <host> <user> <password>"
   exit 1
 fi
 
 cd "$SOURCE_DIR"
 
-# 1. Приложение: пробуем data/cottage-monitoring; при ошибке — текущая папка (app dir)
-echo "Uploading app to $REMOTE_APP_PATH..."
+echo "Uploading app to $REMOTE_APP_PATH (host=$HOST user=$USER)..."
 if lftp -u "$USER","$PASS" "ftp://$HOST" -e "
 cd $REMOTE_APP_PATH
 lcd $SOURCE_DIR
@@ -47,8 +55,6 @@ bye
   echo "  -> uploaded to FTP root (app directory)"
 fi
 
-# 2. Daemon в daemon/cottage-monitoring (per LM docs: "Create new directory named as
-#    your application in daemon directory. Place daemon.lua inside newly created directory")
 APP_NAME="cottage-monitoring"
 echo "Uploading daemon to daemon/$APP_NAME/..."
 if lftp -u "$USER","$PASS" "ftp://$HOST" -e "
@@ -76,7 +82,6 @@ bye
   fi
 fi
 
-# 3. Проверка: список загруженных файлов (для отладки пути)
 echo ""
 echo "Verify — files in $REMOTE_APP_PATH:"
 lftp -u "$USER","$PASS" "ftp://$HOST" -e "
@@ -87,3 +92,6 @@ bye
 
 echo ""
 echo "Deployed. App URL: http://$HOST/apps/data/cottage-monitoring/"
+echo "Daemon restart (нужен LM_ADMIN_PASSWORD в secrets/lm.env):"
+echo "  curl -u \"\${LM_ADMIN_USER}:\${LM_ADMIN_PASSWORD}\" -H \"Referer: http://$HOST/apps/\" \\"
+echo "    \"http://$HOST/apps/request.lp?action=stop&name=cottage-monitoring\""

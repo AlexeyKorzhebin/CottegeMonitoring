@@ -28,14 +28,20 @@
 http://IP/apps/request.lp?password=ADMINPASSWORD&action=restart&name=YOURAPPNAME
 ```
 
-Для нашего контроллера (`192.168.100.130`) работает HTTP Basic Auth:
+Для нашего контроллера (`192.168.100.130`) работает HTTP Basic Auth (пароль — вне git, см. **001 R-012**):
 ```bash
-curl -u admin:adminLM123 -H "Referer: http://192.168.100.130/" \
+curl -u admin:*** -H "Referer: http://192.168.100.130/" \
   "http://192.168.100.130/apps/request.lp?action=restart&name=cottage-monitoring"
 ```
 
-**Веб-доступ (LAN)**: user `admin`, password `adminLM123`.
-**FTP**: user `apps`, password `LM_apps123`.
+**Веб (LAN)**: user `admin`. **FTP**: user `apps`. Пароли не в git.
+
+```bash
+curl -u admin:*** -H "Referer: http://192.168.100.130/" \
+  "http://192.168.100.130/apps/request.lp?action=stop&name=cottage-monitoring"
+# put daemon.lua …
+curl -u admin:*** -H "Referer: http://192.168.100.130/" \
+  "http://192.168.100.130/apps/request.lp?action=start&name=cottage-monitoring"
 ```
 
 Форма после успешного `config-save` инициирует рестарт через `apps/request.lp?action=restart&name=<appname>`.
@@ -318,12 +324,12 @@ FR-010: TLS обязателен. На контроллере может не б
 
 **Целевой путь на LogicMachine**: `/data/apps/store/data/cottage-monitoring/`
 
-**FTP**: `ftp://apps@192.168.100.130` (user `apps`, password `LM_apps123`)  
-**Web**: `http://192.168.100.130/` (user `admin`, password `adminLM123`, LAN)
+**FTP**: `ftp://apps@192.168.100.130` (user `apps`, пароль вне git)  
+**Web**: `http://192.168.100.130/` (user `admin`, LAN)
 
 **lftp — вся директория**:
 ```bash
-lftp -u apps,LM_apps123 ftp://192.168.100.130 -e "
+lftp -u apps,"$LM_FTP_PASSWORD" ftp://192.168.100.130 -e "
 cd /data/apps/store/data/cottage-monitoring
 lcd cm-client
 mirror -R .
@@ -333,7 +339,7 @@ bye
 
 **lftp — один файл**:
 ```bash
-lftp -u apps,LM_apps123 ftp://192.168.100.130 -e "
+lftp -u apps,"$LM_FTP_PASSWORD" ftp://192.168.100.130 -e "
 cd /data/apps/store/data/cottage-monitoring/daemon
 lcd cm-client/daemon
 put daemon.lua

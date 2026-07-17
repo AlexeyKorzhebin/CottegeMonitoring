@@ -56,9 +56,11 @@ local RESTART_COOLDOWN_SEC = 300
 local SOFT_ESCALATE_SEC = 45   -- минимум между soft и hard (обычно = 1 циклу sleep)
 local APP = 'cottage-monitoring'
 
--- Учётка веб-интерфейса LM (локальная сеть). Нужна для HTTP-рестарта.
-local LM_USER = 'admin'
-local LM_PASS = 'adminLM123'
+-- Пароль веб-admin для HTTP hard-restart — только на контроллере (не в git):
+--   Scripting console: config.set('cottage-monitoring', 'lm_admin_password', '…')
+local config = require('config')
+local LM_USER = tostring(config.get(APP, 'lm_admin_user', 'admin') or 'admin')
+local LM_PASS = tostring(config.get(APP, 'lm_admin_password', '') or '')
 local LM_HOST = '127.0.0.1'  -- сам на себя, с контроллера
 
 local function now()
@@ -92,6 +94,9 @@ end
 -- Жёсткий рестарт daemon через Apps API.
 -- Важно: LM требует заголовок Referer на себя, иначе 400/401.
 local function hard_restart_daemon()
+  if LM_PASS == '' then
+    return false, 'set config lm_admin_password on LM (not in git)'
+  end
   local http = require('socket.http')
   local ltn12 = require('ltn12')
   http.TIMEOUT = 10

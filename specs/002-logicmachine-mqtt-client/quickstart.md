@@ -9,15 +9,14 @@
 
 - LogicMachine с поддержкой Apps и MQTT (mosquitto library)
 - **Доступ к контроллеру**: FTP `ftp://apps@192.168.100.130`, рабочая директория `/data/apps/store/data/cottage-monitoring` (SCP не поддерживается)
-- **FTP-учётные данные**: user `apps`, password `LM_apps123`
-- **Веб-интерфейс LM** (`http://192.168.100.130/`): user `admin`, password `adminLM123` (локальная сеть)
-- **Рестарт daemon**: надёжнее **stop → upload → start**, чем `restart` (restart иногда не убивает старый процесс):
+- **FTP / веб LM**: учётки `apps` / `admin`; пароли в локальном `secrets/lm.env` (gitignore), см. `secrets/lm.env.example` и **001 R-012**
+- **Рестарт daemon**: надёжнее **stop → upload → start**:
   ```bash
-  curl -u admin:adminLM123 -H "Referer: http://192.168.100.130/" \
-    "http://192.168.100.130/apps/request.lp?action=stop&name=cottage-monitoring"
-  # …залить daemon.lua…
-  curl -u admin:adminLM123 -H "Referer: http://192.168.100.130/" \
-    "http://192.168.100.130/apps/request.lp?action=start&name=cottage-monitoring"
+  ./deploy/lm-apps.sh pause-wd
+  ./deploy/lm-apps.sh stop
+  ./deploy/deploy-lftp.sh
+  ./deploy/lm-apps.sh start
+  ./deploy/lm-apps.sh health
   ```
 - MQTT-брокер: `elion.black-castle.ru:8883` (TLS), user `lm_estate`, ACL только `cm/house/#`
 - Health JSON: `http://192.168.100.130/apps/data/cottage-monitoring/health_get.lp` (Basic Auth + Referer)
@@ -32,14 +31,14 @@
 
 **Критично:** runtime daemon читается из **`/daemon/cottage-monitoring/daemon.lua`**, не из `data/cottage-monitoring/daemon/`. Заливать нужно в FTP-путь `daemon/cottage-monitoring`.
 
-**Рекомендуется** — скрипт деплоя (загружает приложение и daemon):
+**Рекомендуется** — скрипт деплоя (читает `secrets/lm.env`):
 ```bash
-./deploy/deploy-lftp.sh 192.168.100.130 apps LM_apps123
+./deploy/deploy-lftp.sh
 ```
 
-**Вручную (вся директория)**:
+**Вручную** (после `source secrets/lm.env`):
 ```bash
-lftp -u apps,LM_apps123 ftp://192.168.100.130 -e "
+lftp -u "$LM_FTP_USER","$LM_FTP_PASSWORD" "ftp://$LM_HOST" -e "
 set xfer:clobber yes
 cd data/cottage-monitoring
 lcd cm-client
@@ -48,9 +47,10 @@ bye
 "
 ```
 
-**Один файл** (обновлённый daemon — правильный путь):
+**Один файл** (daemon):
 ```bash
-lftp -u apps,LM_apps123 ftp://192.168.100.130 -e "
+source secrets/lm.env
+lftp -u "$LM_FTP_USER","$LM_FTP_PASSWORD" "ftp://$LM_HOST" -e "
 set xfer:clobber yes
 cd daemon/cottage-monitoring
 lcd cm-client/daemon
@@ -61,7 +61,8 @@ bye
 
 **Интерактивно**:
 ```bash
-lftp -u apps,LM_apps123 ftp://192.168.100.130
+source secrets/lm.env
+lftp -u "$LM_FTP_USER","$LM_FTP_PASSWORD" "ftp://$LM_HOST"
 cd data/cottage-monitoring
 lcd cm-client
 mirror -R .
@@ -116,9 +117,8 @@ Daemon автоматически регистрируется при устан
 
 Перед деплоем daemon на время приглушить watchdog:
 ```bash
-curl -u admin:adminLM123 -H "Referer: http://192.168.100.130/apps/" \
-  "http://192.168.100.130/apps/data/cottage-monitoring/wd_pause.lp"
-# или wd_hold.lp — без фейкового mqtt_connected
+./deploy/lm-apps.sh pause-wd
+# или ./deploy/lm-apps.sh hold-wd
 ```
 
 ---
@@ -134,12 +134,10 @@ curl -u admin:adminLM123 -H "Referer: http://192.168.100.130/apps/" \
 ## Деплой
 
 ```bash
-./deploy/deploy-lftp.sh 192.168.100.130 apps LM_apps123
+./deploy/deploy-lftp.sh
 ```
 
-Скрипт загружает приложение в `data/cottage-monitoring` и daemon в `daemon/cottage-monitoring` (путь, ожидаемый LM для автозапуска).
-
-*(Временный пароль для dev; при смене пароля — обновить здесь и в других спеках.)*
+Скрипт загружает приложение в `data/cottage-monitoring` и daemon в `daemon/cottage-monitoring`. Пароли — из `secrets/lm.env` (не в git; см. **001 R-012**).
 
 ---
 
@@ -167,3 +165,12 @@ curl -u admin:adminLM123 -H "Referer: http://192.168.100.130/apps/" \
 
 - Клиент по умолчанию: `tls_insecure_set(true)`. Opt-in: `mqtt_tls_verify=true` + `mqtt_cafile` (ISRG Root X1 в `certs/isrg-root-x1.pem`). Включить: `tls_verify_on.lp`, откат: `tls_verify_off.lp`.
 - На брокере для LM нужна **короткая** цепочка (2 PEM). Автообновление: certbot + hook. Проверка: `server/scripts/check_mosquitto_cert.sh`.
+
+### Команды и ack (после R-014)
+
+- Ack в `cmd/ack/{request_id}`; в results — `applied` и эхо `value` (для отладки).
+- После OFF в MQTT `events`/`state` должно быть `"value":false`, не `null` (см. `safe_getvalue`).
+
+### Учётные данные LM
+
+Пароли — в локальном `secrets/lm.env` (gitignore). В спеках только имена учёток и скрипты `./deploy/deploy-lftp.sh`, `./deploy/lm-apps.sh`. См. **001 R-012**.

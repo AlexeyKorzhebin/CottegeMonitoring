@@ -40,3 +40,8 @@ logs/
 server/.venv/
 server/*.egg-info/
 .specify/
+
+# Local LM / ops secrets (keep *.example tracked)
+secrets/**
+!secrets/**/*.example
+
