@@ -50,9 +50,27 @@ Store `COTTAGE_API_KEY` in env — never commit it.
 | «Отопление / тёплые полы» read | `get_climate` + `get_heating_diagnostics` |
 | «Поставь 22 градуса» (ТП) | `set_climate` — **setpoint only** |
 | «Сколько жрём электричества» | `get_energy_status` |
-| «Статус чайника» | `get_kettle` (summary: on/state/temp) |
-| «Включи чайник» | `set_kettle` (пишет в `33/1/39` cmd) |
+| «Статус чайника» / teapot | `get_kettle` |
+| «Включи/выключи чайник» | `set_kettle` |
+| Нестандартное устройство по имени | см. **Routing ladder** ниже |
 | После команды | `get_command_status` |
+
+## Routing ladder (critical)
+
+Порядок выбора tool — сверху вниз. **Не** вызывай `mcporter list` / `list-commands` перед действием.
+
+1. **Семантический tool**, если интент ясен:
+   - зона/этаж/улица света → `set_lights`
+   - одна лампа / торшер / подсветка по имени → `set_light`
+   - чайник / teapot / Redmond → `set_kettle` / `get_kettle` (**не** `set_lights`, **не** поиск среди ламп)
+   - уставка ТП → `set_climate`
+   - отчёт / энергия / климат read → соответствующие `get_*`
+2. **Имя устройства без зоны** (торшер, подсветка стола, розетка «X») → сразу `set_light` / `discover` с этим query.
+3. **Неизвестный прибор** (не свет/климат/чайник) → `discover(query="<имя>", kind="all")` или `kind="appliance"`.
+   - Нашёл control GA → действуй через подходящий tool (`set_light` если light_control; иначе `set_commands` с `[{ga,value}]` если это единственный однозначный control).
+   - `ambiguous` → спроси пользователя, покажи 2–5 кандидатов.
+   - Пусто → скажи, что не нашёл; не выдумывай GA.
+4. Не ограничивайся только светом/климатом/отчётом — чайник и прочие appliance входят в MCP.
 
 ## Heating rules (critical)
 
@@ -80,6 +98,7 @@ From `manage_warm_floor.lua`:
 - Настя / Настина комната
 - Тим / Тимина / Тимнина комната
 - уличное / улица / outdoor / двор / снаружи → tag `outside` (крыльцо, терраса, балкон)
+- чайник / чайник Redmond / teapot → `set_kettle` / `get_kettle`
 
 Query matching lemmatizes Russian cases (`кухне`/`кухню` → кухня, `крыльце` → крыльцо). Prefer natural language queries.
 

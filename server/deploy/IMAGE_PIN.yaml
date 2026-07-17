@@ -1,14 +1,11 @@
 # CottageMonitoring image pin (source of truth: GitHub AlexeyKorzhebin/CottegeMonitoring)
 
-version: "0.2.5"
+version: "0.2.6"
 git_ref: "main"
-image_tag: "cottage-monitoring:0.2.5"
+image_tag: "cottage-monitoring:0.2.6"
 image_digest: ""
 overlay_retired: true
-replaces_overlay: "cottage-monitoring:0.2.4"
+replaces_overlay: "cottage-monitoring:0.2.5"
 notes: |
-  v0.2.5 (+ host-gateway deploy): bridge network, host.docker.internal,
-  elion-bind-docker0.sh (PG/Redis/MQTT on 172.17.0.1 + route_localnet/UFW),
-  API published only on 127.0.0.1:8321/8322.
-  Also: persistent MQTT publisher, events retention/compression + QoS1 dedup,
-  ingest lag gauge, GA helpers, Docker non-root (uid 999) + cap-drop.
+  v0.2.6: X-Cottage-Dry-Run header — send_command persists status=dry_run and
+  skips MQTT publish (for MCP/agent benchmarks without touching the house bus).

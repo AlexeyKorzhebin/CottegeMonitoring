@@ -89,8 +89,18 @@ async def send_command(
     payload: dict,
     *,
     session: AsyncSession | None = None,
+    dry_run: bool | None = None,
 ) -> Command:
-    """Create command record and publish to MQTT."""
+    """Create command record and publish to MQTT.
+
+    When dry_run is true (explicit arg or X-Cottage-Dry-Run request header),
+    the command is persisted with status ``dry_run`` and MQTT publish is skipped.
+    """
+    from cottage_monitoring.auth.context import is_command_dry_run
+
+    if dry_run is None:
+        dry_run = is_command_dry_run()
+
     own_session = session is None
     if own_session:
         session = async_session_factory()
@@ -100,6 +110,8 @@ async def send_command(
         now = datetime.now(UTC)
 
         mqtt_payload = {**payload, "request_id": str(request_id)}
+        if dry_run:
+            mqtt_payload["dry_run"] = True
 
         cmd = Command(
             request_id=request_id,
@@ -107,12 +119,37 @@ async def send_command(
             device_id=device_id,
             ts_sent=now,
             payload=mqtt_payload,
-            status="sent",
+            status="dry_run" if dry_run else "sent",
         )
         session.add(cmd)
 
         if own_session:
             await session.commit()
+
+        if dry_run:
+            batch = "items" in mqtt_payload
+            item_count = len(mqtt_payload["items"]) if batch else 1
+            logger.info(
+                "command_dry_run",
+                request_id=str(request_id),
+                house_id=house_id,
+                device_id=device_id,
+                batch=batch,
+                item_count=item_count,
+            )
+            await record_trace(
+                kind="command_dry_run",
+                house_id=house_id,
+                ref=str(request_id),
+                duration_ms=0,
+                status="dry_run",
+                details={
+                    "device_id": device_id,
+                    "batch": batch,
+                    "item_count": item_count,
+                },
+            )
+            return cmd
 
         # Publish to MQTT
         try:

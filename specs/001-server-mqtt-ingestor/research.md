@@ -521,6 +521,26 @@ MQTT subscriber запускается как background task в FastAPI lifespa
 
 ---
 
+## R-013: X-Cottage-Dry-Run — полный MCP-путь без MQTT (2026-07)
+
+### Контекст
+
+Бенч агентов (Hermes/OpenClaw + Caila) должен прогонять resolve + MCP write tools на prod-схеме объектов, но **не слать команды в шину**.
+
+### Решение
+
+- Заголовок `X-Cottage-Dry-Run: 1|true|yes|on` (middleware → contextvar).
+- `send_command(..., dry_run=True)` пишет `commands.status=dry_run`, `payload.dry_run=true`, **skip MQTT publish**.
+- Retry scheduler смотрит только `status=sent` — dry_run не ретраится.
+- Бенч: `server/scripts/bench_mcp_models/` + mcporter alias `cottage-dry` с этим header; `--e2e` отказывается работать с `cottage`/`cottage-dev` без dry-run.
+
+### Альтернативы
+
+- Отдельный mock MQTT — лишняя инфра.
+- Только model-only bench — не меряет MCP/resolve latency.
+
+---
+
 ## R-012: Секреты — уровень «частный дом» (не светить случайно)
 
 ### Контекст
@@ -546,6 +566,86 @@ MQTT subscriber запускается как background task в FastAPI lifespa
 
 ---
 
+## R-014: Модели агента для Cottage MCP — Flash + изолированный контекст (2026-07)
+
+### Контекст
+
+OpenClaw `main` на `gpt-5.6-sol` даёт ощущение ответа ~1 мин на бытовые команды («выключи свет», «отчёт по дому»). Нужно понять: узкое место — MCP/MQTT или LLM-петля; какая модель достаточна; можно ли ускорить отдельным агентом.
+
+### Метод измерения
+
+Скрипт `server/scripts/bench_mcp_models/` на elion (`~openclaw/.openclaw/workspace/cottage-mcp-bench/`):
+
+| Режим | Что меряет | MQTT |
+|-------|------------|------|
+| model-only | 1× LLM → выбор tool | нет |
+| `--e2e` + alias `cottage-dry` | полный agent loop (LLM → MCP → LLM…) | **нет** (`X-Cottage-Dry-Run`, R-013) |
+
+Сценарии e2e: свет 1 этаж / setpoint 15°C кухня / отчёт по дому. Провайдер моделей: **Caila**.
+
+Метрики e2e:
+
+- `ms_to_command` — wall до возврата write-tool (`status=dry_run` ≈ момент, когда ушёл бы MQTT publish)
+- `ms_to_final_text` — wall до финального текста пользователю (после 2–3 turns)
+- MCP tool latency отдельно (~0.8–1.1 s на read/write resolve)
+
+### Результаты (elion, 2026-07-17)
+
+**E2E avg wall (короткий system prompt, без OpenClaw memory):**
+
+| Модель | avg wall | notes |
+|--------|---------:|-------|
+| gemini-3.5-flash | **~5.6 s** | лучший баланс скорость/качество tools |
+| minimax-m2.7 / glm-5.1 / haiku-4.5 / gpt-5.4-mini | ~6–8 s | близко |
+| gpt-5.6-sol / claude-sonnet-4.6 | **~11 s** | ~2× медленнее Flash на том же промпте |
+
+**Детализация gpt-5.6-sol (повторный прогон `sol_detail.json`):**
+
+| Команда | ms_to_command (≈ MQTT) | ms_to_final_text | turns |
+|---------|-----------------------:|-----------------:|------:|
+| свет 1 этаж | ~24 s | ~54 s | 3 (set_lights → get_command_status → текст) |
+| 15°C кухня | ~15 s | ~23 s | 2 |
+| отчёт по дому | — (нет write) | ~14 s | 2 (4 read tools → текст) |
+
+**Живой OpenClaw `main`:** в trajectory видны `cacheRead` **34k–200k** токенов на ход; wall на sol в топиках может быть минуты. Это не MCP (~1 s), а контекст + reasoning + несколько LLM turns.
+
+Качество tool selection на Flash/Haiku/Mini для cottage-команд в бенче **не хуже** Sonnet/Sol (все pass на e2e сценариях). Reasoning для dial-команд не нужен.
+
+### Решение (рекомендация)
+
+1. **Отдельный OpenClaw-агент `cottage`** (или isolated sub-agent):
+   - model: `gemini-3.5-flash` (Caila / OpenRouter) — default
+   - fallback: `claude-haiku-4.5` или `gpt-5.4-mini`
+   - workspace: только skill `cottage-monitoring` + короткий AGENTS.md (без SOUL/MEMORY/heartbeat main)
+   - MCP: `cottage` loopback; для бенчей — `cottage-dry`
+2. **`main`** оставить на sol/sonnet для общего диалога и памяти.
+3. Роутинг: Telegram-топик / peer binding → `cottage`, либо `sessions_spawn` с `context: "isolated"` и model Flash.
+4. **Hermes:** MCP + смена `/model` ок, но нет multi-agent isolation как у OpenClaw — для «дом-агент с минимальным контекстом» предпочтителен OpenClaw.
+
+### Оценка ускорения («в 2 раза?»)
+
+| Сравнение | Ожидаемый выигрыш |
+|-----------|-------------------|
+| Только смена модели sol → Flash при **том же** коротком контексте (наш e2e) | **≈ 2×** быстрее wall (11 s → 5–6 s) |
+| Отдельный агент Flash + **минимальный** контекст vs текущий OpenClaw main (sol + 30–200k cache) | **существенно больше 2×** (часто 5–10× на write/отчёте); «×2» — консервативная нижняя граница |
+| MCP/resolve | почти не меняется (~1 s); выигрыш почти целиком в LLM turns |
+
+Итого: формулировка «примерно в 2 раза быстрее» **корректна как минимум** для model-swap на одинаковом промпте; при выносе в изолированного Flash-агента реальное ускорение ответа пользователю обычно **не меньше 2× и часто заметно выше**.
+
+### Артефакты
+
+- Код бенча: `server/scripts/bench_mcp_models/`
+- Live копия: `~openclaw/.openclaw/workspace/cottage-mcp-bench/results/{e2e,sol_detail,latest}.json`
+- Dry-run: R-013 / image `0.2.6`
+- Инструкция для OpenClaw (setup + примеры + канон AGENTS.md): `specs/001-server-mqtt-ingestor/openclaw-cottage-agent-instructions.md`
+- Skill routing ladder (чайник / discover / без `mcporter list`): `skills/cottage-monitoring/SKILL.md`
+
+### Live verify (2026-07-17, топик «Усадьба»)
+
+Агент `cottage` на Flash: свет по этажам / торшер+подсветка; `set_kettle` / `get_kettle` (температура); `get_energy_status` по фазам — ок. Routing ladder в `AGENTS.md` персистентен (не повторять в каждой сессии). Session history в топике сохраняет follow-up («подтверждаю», «он был включен»).
+
+---
+
 ## Сводка решений
 
 | ID | Тема | Решение | Альтернатива |
@@ -562,3 +662,5 @@ MQTT subscriber запускается как background task в FastAPI lifespa
 | R-010 | Security hardening | ACL + auth defaults + 0.2.4 + cert hook | Открытый брокер / auth off |
 | R-011 | MCP traces / E2E | `operation_traces`; RTT; dev prefix caveat | Только логи без БД |
 | R-012 | Secrets | `secrets/lm.env` локально; не в git | Ротация / enterprise |
+| R-013 | Dry-run MCP writes | `X-Cottage-Dry-Run` → status=dry_run, no MQTT | Mock broker / model-only |
+| R-014 | Cottage agent model | OpenClaw agent `cottage` + gemini-3.5-flash, min context | sol на main / Hermes `/model` |

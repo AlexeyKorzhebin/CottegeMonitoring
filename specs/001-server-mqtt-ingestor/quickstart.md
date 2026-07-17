@@ -190,11 +190,28 @@ ssh elion 'sudo systemctl daemon-reload && sudo systemctl restart cottage-monito
 
 Сеть: **bridge** + `host.docker.internal:host-gateway` (не `--network=host`).
 
-Текущий pin: **`cottage-monitoring:0.2.5`** (`server/deploy/IMAGE_PIN.yaml`).
+Текущий pin: **`cottage-monitoring:0.2.6`** (`server/deploy/IMAGE_PIN.yaml`).
+
+### Dry-run команд (без MQTT)
+
+Заголовок `X-Cottage-Dry-Run: 1` на `/mcp` или `/api/v1`: `send_command` пишет запись со `status=dry_run` и **не публикует** в MQTT. Для бенчей агентов: mcporter alias `cottage-dry` + `server/scripts/bench_mcp_models/run_bench.py --e2e`.
+
+```bash
+# на elion (openclaw)
+python3 run_bench.py --e2e --mcp-alias cottage-dry --out results/e2e.json
+```
+
 
 ---
 
 ## Production security / ops (аудит 2026-07, статус)
+
+### Сделано в 0.2.6 + live elion
+
+| Пункт | Статус |
+|-------|--------|
+| `X-Cottage-Dry-Run` | MCP/API: resolve+DB, status=`dry_run`, MQTT skip |
+| MCP model bench e2e | `cottage-dry` + `run_bench.py --e2e` (Caila, в т.ч. gpt-5.6-sol) |
 
 ### Сделано в 0.2.5 + live elion
 
@@ -251,6 +268,25 @@ ssh elion 'sudo systemctl daemon-reload && sudo systemctl restart cottage-monito
 **RTT** (Round-Trip Time) = `ts_ack − ts_sent` в таблице `commands`. Пример живого теста: ON ~2.5 с, OFF ~0.5 с. Отдельных таймингов «только сеть» / «только grp.write» нет — они внутри `command_ack`.
 
 **API keys:** `cottage-create-api-key` внутри контейнера; временные ключи после теста — `revoked_at=now()`. Бот (OpenClaw) хранит prod/dev ключи в `~/.openclaw/secrets/` на elion (не в git).
+
+### MCP model bench (Caila × cottage tools)
+
+Скрипт: `server/scripts/bench_mcp_models/` (на elion: `~openclaw/.openclaw/workspace/cottage-mcp-bench/`).
+
+| Режим | Команда | MQTT |
+|-------|---------|------|
+| model-only | `python3 run_bench.py` | нет |
+| e2e dry-run | `python3 run_bench.py --e2e --mcp-alias cottage-dry` | нет (`X-Cottage-Dry-Run`) |
+
+**Вывод (R-014):** для dial-команд дома — отдельный OpenClaw-агент на **gemini-3.5-flash** с минимальным контекстом; `main` на sol оставить для общего чата. На одинаковом коротком промпте Flash ≈ **2×** быстрее sol; vs текущий main с большим cache выигрыш обычно **≥2×** (часто больше). Детали и цифры — `specs/001-server-mqtt-ingestor/research.md` **R-014**.
+
+```bash
+# на elion от пользователя openclaw
+set -a; source ~/.openclaw/secrets/llms.env; set +a
+export PATH=$HOME/.npm-global/bin:$PATH
+cd ~/.openclaw/workspace/cottage-mcp-bench
+python3 run_bench.py --e2e --mcp-alias cottage-dry --out results/latest.json
+```
 
 ### Автообновление сертификата MQTT
 

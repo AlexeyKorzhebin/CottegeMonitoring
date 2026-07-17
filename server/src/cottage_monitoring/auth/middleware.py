@@ -9,16 +9,26 @@ from starlette.requests import Request
 from starlette.responses import JSONResponse, Response
 
 from cottage_monitoring.auth.deps import _extract_raw_key, authenticate_raw_key
+from cottage_monitoring.auth.context import set_command_dry_run
 from cottage_monitoring.config import settings
 from cottage_monitoring.db.session import async_session_factory
 
 _HOUSE_PATH = re.compile(r"^/api/v1/houses/([^/]+)")
+_DRY_RUN_TRUE = frozenset({"1", "true", "yes", "on"})
+
+
+def _header_dry_run(request: Request) -> bool:
+    raw = (request.headers.get("X-Cottage-Dry-Run") or "").strip().lower()
+    return raw in _DRY_RUN_TRUE
 
 
 class ApiKeyAuthMiddleware(BaseHTTPMiddleware):
     _OPEN_PREFIXES = ("/health", "/metrics", "/docs", "/openapi.json", "/redoc")
 
     async def dispatch(self, request: Request, call_next) -> Response:
+        # Always reset per-request; dry-run is opt-in via header only.
+        set_command_dry_run(_header_dry_run(request))
+
         if not settings.auth_required:
             return await call_next(request)
 

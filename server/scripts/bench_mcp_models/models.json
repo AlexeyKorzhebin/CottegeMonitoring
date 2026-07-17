@@ -1,0 +1,45 @@
+{
+  "caila_base_url": "https://caila.io/api/adapters/openai/v1",
+  "models": [
+    {
+      "id": "just-ai/google-gemini/gemini-3.1-flash-lite-preview",
+      "label": "gemini-3.1-flash-lite",
+      "tier": "fast"
+    },
+    {
+      "id": "just-ai/google-gemini/gemini-3.5-flash",
+      "label": "gemini-3.5-flash",
+      "tier": "fast"
+    },
+    {
+      "id": "just-ai/anthropic-claude/claude-haiku-4-5",
+      "label": "claude-haiku-4.5",
+      "tier": "fast"
+    },
+    {
+      "id": "just-ai/openai-proxy/gpt-5.4-mini",
+      "label": "gpt-5.4-mini",
+      "tier": "fast"
+    },
+    {
+      "id": "just-ai/openrouter-proxy/openai/gpt-5.6-sol",
+      "label": "gpt-5.6-sol",
+      "tier": "baseline"
+    },
+    {
+      "id": "just-ai/openrouter-proxy/z-ai/glm-5.1",
+      "label": "glm-5.1",
+      "tier": "value"
+    },
+    {
+      "id": "just-ai/openrouter-proxy/minimax/minimax-m2.7",
+      "label": "minimax-m2.7",
+      "tier": "value"
+    },
+    {
+      "id": "just-ai/openrouter-proxy/anthropic/claude-sonnet-4.6",
+      "label": "claude-sonnet-4.6",
+      "tier": "baseline"
+    }
+  ]
+}

@@ -1,0 +1,37 @@
+{
+  "scenarios": [
+    {
+      "id": "lights_off_floor1",
+      "prompt": "выключи весь свет на первом этаже",
+      "category": "write_batch",
+      "expect": {
+        "primary_tool": "set_lights",
+        "forbidden_tools": ["set_light", "set_climate", "set_kettle", "set_commands"],
+        "args": { "on": false },
+        "query_any_of": ["1", "перв", "этаж", "floor"]
+      }
+    },
+    {
+      "id": "set_temp_15_kitchen",
+      "prompt": "установи температуру 15С на кухне",
+      "category": "write_climate",
+      "expect": {
+        "primary_tool": "set_climate",
+        "forbidden_tools": ["set_light", "set_lights", "set_kettle"],
+        "args": { "setpoint_c": 15, "force_relay_not_true": true },
+        "allow_clarify": true,
+        "allow_prefix_tools": ["discover", "get_climate", "list_lights"]
+      }
+    },
+    {
+      "id": "house_report",
+      "prompt": "верни отчет по дому",
+      "category": "read_report",
+      "expect": {
+        "primary_tool": "get_house_status",
+        "forbidden_tools": ["set_light", "set_lights", "set_climate", "set_kettle", "set_commands"],
+        "bonus_tools": ["get_energy_status", "get_climate", "get_temperature", "get_heating_diagnostics", "get_sensors"]
+      }
+    }
+  ]
+}

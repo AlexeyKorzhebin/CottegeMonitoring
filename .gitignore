@@ -40,6 +40,7 @@ logs/
 server/.venv/
 server/*.egg-info/
 .specify/
+server/scripts/bench_mcp_models/results/
 
 # Local LM / ops secrets (keep *.example tracked)
 secrets/**

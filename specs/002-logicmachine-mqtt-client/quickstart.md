@@ -166,6 +166,9 @@ Daemon автоматически регистрируется при устан
 - Клиент по умолчанию: `tls_insecure_set(true)`. Opt-in: `mqtt_tls_verify=true` + `mqtt_cafile` (ISRG Root X1 в `certs/isrg-root-x1.pem`). Включить: `tls_verify_on.lp`, откат: `tls_verify_off.lp`.
 - На брокере для LM нужна **короткая** цепочка (2 PEM). Автообновление: certbot + hook. Проверка: `server/scripts/check_mosquitto_cert.sh`.
 
+### Агент OpenClaw / Hermes (не LM)
+
+Dial-команды дома (MCP) лучше гонять отдельным OpenClaw-агентом на **gemini-3.5-flash** с минимальным контекстом — см. **001 R-014**. LM daemon на это не влияет.
 ### Команды и ack (после R-014)
 
 - Ack в `cmd/ack/{request_id}`; в results — `applied` и эхо `value` (для отладки).

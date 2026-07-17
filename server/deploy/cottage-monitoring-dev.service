@@ -18,7 +18,7 @@ ExecStart=/usr/bin/docker run --name cottage-monitoring-dev \
   --env-file /etc/cottage-monitoring/cottage-monitoring.dev.env \
   -e API_HOST=0.0.0.0 \
   -v /var/log/cottage-monitoring/dev:/var/log/cottage-monitoring \
-  cottage-monitoring:0.2.5
+  cottage-monitoring:0.2.6
 ExecStartPost=/opt/cottage-monitoring/wait_http_health.sh http://127.0.0.1:8322/health 30
 ExecStop=/usr/bin/docker stop cottage-monitoring-dev
 StandardOutput=journal
