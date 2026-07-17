@@ -58,6 +58,14 @@ DASH_LINKS = [
         "targetBlank": False,
     },
     {
+        "title": "LM Load",
+        "type": "link",
+        "url": "/grafana/d/cottage-lm-load/",
+        "icon": "heart-rate",
+        "keepTime": True,
+        "targetBlank": False,
+    },
+    {
         "title": "Все Cottage",
         "type": "dashboards",
         "tags": ["cottage"],
@@ -74,7 +82,8 @@ NAV_MD = (
     "[Electricity](/grafana/d/cottage-energy/) · "
     "[Climate](/grafana/d/cottage-climate/) · "
     "[Lights](/grafana/d/cottage-lights/) · "
-    "[Batteries](/grafana/d/cottage-batteries/)"
+    "[Batteries](/grafana/d/cottage-batteries/) · "
+    "[LM Load](/grafana/d/cottage-lm-load/)"
 )
 
 # Utility meter: consumption Total — kWh with 2 decimals (no SI→MWh scaling).
@@ -1252,6 +1261,184 @@ GROUP BY 1 ORDER BY 1
     )
 
 
+LOAD_THRESHOLDS = {
+    "mode": "absolute",
+    "steps": [
+        {"color": "semi-dark-green", "value": None},
+        {"color": "semi-dark-yellow", "value": 1.0},
+        {"color": "orange", "value": 1.5},
+        {"color": "semi-dark-red", "value": 2.0},
+    ],
+}
+
+
+def _load_latest_sql(ga: str) -> str:
+    return f"""
+SELECT e.ts AS time, {NUM} AS value
+FROM events e
+WHERE e.house_id = 'house' AND e.ga = '{ga}'
+ORDER BY e.ts DESC
+LIMIT 1
+""".strip()
+
+
+def _load_num_overrides(colnames: list[str]) -> list[dict]:
+    """Color numeric table cells by the same loadavg thresholds."""
+    return [
+        {
+            "matcher": {"id": "byName", "options": name},
+            "properties": [
+                {"id": "decimals", "value": 3},
+                {"id": "thresholds", "value": LOAD_THRESHOLDS},
+                {
+                    "id": "custom.cellOptions",
+                    "value": {"type": "color-background", "mode": "basic"},
+                },
+                {"id": "color", "value": {"mode": "thresholds"}},
+            ],
+        }
+        for name in colnames
+    ]
+
+
+def lm_load():
+    """LogicMachine CPU loadavg from GA 34/1/6..8."""
+    global _PANEL_ID
+    _PANEL_ID = 0
+    panels = []
+    y = 0
+    panels.append(nav_panel(y))
+    y += 2
+    panels.append(row("Сейчас (loadavg LM)", y))
+    y += 1
+
+    for i, (title, ga, desc) in enumerate(
+        [
+            ("load1", "34/1/6", "Средняя загрузка за 1 мин (GA 34/1/6)."),
+            ("load5", "34/1/7", "Средняя загрузка за 5 мин (GA 34/1/7)."),
+            ("load15", "34/1/8", "Средняя загрузка за 15 мин (GA 34/1/8). Алерт при >2.0."),
+        ]
+    ):
+        p = stat(
+            title,
+            i * 4,
+            y,
+            4,
+            4,
+            _load_latest_sql(ga),
+            decimals=2,
+            description=desc,
+            color_mode="background",
+            graph_mode="none",
+            text_mode="value",
+        )
+        p["fieldConfig"]["defaults"]["thresholds"] = LOAD_THRESHOLDS
+        p["fieldConfig"]["defaults"]["color"] = {"mode": "thresholds"}
+        panels.append(p)
+
+    panels.append(
+        table(
+            "Порог алерта",
+            12,
+            y,
+            12,
+            4,
+            """
+SELECT
+  'load15 > 2.0 for 10m' AS rule,
+  'warning' AS severity,
+  'Telegram · team=cottage' AS notify
+""".strip(),
+            description="Grafana alert: cottage-lm-load15-high → cottage-telegram.",
+        )
+    )
+    y += 4
+
+    panels.append(row("История", y))
+    y += 1
+    ts = timeseries(
+        "Loadavg LM (1 / 5 / 15 мин)",
+        0,
+        y,
+        24,
+        10,
+        f"""
+SELECT
+  $__timeGroupAlias(e.ts, $__interval),
+  avg({NUM}) FILTER (WHERE e.ga = '34/1/6') AS "load1",
+  avg({NUM}) FILTER (WHERE e.ga = '34/1/7') AS "load5",
+  avg({NUM}) FILTER (WHERE e.ga = '34/1/8') AS "load15"
+FROM events e
+WHERE e.house_id = 'house'
+  AND e.ga IN ('34/1/6','34/1/7','34/1/8')
+  AND $__timeFilter(e.ts)
+GROUP BY 1 ORDER BY 1
+""".strip(),
+        description=(
+            "Зелёный <1.0 · жёлтый 1.0–1.5 · оранжевый 1.5–2.0 · красный >2.0. "
+            "Линия 2.0 — порог алерта load15. Цифры сверху — цвет фона по тем же порогам."
+        ),
+    )
+    ts["fieldConfig"]["defaults"]["thresholds"] = LOAD_THRESHOLDS
+    ts["fieldConfig"]["defaults"]["color"] = {"mode": "palette-classic"}
+    ts["fieldConfig"]["defaults"]["custom"]["thresholdsStyle"] = {"mode": "line+area"}
+    panels.append(ts)
+    y += 10
+
+    panels.append(row("По дням (MSK)", y))
+    y += 1
+    panels.append(
+        table(
+            "Суточные avg / p50 / p95 / max",
+            0,
+            y,
+            24,
+            10,
+            f"""
+WITH e AS (
+  SELECT
+    e.ga,
+    (e.ts AT TIME ZONE 'Europe/Moscow')::date AS day,
+    {NUM} AS v
+  FROM events e
+  WHERE e.house_id = 'house'
+    AND e.ga IN ('34/1/6','34/1/7','34/1/8')
+    AND e.ts > now() - interval '14 days'
+)
+SELECT
+  day,
+  CASE ga
+    WHEN '34/1/6' THEN 'load1'
+    WHEN '34/1/7' THEN 'load5'
+    WHEN '34/1/8' THEN 'load15'
+  END AS metric,
+  count(*) AS n,
+  round(avg(v)::numeric, 3) AS avg,
+  round(percentile_cont(0.5) WITHIN GROUP (ORDER BY v)::numeric, 3) AS p50,
+  round(percentile_cont(0.95) WITHIN GROUP (ORDER BY v)::numeric, 3) AS p95,
+  round(max(v)::numeric, 3) AS max
+FROM e
+WHERE v IS NOT NULL
+GROUP BY day, ga
+ORDER BY day DESC, metric
+""".strip(),
+            description="Ячейки avg/p50/p95/max окрашены: зелёный <1 · жёлтый ≥1 · оранжевый ≥1.5 · красный ≥2.",
+            field_config={
+                "defaults": {},
+                "overrides": _load_num_overrides(["avg", "p50", "p95", "max"]),
+            },
+        )
+    )
+
+    return dashboard(
+        "Cottage — LM Load",
+        "cottage-lm-load",
+        panels,
+        ["cottage", "load", "logicmachine"],
+        refresh="1m",
+    )
+
+
 def main() -> None:
     OUT.mkdir(parents=True, exist_ok=True)
     for name, fn in [
@@ -1260,6 +1447,7 @@ def main() -> None:
         ("cottage_climate.json", climate),
         ("cottage_lights.json", lights),
         ("cottage_batteries.json", batteries),
+        ("cottage_lm_load.json", lm_load),
     ]:
         path = OUT / name
         path.write_text(json.dumps(fn(), ensure_ascii=False, indent=2) + "\n", encoding="utf-8")

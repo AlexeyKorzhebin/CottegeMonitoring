@@ -234,6 +234,7 @@ python3 run_bench.py --e2e --mcp-alias cottage-dry --out results/e2e.json
 | Docker network | bridge + `host.docker.internal:host-gateway`; API `-p 127.0.0.1:8321:8321` |
 | Host deps for bridge | PG/Redis/MQTT:1883 also on `172.17.0.1` (`elion-bind-docker0.sh`) |
 | Telegram alerts secrets | `/etc/cottage-monitoring/telegram.env` |
+| Grafana dashboards + alerts | `server/deploy/grafana/` — quickstart § Grafana, **R-015** |
 
 ### Клиент LM
 
@@ -403,3 +404,71 @@ mosquitto_pub -h localhost -t "dev/cm/house-01/lm-main/v1/state/ga/1/1/1" -r \
 # Подписка на все prod-сообщения (мониторинг)
 mosquitto_sub -h localhost -t "cm/+/+/v1/#" -v
 ```
+
+---
+
+## Grafana (elion) — телеметрия дома
+
+**Не** Prometheus-метрики приложения (`/metrics`, FR-043..045), а дашборды по
+данным MQTT→БД (`events` / `current_state` / `objects`). Код и runbook:
+`server/deploy/grafana/` (генератор JSON + provisioning). Решение: **R-015**.
+
+### URL
+
+База: `https://elion.black-castle.ru/grafana/` (за nginx).
+
+| UID | Title | Содержание |
+|-----|-------|------------|
+| `cottage-overview` | Overview | Online, мощность, kWh, свет/ТП снимки |
+| `cottage-energy` | Electricity | P/Q/U/I/PF/Hz, суточные/часовые kWh |
+| `cottage-climate` | Climate | Воздух/влажность, погода, полы |
+| `cottage-lights` | Lights | Статусы света + история |
+| `cottage-batteries` | Batteries | Zigbee battery % |
+| `cottage-lm-load` | LM Load | loadavg LM: GA `34/1/6` (1м), `34/1/7` (5м), `34/1/8` (15м) |
+
+Папка Grafana: **Cottage** (`folderUid=ffsa6lrlntse8b`).
+Datasource: PostgreSQL UID `cottage-monitoring-pg` → БД `cottage_monitoring`,
+роль `cottage_grafana` (SELECT-only).
+
+### Деплой дашбордов
+
+```bash
+./server/deploy/grafana/deploy.sh
+```
+
+- Генерирует JSON из `generate_dashboards.py` → `dashboards/cottage_*.json`
+- На elion: provisioning datasource + файлы в `/var/lib/grafana/dashboards/cottage`
+- Секрет пароля БД: `/etc/cottage-monitoring/grafana-db.password` (не в git)
+
+После правок генератора — снова `deploy.sh` (не править JSON на сервере вручную).
+
+### Алерты (Telegram)
+
+```bash
+./server/deploy/grafana/deploy_alerts.sh
+```
+
+Секреты: `/etc/cottage-monitoring/telegram.env` (`TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID`).
+Contact point `cottage-telegram`, route matcher `team=cottage`.
+
+| UID | Условие | for | severity |
+|-----|---------|-----|----------|
+| `cottage-house-stale` | дом не online / `last_seen` >15m | 5m | critical |
+| `cottage-lm-load15-high` | GA `34/1/8` (load15) **> 2.0** | 10m | warning |
+
+`cottage-lm-load15-high`: `noDataState=OK` (отсутствие точек не спамит — за stale отвечает другой алерт).
+
+### Cursor / MCP
+
+Grafana на elion — OSS. Для агента: MCP `user-grafana` →
+`https://elion.black-castle.ru/grafana`, токен service account на elion
+`/etc/cottage-monitoring/grafana-mcp.token` (локально `~/.config/grafana-mcp/token`).
+Подробнее: `server/deploy/grafana/README.md`.
+
+### SQL-заметки
+
+- В `current_state.ga` часто dash-форма (`1-2-3`); в запросах:
+  `replace(cs.ga,'-','/') = o.ga`.
+- Timeseries: `$__timeGroupAlias(e.ts, $__interval)` по hypertable `events`
+  (не `NULL`-gapfill на длинных диапазонах — ломает браузер).
+- Loadavg пишется LM в `34/1/6..8` и попадает в prod `events` (~раз в минуту для load1).

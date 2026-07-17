@@ -424,6 +424,30 @@ Let's Encrypt live `fullchain` с intermediate **YR2** (3 PEM) ломает hand
 
 ---
 
+## R-015: Рост CPU после compact daemon — вернуть batching (2026-07-18)
+
+### Контекст
+
+Loadavg LM (`34/1/6` 1‑мин) вырос с ~0.85 avg (14–16.07) до ~1.58 avg с 00:00 17.07 МСК — сразу после compact rewrite v1.1.1. DRM88 не меняли.
+
+В compact daemon убрали чтение `batch_interval` → каждое KNX-событие сразу давало 2 MQTT publish; `hb()` писал storage ×3 каждый цикл (~6–7 Гц).
+
+### Решение (v1.1.2)
+
+- Вернуть event batching (`events/batch` + `state/batch` + retained `state/ga`), defaults `batch_interval=1.5`, `batch_max_size=50`.
+- Heartbeat storage раз в 3 с (`HB_INTERVAL`).
+- Defaults: `loop_sleep=0.25`, `throttle=20`, `event_sleep=0.03`.
+- Yield при flush offline-буфера (каждые 20 msg).
+
+### Альтернативы (отвергнуты / отложены)
+
+- Крутить только sleeps без batching — слабый эффект при активной шине.
+- Трогать DRM88 poll — вне scope (скрипт не меняли).
+
+Мониторинг: Grafana дашборд `cottage-lm-load` + алерт load15 > 2.0 — см. **001 R-015**.
+
+---
+
 ## Сводка решений
 
 | ID | Тема | Решение |
@@ -442,3 +466,4 @@ Let's Encrypt live `fullchain` с intermediate **YR2** (3 PEM) ломает hand
 | R-012 | loop() | всегда pump; numeric rc only |
 | R-013 | Broker cert | short-chain + certbot hook auto-renew |
 | R-014 | bool false / ack | `safe_getvalue`; `cmd/ack/{request_id}` |
+| R-015 | CPU / batching | v1.1.2: batch + hb 3s + softer sleeps |

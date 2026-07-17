@@ -1,5 +1,5 @@
--- Cottage Monitoring MQTT Client Daemon v1.1.1
--- Compact MQTT+cmd+meta+localbus. Always pump loop(); treat only numeric nonzero as error.
+-- Cottage Monitoring MQTT Client Daemon v1.1.2
+-- Compact MQTT+cmd+meta+localbus + event batching. Always pump loop(); treat only numeric nonzero as error.
 storage.set('cm_force_restart', nil)
 storage.set('cm_started_ts', os.time())
 storage.set('cm_heartbeat', os.time())
@@ -7,7 +7,7 @@ storage.set('cm_mqtt_connected', false)
 storage.set('mqtt_connected', false)
 storage.set('cm_last_error', '')
 storage.set('cm_reconnect_count', 0)
-storage.set('cm_boot', 'v111c_start')
+storage.set('cm_boot', 'v112_start')
 
 local config = require('config')
 local json = require('json')
@@ -16,7 +16,7 @@ local grp = grp
 local lb = require('localbus').new(0.5)
 
 local RECONNECT_MIN, RECONNECT_MAX, KEEPALIVE = 2, 60, 60
-local CHUNK_SIZE, HEALTH_INTERVAL = 100, 60
+local CHUNK_SIZE, HEALTH_INTERVAL, HB_INTERVAL = 100, 60, 3
 
 local function cfg(k, d) return config.get('cottage-monitoring', k, d) end
 local function set_err(e) pcall(storage.set, 'cm_last_error', tostring(e or '')) end
@@ -48,9 +48,11 @@ local C = {
   mqtt_password = cfg('mqtt_password', '') or '',
   client_id = cfg('client_id', '') or '',
   buffer_size = tonumber(cfg('buffer_size', 1000)) or 1000,
-  loop_sleep = tonumber(cfg('loop_sleep', 0.15)) or 0.15,
-  throttle = tonumber(cfg('throttle', 30)) or 30,
-  event_sleep = tonumber(cfg('event_sleep', 0.02)) or 0.02,
+  loop_sleep = tonumber(cfg('loop_sleep', 0.25)) or 0.25,
+  throttle = tonumber(cfg('throttle', 20)) or 20,
+  event_sleep = tonumber(cfg('event_sleep', 0.03)) or 0.03,
+  batch_interval = tonumber(cfg('batch_interval', 1.5)) or 1.5,
+  batch_max_size = tonumber(cfg('batch_max_size', 50)) or 50,
   mqtt_cafile = cfg('mqtt_cafile', '') or '',
 }
 do
@@ -67,11 +69,16 @@ local S = {
   next_reconnect_ts = 0, started_ts = os.time(),
   last_health_pub_ts = 0, meta_sent = false,
   last_evt_ts = 0, evt_count = 0,
+  last_hb_ts = 0, last_batch_flush_ts = os.time(),
 }
 local buffer = {}
+local event_batch = {}
 
-local function hb()
-  pcall(storage.set, 'cm_heartbeat', os.time())
+local function hb(force)
+  local now = os.time()
+  if not force and (now - S.last_hb_ts) < HB_INTERVAL then return end
+  S.last_hb_ts = now
+  pcall(storage.set, 'cm_heartbeat', now)
   pcall(storage.set, 'cm_mqtt_connected', S.connected and true or false)
   pcall(storage.set, 'mqtt_connected', S.connected and true or false)
 end
@@ -84,6 +91,38 @@ local function do_pub(rel, payload, qos, retain)
     table.insert(buffer, { topic = full, payload = payload, qos = qos or 1, retain = retain or false })
     while #buffer > C.buffer_size do table.remove(buffer, 1) end
   end
+end
+
+-- Flush KNX event batch: events/batch + state/batch + retained state/ga (deduped by GA).
+local function flush_batch()
+  if #event_batch == 0 then return end
+  local state_by_ga = {}
+  local events_arr = {}
+  for _, item in ipairs(event_batch) do
+    table.insert(events_arr, item.evt)
+    state_by_ga[item.ga_safe] = item.state
+  end
+  if #events_arr > 0 then
+    do_pub('events/batch', json.encode({ events = events_arr }), 0, false)
+  end
+  local states_arr = {}
+  for ga_safe, st in pairs(state_by_ga) do
+    st.ga = ga_safe
+    table.insert(states_arr, st)
+  end
+  if #states_arr > 0 then
+    do_pub('state/batch', json.encode({ states = states_arr }), 1, false)
+    local pub_cnt = 0
+    for _, st in ipairs(states_arr) do
+      do_pub('state/ga/' .. st.ga, json.encode({
+        ts = st.ts, value = st.value, datatype = st.datatype or 0,
+      }), 1, true)
+      pub_cnt = pub_cnt + 1
+      if pub_cnt >= 30 then pub_cnt = 0; os.sleep(0.02) end
+    end
+  end
+  event_batch = {}
+  S.last_batch_flush_ts = os.time()
 end
 
 local function publish_meta()
@@ -147,12 +186,17 @@ local function setup_client()
     pcall(storage.set, 'cm_last_connect_ts', os.time())
     pcall(storage.set, 'cm_boot', 'ON_CONNECT')
     pcall(storage.set, 'cm_last_error', '')
-    hb()
+    hb(true)
     pcall(function()
-      client:publish(C.base .. 'status/online', json.encode({ ts = os.time(), status = 'online', device_id = C.device_id, version = '1.1.1' }), 1, true)
+      client:publish(C.base .. 'status/online', json.encode({ ts = os.time(), status = 'online', device_id = C.device_id, version = '1.1.2' }), 1, true)
       client:subscribe(C.base .. 'cmd', 1)
       client:subscribe(C.base .. 'rpc/req/' .. C.client_id, 1)
-      for _, e in ipairs(buffer) do client:publish(e.topic, e.payload, e.qos, e.retain) end
+      local flush_cnt = 0
+      for _, e in ipairs(buffer) do
+        client:publish(e.topic, e.payload, e.qos, e.retain)
+        flush_cnt = flush_cnt + 1
+        if flush_cnt >= 20 then flush_cnt = 0; os.sleep(0.02) end
+      end
     end)
     buffer = {}
   end)
@@ -160,7 +204,7 @@ local function setup_client()
     S.connected = false
     pcall(storage.set, 'cm_last_disconnect_ts', os.time())
     pcall(storage.set, 'cm_boot', 'ON_DISCONNECT')
-    hb()
+    hb(true)
   end)
   client:callback_set('ON_MESSAGE', function(mid, topic, payload)
     if topic:match('/cmd$') then
@@ -209,22 +253,39 @@ lb:sethandler('groupwrite', function(event)
   if val == nil then val = safe_getvalue(dst) end
   local ts = os.time()
   S.seq = S.seq + 1
-  do_pub('events', json.encode({ ts = ts, seq = S.seq, type = 'knx.groupwrite', ga = obj.address or dst,
-    id = obj.id, name = obj.name, datatype = obj.datatype or 0, value = val }), 0, false)
-  do_pub('state/ga/' .. tostring(obj.address or dst):gsub('/', '-'),
-    json.encode({ ts = ts, value = val, datatype = obj.datatype or 0 }), 1, true)
+  local ga = obj.address or dst
+  local ga_safe = tostring(ga):gsub('/', '-')
+  local evt = {
+    ts = ts, seq = S.seq, type = 'knx.groupwrite', ga = ga,
+    id = obj.id, name = obj.name, datatype = obj.datatype or 0, value = val,
+  }
+  local state = { ts = ts, value = val, datatype = obj.datatype or 0 }
+  if C.batch_interval > 0 then
+    table.insert(event_batch, { evt = evt, ga_safe = ga_safe, state = state })
+    if C.batch_max_size > 0 and #event_batch >= C.batch_max_size then
+      flush_batch()
+    end
+  else
+    do_pub('events', json.encode(evt), 0, false)
+    do_pub('state/ga/' .. ga_safe, json.encode(state), 1, true)
+  end
   if C.event_sleep > 0 then os.sleep(C.event_sleep) end
 end)
 
 S.client = setup_client()
-hb()
+hb(true)
 pcall(function() S.client:connect(C.mqtt_host, C.mqtt_port, KEEPALIVE) end)
 
 while true do
   local ok_iter, err_iter = pcall(function()
     if storage.get('cm_force_restart') then storage.set('cm_force_restart', nil); error('cm_force_restart') end
-    hb()
+    hb(false)
     lb:step()
+    if C.batch_interval > 0 and #event_batch > 0 then
+      if (os.time() - S.last_batch_flush_ts) >= C.batch_interval then
+        flush_batch()
+      end
+    end
     local lok, lrc = pcall(function() return S.client:loop(100) end)
     if not lok then
       S.connected = false
@@ -256,7 +317,7 @@ while true do
     if S.connected and not S.meta_sent then S.meta_sent = true; pcall(publish_meta) end
     if S.connected and (os.time() - S.last_health_pub_ts) >= HEALTH_INTERVAL then
       do_pub('status/health', json.encode({
-        ts = os.time(), status = 'online', version = '1.1.1',
+        ts = os.time(), status = 'online', version = '1.1.2',
         uptime = os.time() - S.started_ts, reconnects = S.reconnect_count, mqtt_connected = true,
       }), 1, true)
       S.last_health_pub_ts = os.time()

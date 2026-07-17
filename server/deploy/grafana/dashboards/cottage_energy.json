@@ -62,6 +62,14 @@
       "targetBlank": false
     },
     {
+      "title": "LM Load",
+      "type": "link",
+      "url": "/grafana/d/cottage-lm-load/",
+      "icon": "heart-rate",
+      "keepTime": true,
+      "targetBlank": false
+    },
+    {
       "title": "Все Cottage",
       "type": "dashboards",
       "tags": [
@@ -87,7 +95,7 @@
       "targets": [],
       "options": {
         "mode": "markdown",
-        "content": "**Cottage:** [Overview](/grafana/d/cottage-overview/) · [Electricity](/grafana/d/cottage-energy/) · [Climate](/grafana/d/cottage-climate/) · [Lights](/grafana/d/cottage-lights/) · [Batteries](/grafana/d/cottage-batteries/)"
+        "content": "**Cottage:** [Overview](/grafana/d/cottage-overview/) · [Electricity](/grafana/d/cottage-energy/) · [Climate](/grafana/d/cottage-climate/) · [Lights](/grafana/d/cottage-lights/) · [Batteries](/grafana/d/cottage-batteries/) · [LM Load](/grafana/d/cottage-lm-load/)"
       },
       "transparent": true
     },

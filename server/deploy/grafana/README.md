@@ -11,6 +11,8 @@ Provisioned dashboards for house telemetry from PostgreSQL/TimescaleDB
 | `cottage-energy` | Electricity | Power/Q/S/PF/Hz; Total P & per-phase P; Urms/Irms; hourly kWh |
 | `cottage-climate` | Climate | Air temp & humidity timeseries; weather now; floor vs setpoint; relay history |
 | `cottage-lights` | Lights | Instant ON/OFF table + 0/1 history by floor |
+| `cottage-batteries` | Batteries | Zigbee battery % table |
+| `cottage-lm-load` | LM Load | loadavg 1/5/15 мин (GA `34/1/6..8`); суточная статистика |
 
 URLs (behind nginx):
 
@@ -18,6 +20,8 @@ URLs (behind nginx):
 - https://elion.black-castle.ru/grafana/d/cottage-energy/
 - https://elion.black-castle.ru/grafana/d/cottage-climate/
 - https://elion.black-castle.ru/grafana/d/cottage-lights/
+- https://elion.black-castle.ru/grafana/d/cottage-batteries/
+- https://elion.black-castle.ru/grafana/d/cottage-lm-load/
 
 ## Selected metrics (from house inventory)
 
@@ -27,6 +31,8 @@ Kept the curated / high-signal set; dropped raw meter internals and unused stubs
 - **Air:** Zigbee `33/1/*` temperature & humidity (main rooms) + outdoor `32/5/*`
 - **Heat:** floor temps `1/3/*`, setpoints `1/6/*`, relay status `1/5/*`, auto `1/7/1`
 - **Lights:** status GAs `1/2/*` (instant + history)
+
+- **LM / monitoring:** loadavg `34/1/6` (1м), `34/1/7` (5м), `34/1/8` (15м) — дашборд `cottage-lm-load`, алерт load15 > 2.0
 
 ## Cursor / MCP access (elion)
 
@@ -67,7 +73,9 @@ Example: `server/deploy/telegram.env.example`. Fallback: OpenClaw gateway proces
 ./server/deploy/grafana/deploy_alerts.sh
 ```
 
-Creates contact point `cottage-telegram`, route `team=cottage`, alert **Cottage house offline or stale**.
+Creates contact point `cottage-telegram`, route `team=cottage`, alerts:
+- **Cottage house offline or stale**
+- **Cottage LM load15 high** (`34/1/8` > 2.0 for 10m → Telegram warning)
 
 ## Notes
 

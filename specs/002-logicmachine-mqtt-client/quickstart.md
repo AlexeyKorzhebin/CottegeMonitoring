@@ -94,8 +94,10 @@ Daemon автоматически регистрируется при устан
    - **mqtt_host**: `elion.black-castle.ru`
    - **mqtt_port**: `8883`
    - **mqtt_username** / **mqtt_password**: учётные данные MQTT (напр. `lm_estate`)
-5. Опционально: client_id (`auto`), debug, buffer_size (1000), snapshot_interval (0), throttle (0)
+5. Опционально: client_id (`auto`), buffer_size (1000), batch_interval (1.5), throttle (20), loop_sleep (0.25), event_sleep (0.03)
 6. Нажать **Save** — daemon перезапустится автоматически
+
+Для снижения CPU: кнопка «Применить настройки для снижения нагрузки» / `apply_lowload.lp` (batch + throttle + sleeps).
 
 ---
 
@@ -154,11 +156,22 @@ Daemon автоматически регистрируется при устан
 
 ## Operational notes (2026-07)
 
+### Daemon v1.1.2 — CPU / event batching (2026-07-18)
+
+После compact rewrite v1.1.1 loadavg на LM вырос ~×1.8 (GA `34/1/6..8`). Причины: immediate dual-publish на каждое KNX-событие + `storage.set` heartbeat каждый цикл.
+
+v1.1.2:
+- **Event batching** снова активен: `batch_interval` (default 1.5) / `batch_max_size` (50) → `events/batch` + `state/batch` + retained `state/ga/*`
+- Heartbeat в storage раз в **3 с** (watchdog stale = 120 с)
+- Defaults: `loop_sleep=0.25`, `throttle=20`, `event_sleep=0.03`
+- Offline buffer flush с yield каждые 20 msg
+- Boot marker: `cm_boot=v112_start`
+
 ### Daemon v1.1.1 — надёжность MQTT на LM
 
 - **Всегда** вызывать `client:loop(...)` даже пока offline — иначе TLS handshake не завершится и `ON_CONNECT` не придёт.
 - Возврат `loop()` на LM часто `true` (успех). Ошибкой считать **только** `type(rc)=='number' and rc~=0`. Иначе reconnect-storm.
-- Полный «толстый» daemon (~25KB, десятки top-level `local`) на этой LM может не стартовать; рабочий путь — компактный код (таблицы `C`/`S`, меньше локалей). Текущий runtime ~10KB: MQTT + localbus + meta/cmd.
+- Полный «толстый» daemon (~25KB, десятки top-level `local`) на этой LM может не стартовать; рабочий путь — компактный код (таблицы `C`/`S`, меньше локалей). Текущий runtime ~10KB: MQTT + localbus + meta/cmd + batch.
 - Деплой: `set xfer:clobber yes` в lftp, путь `daemon/cottage-monitoring/daemon.lua`.
 
 ### TLS к брокеру

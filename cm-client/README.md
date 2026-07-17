@@ -15,11 +15,13 @@
 | mqtt_use_tls | TLS (всегда включён) |
 | client_id | Опционально (по умолчанию house_id-device_id) |
 | debug_level | 0=выкл, 1=логи сброса буфера, 2=все отладочные логи |
-| batch_interval | Интервал отправки буфера (с), 0 = немедленно |
-| batch_max_size | Сброс буфера при достижении размера, 0 = без лимита |
+| batch_interval | Интервал отправки буфера (с), 0 = немедленно (default 1.5) |
+| batch_max_size | Сброс буфера при достижении размера, 0 = без лимита (default 50) |
 | snapshot_interval | Периодический snapshot (с), 0 = выкл |
-| throttle | Макс. events/с, 0 = без ограничения |
+| throttle | Макс. events/с, 0 = без ограничения (default 20) |
 | buffer_size | Размер буфера при offline |
+| event_sleep | Пауза после KNX-события (с), default 0.03 |
+| loop_sleep | Пауза главного цикла (с), default 0.25 |
 
 ## Установка
 

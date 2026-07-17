@@ -1,0 +1,649 @@
+{
+  "id": null,
+  "uid": "cottage-lm-load",
+  "title": "Cottage — LM Load",
+  "tags": [
+    "cottage",
+    "load",
+    "logicmachine"
+  ],
+  "timezone": "browser",
+  "schemaVersion": 39,
+  "version": 1,
+  "editable": true,
+  "graphTooltip": 1,
+  "refresh": "1m",
+  "time": {
+    "from": "now-24h",
+    "to": "now"
+  },
+  "annotations": {
+    "list": []
+  },
+  "links": [
+    {
+      "title": "Overview",
+      "type": "link",
+      "url": "/grafana/d/cottage-overview/",
+      "icon": "home",
+      "keepTime": true,
+      "targetBlank": false
+    },
+    {
+      "title": "Electricity",
+      "type": "link",
+      "url": "/grafana/d/cottage-energy/",
+      "icon": "bolt",
+      "keepTime": true,
+      "targetBlank": false
+    },
+    {
+      "title": "Climate",
+      "type": "link",
+      "url": "/grafana/d/cottage-climate/",
+      "icon": "cloud",
+      "keepTime": true,
+      "targetBlank": false
+    },
+    {
+      "title": "Lights",
+      "type": "link",
+      "url": "/grafana/d/cottage-lights/",
+      "icon": "circle",
+      "keepTime": true,
+      "targetBlank": false
+    },
+    {
+      "title": "Batteries",
+      "type": "link",
+      "url": "/grafana/d/cottage-batteries/",
+      "icon": "battery",
+      "keepTime": true,
+      "targetBlank": false
+    },
+    {
+      "title": "LM Load",
+      "type": "link",
+      "url": "/grafana/d/cottage-lm-load/",
+      "icon": "heart-rate",
+      "keepTime": true,
+      "targetBlank": false
+    },
+    {
+      "title": "Все Cottage",
+      "type": "dashboards",
+      "tags": [
+        "cottage"
+      ],
+      "asDropdown": true,
+      "includeVars": false,
+      "keepTime": true,
+      "targetBlank": false
+    }
+  ],
+  "panels": [
+    {
+      "id": 1,
+      "type": "text",
+      "title": "",
+      "gridPos": {
+        "h": 2,
+        "w": 24,
+        "x": 0,
+        "y": 0
+      },
+      "targets": [],
+      "options": {
+        "mode": "markdown",
+        "content": "**Cottage:** [Overview](/grafana/d/cottage-overview/) · [Electricity](/grafana/d/cottage-energy/) · [Climate](/grafana/d/cottage-climate/) · [Lights](/grafana/d/cottage-lights/) · [Batteries](/grafana/d/cottage-batteries/) · [LM Load](/grafana/d/cottage-lm-load/)"
+      },
+      "transparent": true
+    },
+    {
+      "id": 2,
+      "type": "row",
+      "title": "Сейчас (loadavg LM)",
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 2
+      },
+      "collapsed": false
+    },
+    {
+      "id": 3,
+      "type": "stat",
+      "title": "load1",
+      "datasource": {
+        "type": "postgres",
+        "uid": "cottage-monitoring-pg"
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 4,
+        "x": 0,
+        "y": 3
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "rawQuery": true,
+          "format": "table",
+          "rawSql": "SELECT e.ts AS time, (e.value #>> '{}')::double precision AS value\nFROM events e\nWHERE e.house_id = 'house' AND e.ga = '34/1/6'\nORDER BY e.ts DESC\nLIMIT 1"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "decimals": 2,
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "semi-dark-green",
+                "value": null
+              },
+              {
+                "color": "semi-dark-yellow",
+                "value": 1.0
+              },
+              {
+                "color": "orange",
+                "value": 1.5
+              },
+              {
+                "color": "semi-dark-red",
+                "value": 2.0
+              }
+            ]
+          }
+        }
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ]
+        },
+        "colorMode": "background",
+        "graphMode": "none",
+        "textMode": "value"
+      },
+      "description": "Средняя загрузка за 1 мин (GA 34/1/6)."
+    },
+    {
+      "id": 4,
+      "type": "stat",
+      "title": "load5",
+      "datasource": {
+        "type": "postgres",
+        "uid": "cottage-monitoring-pg"
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 4,
+        "x": 4,
+        "y": 3
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "rawQuery": true,
+          "format": "table",
+          "rawSql": "SELECT e.ts AS time, (e.value #>> '{}')::double precision AS value\nFROM events e\nWHERE e.house_id = 'house' AND e.ga = '34/1/7'\nORDER BY e.ts DESC\nLIMIT 1"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "decimals": 2,
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "semi-dark-green",
+                "value": null
+              },
+              {
+                "color": "semi-dark-yellow",
+                "value": 1.0
+              },
+              {
+                "color": "orange",
+                "value": 1.5
+              },
+              {
+                "color": "semi-dark-red",
+                "value": 2.0
+              }
+            ]
+          }
+        }
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ]
+        },
+        "colorMode": "background",
+        "graphMode": "none",
+        "textMode": "value"
+      },
+      "description": "Средняя загрузка за 5 мин (GA 34/1/7)."
+    },
+    {
+      "id": 5,
+      "type": "stat",
+      "title": "load15",
+      "datasource": {
+        "type": "postgres",
+        "uid": "cottage-monitoring-pg"
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 4,
+        "x": 8,
+        "y": 3
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "rawQuery": true,
+          "format": "table",
+          "rawSql": "SELECT e.ts AS time, (e.value #>> '{}')::double precision AS value\nFROM events e\nWHERE e.house_id = 'house' AND e.ga = '34/1/8'\nORDER BY e.ts DESC\nLIMIT 1"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "decimals": 2,
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "semi-dark-green",
+                "value": null
+              },
+              {
+                "color": "semi-dark-yellow",
+                "value": 1.0
+              },
+              {
+                "color": "orange",
+                "value": 1.5
+              },
+              {
+                "color": "semi-dark-red",
+                "value": 2.0
+              }
+            ]
+          }
+        }
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ]
+        },
+        "colorMode": "background",
+        "graphMode": "none",
+        "textMode": "value"
+      },
+      "description": "Средняя загрузка за 15 мин (GA 34/1/8). Алерт при >2.0."
+    },
+    {
+      "id": 6,
+      "type": "table",
+      "title": "Порог алерта",
+      "datasource": {
+        "type": "postgres",
+        "uid": "cottage-monitoring-pg"
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 12,
+        "x": 12,
+        "y": 3
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "rawQuery": true,
+          "format": "table",
+          "rawSql": "SELECT\n  'load15 > 2.0 for 10m' AS rule,\n  'warning' AS severity,\n  'Telegram · team=cottage' AS notify"
+        }
+      ],
+      "description": "Grafana alert: cottage-lm-load15-high → cottage-telegram."
+    },
+    {
+      "id": 7,
+      "type": "row",
+      "title": "История",
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 7
+      },
+      "collapsed": false
+    },
+    {
+      "id": 8,
+      "type": "timeseries",
+      "title": "Loadavg LM (1 / 5 / 15 мин)",
+      "datasource": {
+        "type": "postgres",
+        "uid": "cottage-monitoring-pg"
+      },
+      "gridPos": {
+        "h": 10,
+        "w": 24,
+        "x": 0,
+        "y": 8
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "rawQuery": true,
+          "format": "time_series",
+          "rawSql": "SELECT\n  $__timeGroupAlias(e.ts, $__interval),\n  avg((e.value #>> '{}')::double precision) FILTER (WHERE e.ga = '34/1/6') AS \"load1\",\n  avg((e.value #>> '{}')::double precision) FILTER (WHERE e.ga = '34/1/7') AS \"load5\",\n  avg((e.value #>> '{}')::double precision) FILTER (WHERE e.ga = '34/1/8') AS \"load15\"\nFROM events e\nWHERE e.house_id = 'house'\n  AND e.ga IN ('34/1/6','34/1/7','34/1/8')\n  AND $__timeFilter(e.ts)\nGROUP BY 1 ORDER BY 1"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "fillOpacity": 10,
+            "spanNulls": false,
+            "insertNulls": 172800000,
+            "lineInterpolation": "linear",
+            "thresholdsStyle": {
+              "mode": "line+area"
+            }
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "semi-dark-green",
+                "value": null
+              },
+              {
+                "color": "semi-dark-yellow",
+                "value": 1.0
+              },
+              {
+                "color": "orange",
+                "value": 1.5
+              },
+              {
+                "color": "semi-dark-red",
+                "value": 2.0
+              }
+            ]
+          },
+          "color": {
+            "mode": "palette-classic"
+          }
+        }
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "none"
+        }
+      },
+      "description": "Зелёный <1.0 · жёлтый 1.0–1.5 · оранжевый 1.5–2.0 · красный >2.0. Линия 2.0 — порог алерта load15. Цифры сверху — цвет фона по тем же порогам."
+    },
+    {
+      "id": 9,
+      "type": "row",
+      "title": "По дням (MSK)",
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 18
+      },
+      "collapsed": false
+    },
+    {
+      "id": 10,
+      "type": "table",
+      "title": "Суточные avg / p50 / p95 / max",
+      "datasource": {
+        "type": "postgres",
+        "uid": "cottage-monitoring-pg"
+      },
+      "gridPos": {
+        "h": 10,
+        "w": 24,
+        "x": 0,
+        "y": 19
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "rawQuery": true,
+          "format": "table",
+          "rawSql": "WITH e AS (\n  SELECT\n    e.ga,\n    (e.ts AT TIME ZONE 'Europe/Moscow')::date AS day,\n    (e.value #>> '{}')::double precision AS v\n  FROM events e\n  WHERE e.house_id = 'house'\n    AND e.ga IN ('34/1/6','34/1/7','34/1/8')\n    AND e.ts > now() - interval '14 days'\n)\nSELECT\n  day,\n  CASE ga\n    WHEN '34/1/6' THEN 'load1'\n    WHEN '34/1/7' THEN 'load5'\n    WHEN '34/1/8' THEN 'load15'\n  END AS metric,\n  count(*) AS n,\n  round(avg(v)::numeric, 3) AS avg,\n  round(percentile_cont(0.5) WITHIN GROUP (ORDER BY v)::numeric, 3) AS p50,\n  round(percentile_cont(0.95) WITHIN GROUP (ORDER BY v)::numeric, 3) AS p95,\n  round(max(v)::numeric, 3) AS max\nFROM e\nWHERE v IS NOT NULL\nGROUP BY day, ga\nORDER BY day DESC, metric"
+        }
+      ],
+      "description": "Ячейки avg/p50/p95/max окрашены: зелёный <1 · жёлтый ≥1 · оранжевый ≥1.5 · красный ≥2.",
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "avg"
+            },
+            "properties": [
+              {
+                "id": "decimals",
+                "value": 3
+              },
+              {
+                "id": "thresholds",
+                "value": {
+                  "mode": "absolute",
+                  "steps": [
+                    {
+                      "color": "semi-dark-green",
+                      "value": null
+                    },
+                    {
+                      "color": "semi-dark-yellow",
+                      "value": 1.0
+                    },
+                    {
+                      "color": "orange",
+                      "value": 1.5
+                    },
+                    {
+                      "color": "semi-dark-red",
+                      "value": 2.0
+                    }
+                  ]
+                }
+              },
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "color-background",
+                  "mode": "basic"
+                }
+              },
+              {
+                "id": "color",
+                "value": {
+                  "mode": "thresholds"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "p50"
+            },
+            "properties": [
+              {
+                "id": "decimals",
+                "value": 3
+              },
+              {
+                "id": "thresholds",
+                "value": {
+                  "mode": "absolute",
+                  "steps": [
+                    {
+                      "color": "semi-dark-green",
+                      "value": null
+                    },
+                    {
+                      "color": "semi-dark-yellow",
+                      "value": 1.0
+                    },
+                    {
+                      "color": "orange",
+                      "value": 1.5
+                    },
+                    {
+                      "color": "semi-dark-red",
+                      "value": 2.0
+                    }
+                  ]
+                }
+              },
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "color-background",
+                  "mode": "basic"
+                }
+              },
+              {
+                "id": "color",
+                "value": {
+                  "mode": "thresholds"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "p95"
+            },
+            "properties": [
+              {
+                "id": "decimals",
+                "value": 3
+              },
+              {
+                "id": "thresholds",
+                "value": {
+                  "mode": "absolute",
+                  "steps": [
+                    {
+                      "color": "semi-dark-green",
+                      "value": null
+                    },
+                    {
+                      "color": "semi-dark-yellow",
+                      "value": 1.0
+                    },
+                    {
+                      "color": "orange",
+                      "value": 1.5
+                    },
+                    {
+                      "color": "semi-dark-red",
+                      "value": 2.0
+                    }
+                  ]
+                }
+              },
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "color-background",
+                  "mode": "basic"
+                }
+              },
+              {
+                "id": "color",
+                "value": {
+                  "mode": "thresholds"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "max"
+            },
+            "properties": [
+              {
+                "id": "decimals",
+                "value": 3
+              },
+              {
+                "id": "thresholds",
+                "value": {
+                  "mode": "absolute",
+                  "steps": [
+                    {
+                      "color": "semi-dark-green",
+                      "value": null
+                    },
+                    {
+                      "color": "semi-dark-yellow",
+                      "value": 1.0
+                    },
+                    {
+                      "color": "orange",
+                      "value": 1.5
+                    },
+                    {
+                      "color": "semi-dark-red",
+                      "value": 2.0
+                    }
+                  ]
+                }
+              },
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "color-background",
+                  "mode": "basic"
+                }
+              },
+              {
+                "id": "color",
+                "value": {
+                  "mode": "thresholds"
+                }
+              }
+            ]
+          }
+        ]
+      }
+    }
+  ]
+}

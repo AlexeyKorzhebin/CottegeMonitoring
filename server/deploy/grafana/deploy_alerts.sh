@@ -210,5 +210,99 @@ SMOKE=$(curl -s -X POST "https://api.telegram.org/bot${BOT_TOKEN}/sendMessage" \
   | python3 -c 'import sys,json; d=json.load(sys.stdin); print("ok" if d.get("ok") else d)')
 echo "telegram smoke: ${SMOKE}"
 
-echo "OK: cottage-telegram contact point + alert rule deployed"
+echo "OK: cottage-telegram contact point + house-stale alert deployed"
+
+RULE_UID2="cottage-lm-load15-high"
+echo "== alert rule ${RULE_UID2} =="
+curl -s -o /dev/null -X DELETE "${auth[@]}" \
+  "${GRAFANA_URL}/api/v1/provisioning/alert-rules/${RULE_UID2}" || true
+
+RULE_PAYLOAD2=$(python3 - <<PY
+import json
+rule = {
+  "uid": "${RULE_UID2}",
+  "title": "Cottage LM load15 high",
+  "ruleGroup": "cottage-reliability",
+  "folderUID": "${FOLDER_UID}",
+  "condition": "C",
+  "noDataState": "OK",
+  "execErrState": "OK",
+  "for": "10m",
+  "annotations": {
+    "summary": "LogicMachine load15 > 2.0 for 10m",
+    "description": "GA 34/1/8 (loadavg 15m). Check cottage-monitoring daemon batching/CPU, residents (DRM88), reconnect storms. Dashboard: /grafana/d/cottage-lm-load/"
+  },
+  "labels": {
+    "team": "cottage",
+    "severity": "warning",
+    "house_id": "house"
+  },
+  "data": [
+    {
+      "refId": "A",
+      "relativeTimeRange": {"from": 7200, "to": 0},
+      "datasourceUid": "${DS_UID}",
+      "model": {
+        "editorMode": "code",
+        "format": "table",
+        "rawQuery": True,
+        "rawSql": (
+          "SELECT\\n"
+          "  (value #>> '{}')::double precision AS value\\n"
+          "FROM events\\n"
+          "WHERE house_id = 'house'\\n"
+          "  AND ga = '34/1/8'\\n"
+          "  AND ts > now() - interval '2 hours'\\n"
+          "ORDER BY ts DESC\\n"
+          "LIMIT 1"
+        ),
+        "refId": "A"
+      }
+    },
+    {
+      "refId": "B",
+      "relativeTimeRange": {"from": 7200, "to": 0},
+      "datasourceUid": "__expr__",
+      "model": {
+        "type": "reduce",
+        "expression": "A",
+        "reducer": "last",
+        "refId": "B",
+        "settings": {"mode": "dropNN"}
+      }
+    },
+    {
+      "refId": "C",
+      "relativeTimeRange": {"from": 7200, "to": 0},
+      "datasourceUid": "__expr__",
+      "model": {
+        "type": "threshold",
+        "expression": "B",
+        "refId": "C",
+        "conditions": [{
+          "evaluator": {"type": "gt", "params": [2.0]},
+          "operator": {"type": "and"},
+          "query": {"params": ["C"]},
+          "reducer": {"type": "last", "params": []},
+          "type": "query"
+        }]
+      }
+    }
+  ]
+}
+print(json.dumps(rule))
+PY
+)
+RULE_RESP2=$(curl -s -w "\n%{http_code}" -X POST "${auth[@]}" \
+  -d "${RULE_PAYLOAD2}" \
+  "${GRAFANA_URL}/api/v1/provisioning/alert-rules")
+RULE_CODE2=$(echo "$RULE_RESP2" | tail -1)
+RULE_BODY2=$(echo "$RULE_RESP2" | sed '$d')
+echo "alert-rule ${RULE_UID2} HTTP ${RULE_CODE2}"
+if [[ "${RULE_CODE2}" != "201" && "${RULE_CODE2}" != "200" && "${RULE_CODE2}" != "202" ]]; then
+  echo "$RULE_BODY2" >&2
+  exit 1
+fi
+
+echo "OK: cottage alerts deployed (house-stale + lm-load15-high)"
 REMOTE
