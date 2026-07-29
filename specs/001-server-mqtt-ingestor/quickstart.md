@@ -291,9 +291,9 @@ python3 run_bench.py --e2e --mcp-alias cottage-dry --out results/latest.json
 
 ### Автообновление сертификата MQTT
 
-**Да.** certbot.timer + `preferred_chain = ISRG Root X1` + `/etc/letsencrypt/renewal-hooks/deploy/10-mosquitto.sh`.
+**Да.** certbot.timer + `preferred_chain = ISRG Root X1` + hook `server/scripts/10-mosquitto-cert-hook.sh` (на elion: `/etc/letsencrypt/renewal-hooks/deploy/10-mosquitto.sh`). С июля 2026 LE может выдавать YR2 (3 PEM) — hook trim до 2 PEM (leaf+YR2), если legacy R12 в archive истёк (см. 002 **R-013**).
 
-**Мониторинг:** ежедневно `check_mosquitto_cert_alert.sh` (2 PEM + запас ≥14 дней). При FAIL — syslog и **Telegram** (`/etc/cottage-monitoring/telegram.env`). Лог: `/var/log/cottage-monitoring/cert-check.log`.
+**Мониторинг:** cron 06:15 UTC `check_mosquitto_cert_alert.sh` (2 PEM + запас ≥14 дней). При FAIL — syslog и **Telegram** (`/etc/cottage-monitoring/telegram.env`). Лог: `/var/log/cottage-monitoring/cert-check.log`.
 
 ---
 

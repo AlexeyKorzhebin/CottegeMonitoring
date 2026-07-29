@@ -390,13 +390,22 @@ bye
 
 Let's Encrypt live `fullchain` с intermediate **YR2** (3 PEM) ломает handshake на старом OpenSSL LogicMachine. Короткая цепочка **R12** (2 PEM) работает.
 
+С **июля 2026** certbot renew для `elion.black-castle.ru` выдаёт **YR2** (3 PEM), даже с `preferred_chain = ISRG Root X1`. Deploy-hook раньше брал из archive последний **R12** (2 PEM) — он истёк **10 Aug 2026**, и daily check начал слать Telegram «expires within 14 days», хотя live LE cert был уже до **Oct 2026**.
+
 ### Решение
 
 - На mosquitto: `/etc/mosquitto/certs/fullchain.pem` + `privkey.pem` (копия, не live-symlink).
-- certbot: `preferred_chain = ISRG Root X1`.
-- Deploy-hook `10-mosquitto.sh`: если live >2 блоков — взять валидный 2-block из archive, copy + reload mosquitto.
-- **Автообновление включено**; после renew проверять `grep -c BEGIN` == 2 в mosquitto certs.
-- Клиент: по умолчанию `tls_insecure`; opt-in `mqtt_tls_verify` / `mqtt_cafile`.
+- certbot: `preferred_chain = ISRG Root X1` (оставить; R12 может не выдаваться).
+- Deploy-hook `server/scripts/10-mosquitto-cert-hook.sh` → `/etc/letsencrypt/renewal-hooks/deploy/10-mosquitto.sh`:
+  1. live == 2 PEM → copy;
+  2. live > 2 PEM → валидный 2-block из archive (legacy R12), если срок ≥14 дней;
+  3. иначе → **trim** newest fullchain до 2 PEM (leaf + YR2 intermediate), matching privkey из archive.
+- **Автообновление включено**; после renew: `server/scripts/check_mosquitto_cert.sh` (2 PEM + запас ≥14 дней).
+- Клиент: по умолчанию `tls_insecure`; opt-in `mqtt_tls_verify` + ISRG Root X1 **не покрывает YR2** — verify только с legacy R12 chain.
+
+### Инцидент 2026-07-29
+
+Алерт `FAIL: certificate expires within 14 days` — корректный: mosquitto держал archive `fullchain2` (R12, Aug 10). Fix: force renew + trim `fullchain4` → mosquitto OK до Oct 27; 5–6 MQTT clients после reload.
 
 ---
 
