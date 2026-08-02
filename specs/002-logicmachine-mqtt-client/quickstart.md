@@ -117,11 +117,27 @@ Daemon автоматически регистрируется при устан
 
 Скрипт `cm-client/scripts/watchdog-resident.lua` — soft (`cm_force_restart`) → hard (HTTP restart), cooldown 5 мин.
 
+**Установка (обязательно вручную):** Scripting → Resident → New → sleep **60 с** → Active → вставить файл целиком. Имя на проде: `watchdog-cm-mqtt`. Без этого шага watchdog **не существует** — только штатный супервизор LM (рестарт при **падении процесса**).
+
+**Что ловит:** `heartbeat_stale` (>120 с), `no_heartbeat`, `mqtt_offline` (>600 с при `cm_mqtt_connected=false`).
+
+**Что НЕ ловил до v1.1.3 (инцидент 2026-08-02, R-016):** процесс жив, MQTT/health online, heartbeat свежий, но **нет `events/batch`** — «зомби» localbus/батч. С **daemon v1.1.3 + обновлённым watchdog** ловится условием `events_stale`: MQTT online, а `cm_last_event_ts` старше `wd_events_stale_sec` (default **900 с**; `config.set('cottage-monitoring','wd_events_stale_sec', N)`, 0 = выключить). Для старых daemon (< v1.1.3, нет ключа) проверка не активируется. Серверный индикатор — `houses.last_seen` / алерт `cottage-house-stale` (001 quickstart).
+
+**Hard restart:** на LM задать `config.set('cottage-monitoring', 'lm_admin_password', '…')` (не в git); иначе только soft-путь.
+
 Перед деплоем daemon на время приглушить watchdog:
 ```bash
 ./deploy/lm-apps.sh pause-wd
 # или ./deploy/lm-apps.sh hold-wd
 ```
+
+**Workaround при пропаже телеметрии:** Config → Save (перезапуск daemon), `./deploy/lm-apps.sh restart`, или **удалённо через API** (daemon >= v1.1.3):
+```bash
+curl -X POST https://monitoring.black-castle.ru/api/v1/houses/house/restart-daemon \
+  -H "Authorization: Bearer <API_KEY_WRITE>" -H 'Content-Type: application/json' \
+  -d '{"comment":"recover zombie telemetry"}'
+```
+Проверка: `mosquitto_sub … cm/house/lm-main/v1/events/batch` на elion или свежий `last_seen` в БД.
 
 ---
 
@@ -154,7 +170,18 @@ Daemon автоматически регистрируется при устан
 
 ---
 
-## Operational notes (2026-07)
+## Operational notes (2026-07/08)
+
+### Daemon v1.1.3 — events_stale watchdog + remote restart (2026-08-03)
+
+Ответ на R-016 (зомби-телеметрия 2026-08-02):
+
+- Daemon пишет `cm_last_event_ts` (baseline при старте; обновление при каждом localbus-событии, персист через `hb()` раз в ~3 с — без роста нагрузки на storage).
+- `status/health` и `health_get.lp` содержат `last_event_age` — видно «жив, но молчит».
+- `ON_CONNECT` сбрасывает `cm_last_disconnect_ts` (исключает ложный многодневный `mqtt_offline`).
+- Команда `{"action":"restart"}` в `cmd`: ack → самоперезапуск через ~2 с (через `error('cm_force_restart_remote')`). Серверный API: `POST /api/v1/houses/{house_id}/restart-daemon`.
+- Watchdog: новое условие `events_stale` (default 900 с, `wd_events_stale_sec`); `wd_pause.lp`/`wd_hold.lp` также сбрасывают `cm_last_event_ts`.
+- **Деплой:** обновить и daemon (`deploy-lftp.sh`), и Resident-скрипт watchdog (вручную в Scripting → Resident, заменить содержимое).
 
 ### Daemon v1.1.2 — CPU / event batching (2026-07-18)
 
@@ -177,6 +204,7 @@ v1.1.2:
 ### TLS к брокеру
 
 - Клиент по умолчанию: `tls_insecure_set(true)`. Opt-in: `mqtt_tls_verify=true` + `mqtt_cafile` (ISRG Root X1 в `certs/isrg-root-x1.pem`). Включить: `tls_verify_on.lp`, откат: `tls_verify_off.lp`.
+- **2026-08-03: verify ВЫКЛЮЧЕН** (`tls_verify_off.lp`) — причина инцидента 02.08: verify + YR2-цепочка (после renew 29.07) = `tlsv1 alert unknown ca`, реконнект невозможен (R-016, дополнение). Не включать без CA, покрывающего текущую цепочку брокера.
 - На брокере для LM нужна **короткая** цепочка (2 PEM). Автообновление: certbot + hook. Проверка: `server/scripts/check_mosquitto_cert.sh`.
 
 ### Агент OpenClaw / Hermes (не LM)
@@ -190,3 +218,10 @@ Dial-команды дома (MCP) лучше гонять отдельным Op
 ### Учётные данные LM
 
 Пароли — в локальном `secrets/lm.env` (gitignore). В спеках только имена учёток и скрипты `./deploy/deploy-lftp.sh`, `./deploy/lm-apps.sh`. См. **001 R-012**.
+
+### Инцидент: телеметрия остановилась, daemon «жив» (2026-08-02)
+
+- **Симптом:** с ~13:07 МСК нет events в облаке; LM и elion в целом доступны.
+- **Факт:** процесс daemon с **2026-07-18** не перезапускался; `status/health` в MQTT шёл, `events/batch` — нет.
+- **Почему watchdog не помог:** условия аварии не выполнялись (свежий heartbeat + MQTT online). Подробный 5 Why и gap analysis — **R-016** в `research.md`.
+- **Обход:** Config → Save или HTTP restart daemon; дальше — доработки G1–G6 из R-016 (отдельная задача на код).

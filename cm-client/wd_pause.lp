@@ -11,6 +11,7 @@ storage.set('cm_heartbeat', t)
 storage.set('cm_mqtt_connected', true)
 storage.set('mqtt_connected', true)
 storage.set('cm_started_ts', t)
+storage.set('cm_last_event_ts', t)
 if setheader then setheader('Content-Type', 'application/json; charset=utf-8') end
 print('{"paused":true,"ts":' .. t .. '}')
 ?>

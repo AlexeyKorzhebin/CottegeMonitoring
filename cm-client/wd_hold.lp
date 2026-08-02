@@ -10,6 +10,7 @@ storage.set('cm_last_disconnect_ts', nil)
 storage.set('cm_heartbeat', t)
 storage.set('cm_mqtt_connected', false)
 storage.set('mqtt_connected', false)
+storage.set('cm_last_event_ts', t)
 if setheader then setheader('Content-Type', 'application/json; charset=utf-8') end
 print('{"hold":true,"ts":' .. t .. '}')
 ?>

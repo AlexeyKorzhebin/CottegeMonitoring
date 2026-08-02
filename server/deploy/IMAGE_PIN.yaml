@@ -1,11 +1,11 @@
 # CottageMonitoring image pin (source of truth: GitHub AlexeyKorzhebin/CottegeMonitoring)
 
-version: "0.2.6"
+version: "0.2.7"
 git_ref: "main"
-image_tag: "cottage-monitoring:0.2.6"
+image_tag: "cottage-monitoring:0.2.7"
 image_digest: ""
 overlay_retired: true
-replaces_overlay: "cottage-monitoring:0.2.5"
+replaces_overlay: "cottage-monitoring:0.2.6"
 notes: |
-  v0.2.6: X-Cottage-Dry-Run header — send_command persists status=dry_run and
-  skips MQTT publish (for MCP/agent benchmarks without touching the house bus).
+  v0.2.7: POST /houses/{id}/restart-daemon (MQTT action=restart);
+  pin mcp>=1.0,<2 (mcp 2.0 removed mcp.server.fastmcp).

@@ -226,6 +226,12 @@ Batch:
 
 Required: `request_id`, (`ga` + `value`) or `items`
 
+Daemon restart (daemon >= v1.1.3; server endpoint `POST /houses/{house_id}/restart-daemon`):
+```json
+{"request_id": "uuid", "action": "restart"}
+```
+Daemon отвечает ack (`results: [{"action":"restart","applied":true}]`), затем через ~2 с завершает процесс (`error`), LM Apps supervisor перезапускает его. Применение: «зомби»-телеметрия (002 R-016).
+
 ### CMD_ACK (cmd/ack/*)
 
 ```json

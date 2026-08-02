@@ -43,10 +43,16 @@
 --                        больше HEARTBEAT_STALE_SEC назад
 --   • heartbeat_stale  — последний heartbeat старше HEARTBEAT_STALE_SEC (120 с)
 --   • mqtt_offline     — MQTT offline дольше MQTT_OFFLINE_RESTART_SEC (600 с = 10 мин)
+--   • events_stale     — процесс жив, MQTT online, но localbus-события не идут
+--                        дольше EVENTS_STALE_SEC («зомби»-режим, инцидент 2026-08-02,
+--                        R-016). Требует daemon >= v1.1.3 (пишет cm_last_event_ts);
+--                        для старых daemon ключа нет (0) — проверка не срабатывает.
 --
 -- ПОРОГИ
 --   HEARTBEAT_STALE_SEC      = 120   — «daemon не отвечает»
 --   MQTT_OFFLINE_RESTART_SEC = 600   — «долго без MQTT»
+--   EVENTS_STALE_SEC         = 900   — «жив, но телеметрия молчит» (15 мин;
+--                                      конфиг wd_events_stale_sec, 0 = выключить)
 --   RESTART_COOLDOWN_SEC     = 300   — не чаще 1 рестарта / 5 минут
 -- =============================================================================
 
@@ -62,6 +68,7 @@ local config = require('config')
 local LM_USER = tostring(config.get(APP, 'lm_admin_user', 'admin') or 'admin')
 local LM_PASS = tostring(config.get(APP, 'lm_admin_password', '') or '')
 local LM_HOST = '127.0.0.1'  -- сам на себя, с контроллера
+local EVENTS_STALE_SEC = tonumber(config.get(APP, 'wd_events_stale_sec', 900)) or 900
 
 local function now()
   return os.time()
@@ -152,6 +159,16 @@ elseif not mqtt_ok then
   end
   if offline_since > 0 and (t - offline_since) >= MQTT_OFFLINE_RESTART_SEC then
     reason = string.format('mqtt_offline age=%ds', t - offline_since)
+  end
+else
+  -- «Зомби»: heartbeat свежий, MQTT online, но localbus-события не доходят
+  -- до MQTT (R-016). Daemon v1.1.3+ пишет cm_last_event_ts (baseline при старте,
+  -- далее при каждом событии через hb). last_evt == 0 → старый daemon, пропускаем.
+  if EVENTS_STALE_SEC > 0 then
+    local last_evt = get_num('cm_last_event_ts', 0)
+    if last_evt > 0 and (t - last_evt) > EVENTS_STALE_SEC then
+      reason = string.format('events_stale age=%ds', t - last_evt)
+    end
   end
 end
 

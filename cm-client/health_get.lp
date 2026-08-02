@@ -17,6 +17,7 @@ local now = os.time()
 local heartbeat = num('cm_heartbeat')
 local started = num('cm_started_ts')
 local mqtt = bool('cm_mqtt_connected') or bool('mqtt_connected')
+local last_event = num('cm_last_event_ts')
 
 local out = {
   ok = true,
@@ -24,6 +25,8 @@ local out = {
   mqtt_connected = mqtt,
   heartbeat = heartbeat,
   heartbeat_age = heartbeat and (now - heartbeat) or nil,
+  last_event_ts = last_event,
+  last_event_age = last_event and (now - last_event) or nil,
   started_ts = started,
   uptime = started and (now - started) or nil,
   reconnect_count = num('cm_reconnect_count') or 0,

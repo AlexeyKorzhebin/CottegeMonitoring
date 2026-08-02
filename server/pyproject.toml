@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "cottage-monitoring"
-version = "0.2.3"
+version = "0.2.7"
 description = "MQTT Ingestor + REST API for cottage monitoring system"
 requires-python = ">=3.12"
 dependencies = [
@@ -19,7 +19,7 @@ dependencies = [
     "pydantic-settings>=2.7",
     "prometheus-client>=0.21",
     "structlog>=24.4",
-    "mcp>=1.0",
+    "mcp>=1.0,<2",  # 2.0 удалил mcp.server.fastmcp (инцидент при деплое 0.2.7)
     "pymorphy3>=2.0",
     "pymorphy3-dicts-ru>=2.4",
 ]

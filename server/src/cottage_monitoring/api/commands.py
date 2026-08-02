@@ -12,9 +12,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from cottage_monitoring.auth.deps import require_write_scope
 from cottage_monitoring.db.session import get_session
 from cottage_monitoring.models.command import Command
+from cottage_monitoring.models.device import Device
 from cottage_monitoring.models.house import House
 from cottage_monitoring.models.object import Object
-from cottage_monitoring.schemas.command import CommandCreate, CommandRead
+from cottage_monitoring.schemas.command import CommandCreate, CommandRead, DaemonRestartRequest
 from cottage_monitoring.services.command_service import send_command
 from cottage_monitoring.services.command_validation import (
     validate_batch_size,
@@ -76,6 +77,57 @@ async def create_command(
     else:
         payload = {"items": items}
     if body.comment:
+        payload["comment"] = body.comment
+
+    cmd = await send_command(house_id, device_id, payload, session=session)
+    await session.commit()
+
+    return {
+        "request_id": str(cmd.request_id),
+        "house_id": cmd.house_id,
+        "device_id": cmd.device_id,
+        "status": cmd.status,
+        "ts_sent": cmd.ts_sent.isoformat(),
+    }
+
+
+@router.post(
+    "/houses/{house_id}/restart-daemon",
+    status_code=201,
+    dependencies=[Depends(require_write_scope)],
+)
+async def restart_daemon(
+    house_id: str,
+    body: DaemonRestartRequest | None = None,
+    session: AsyncSession = Depends(get_session),
+) -> dict:
+    """Send {"action": "restart"} to the LM daemon via the cmd topic.
+
+    Daemon (>= v1.1.3) acks, then self-terminates 2s later; LM apps supervisor
+    restarts it. Used to recover from the "zombie telemetry" state (R-016).
+    """
+    result = await session.execute(select(House).where(House.house_id == house_id))
+    house = result.scalar_one_or_none()
+    if house is None:
+        raise HTTPException(status_code=400, detail="House not found")
+    if not house.is_active:
+        raise HTTPException(status_code=400, detail="House is inactive")
+
+    device_id = body.device_id if body else None
+    if device_id is None:
+        dev_result = await session.execute(
+            select(Device).where(Device.house_id == house_id, Device.is_active.is_(True))
+        )
+        devices = dev_result.scalars().all()
+        if len(devices) != 1:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Cannot resolve device_id: house has {len(devices)} active devices, pass device_id explicitly",
+            )
+        device_id = devices[0].device_id
+
+    payload: dict = {"action": "restart"}
+    if body and body.comment:
         payload["comment"] = body.comment
 
     cmd = await send_command(house_id, device_id, payload, session=session)

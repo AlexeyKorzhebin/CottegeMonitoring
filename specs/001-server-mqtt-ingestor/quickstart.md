@@ -190,7 +190,14 @@ ssh elion 'sudo systemctl daemon-reload && sudo systemctl restart cottage-monito
 
 Сеть: **bridge** + `host.docker.internal:host-gateway` (не `--network=host`).
 
-Текущий pin: **`cottage-monitoring:0.2.6`** (`server/deploy/IMAGE_PIN.yaml`).
+Текущий pin: **`cottage-monitoring:0.2.7`** (`server/deploy/IMAGE_PIN.yaml`).
+
+### Сделано в 0.2.7 + live elion
+
+| Пункт | Статус |
+|-------|--------|
+| `POST /houses/{id}/restart-daemon` | MQTT `{"action":"restart"}` → LM daemon ack + self-restart (v1.1.3+) |
+| pin `mcp>=1.0,<2` | mcp 2.0 ломал import `mcp.server.fastmcp` при деплое |
 
 ### Dry-run команд (без MQTT)
 

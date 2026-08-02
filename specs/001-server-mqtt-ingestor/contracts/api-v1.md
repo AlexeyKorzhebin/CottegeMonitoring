@@ -385,6 +385,31 @@ Response 201:
 
 Response 400: `VALIDATION_ERROR` (неизвестный GA, неправильный тип значения, дом неактивен)
 
+#### POST /api/v1/houses/{house_id}/restart-daemon
+
+Удалённый перезапуск LM daemon (требует write scope; daemon >= v1.1.3, см. 002 R-016).
+Публикует `{"action": "restart", "request_id": …}` в `cmd`; трекается как обычная команда
+(ack → `status=ok`, ретраи/timeout — стандартные).
+
+Body (опционально):
+```json
+{"device_id": "lm-main", "comment": "recover zombie telemetry"}
+```
+`device_id` можно опустить, если у дома ровно одно активное устройство.
+
+Response 201:
+```json
+{
+  "request_id": "550e8400-e29b-41d4-a716-446655440000",
+  "house_id": "house",
+  "device_id": "lm-main",
+  "status": "sent",
+  "ts_sent": "2026-08-02T21:30:00Z"
+}
+```
+
+Response 400: дом не найден / неактивен / не удалось определить `device_id`.
+
 #### GET /api/v1/houses/{house_id}/commands
 
 История команд.

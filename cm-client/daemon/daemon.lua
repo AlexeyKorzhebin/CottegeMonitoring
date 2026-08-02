@@ -1,4 +1,4 @@
--- Cottage Monitoring MQTT Client Daemon v1.1.2
+-- Cottage Monitoring MQTT Client Daemon v1.1.3
 -- Compact MQTT+cmd+meta+localbus + event batching. Always pump loop(); treat only numeric nonzero as error.
 storage.set('cm_force_restart', nil)
 storage.set('cm_started_ts', os.time())
@@ -7,7 +7,9 @@ storage.set('cm_mqtt_connected', false)
 storage.set('mqtt_connected', false)
 storage.set('cm_last_error', '')
 storage.set('cm_reconnect_count', 0)
-storage.set('cm_boot', 'v112_start')
+-- Baseline for watchdog events_stale check; refreshed via hb() on each localbus event
+storage.set('cm_last_event_ts', os.time())
+storage.set('cm_boot', 'v113_start')
 
 local config = require('config')
 local json = require('json')
@@ -70,6 +72,8 @@ local S = {
   last_health_pub_ts = 0, meta_sent = false,
   last_evt_ts = 0, evt_count = 0,
   last_hb_ts = 0, last_batch_flush_ts = os.time(),
+  last_event_ts = os.time(), last_event_ts_written = os.time(),
+  restart_at = nil,
 }
 local buffer = {}
 local event_batch = {}
@@ -81,6 +85,11 @@ local function hb(force)
   pcall(storage.set, 'cm_heartbeat', now)
   pcall(storage.set, 'cm_mqtt_connected', S.connected and true or false)
   pcall(storage.set, 'mqtt_connected', S.connected and true or false)
+  -- Piggyback: persist last localbus event ts (watchdog G1) without extra write rate
+  if S.last_event_ts ~= S.last_event_ts_written then
+    S.last_event_ts_written = S.last_event_ts
+    pcall(storage.set, 'cm_last_event_ts', S.last_event_ts)
+  end
 end
 
 local function do_pub(rel, payload, qos, retain)
@@ -184,11 +193,14 @@ local function setup_client()
     S.reconnect_delay = RECONNECT_MIN
     S.next_reconnect_ts = 0
     pcall(storage.set, 'cm_last_connect_ts', os.time())
+    -- Reset stale disconnect mark: otherwise a later brief 'cm_mqtt_connected=false'
+    -- makes watchdog compute mqtt_offline age from a days-old disconnect (R-016 G3)
+    pcall(storage.set, 'cm_last_disconnect_ts', 0)
     pcall(storage.set, 'cm_boot', 'ON_CONNECT')
     pcall(storage.set, 'cm_last_error', '')
     hb(true)
     pcall(function()
-      client:publish(C.base .. 'status/online', json.encode({ ts = os.time(), status = 'online', device_id = C.device_id, version = '1.1.2' }), 1, true)
+      client:publish(C.base .. 'status/online', json.encode({ ts = os.time(), status = 'online', device_id = C.device_id, version = '1.1.3' }), 1, true)
       client:subscribe(C.base .. 'cmd', 1)
       client:subscribe(C.base .. 'rpc/req/' .. C.client_id, 1)
       local flush_cnt = 0
@@ -210,6 +222,19 @@ local function setup_client()
     if topic:match('/cmd$') then
       local ok, msg = pcall(json.decode, payload)
       if not ok or not msg then return end
+      if msg.action == 'restart' then
+        -- Remote daemon restart (server API). Ack first, die 2s later so the
+        -- ack has time to be pumped out by client:loop() before error().
+        local rid = tostring(msg.request_id or '')
+        local ack_rel = (rid ~= '') and ('cmd/ack/' .. rid) or 'cmd/ack'
+        do_pub(ack_rel, json.encode({
+          request_id = msg.request_id, ts = os.time(),
+          results = { { action = 'restart', applied = true } },
+        }), 1, false)
+        S.restart_at = os.time() + 2
+        pcall(storage.set, 'cm_boot', 'remote_restart_pending')
+        return
+      end
       local items = msg.items
       if not items and msg.ga ~= nil then items = { { ga = msg.ga, value = msg.value } } end
       if not items then return end
@@ -253,6 +278,7 @@ lb:sethandler('groupwrite', function(event)
   if val == nil then val = safe_getvalue(dst) end
   local ts = os.time()
   S.seq = S.seq + 1
+  S.last_event_ts = ts
   local ga = obj.address or dst
   local ga_safe = tostring(ga):gsub('/', '-')
   local evt = {
@@ -279,6 +305,8 @@ pcall(function() S.client:connect(C.mqtt_host, C.mqtt_port, KEEPALIVE) end)
 while true do
   local ok_iter, err_iter = pcall(function()
     if storage.get('cm_force_restart') then storage.set('cm_force_restart', nil); error('cm_force_restart') end
+    -- Deferred remote restart: 'cm_force_restart' substring re-raises through outer pcall
+    if S.restart_at and os.time() >= S.restart_at then error('cm_force_restart_remote') end
     hb(false)
     lb:step()
     if C.batch_interval > 0 and #event_batch > 0 then
@@ -317,8 +345,9 @@ while true do
     if S.connected and not S.meta_sent then S.meta_sent = true; pcall(publish_meta) end
     if S.connected and (os.time() - S.last_health_pub_ts) >= HEALTH_INTERVAL then
       do_pub('status/health', json.encode({
-        ts = os.time(), status = 'online', version = '1.1.2',
+        ts = os.time(), status = 'online', version = '1.1.3',
         uptime = os.time() - S.started_ts, reconnects = S.reconnect_count, mqtt_connected = true,
+        last_event_age = os.time() - S.last_event_ts,
       }), 1, true)
       S.last_health_pub_ts = os.time()
     end

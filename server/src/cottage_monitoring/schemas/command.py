@@ -26,6 +26,13 @@ class CommandCreate(BaseModel):
         return self
 
 
+class DaemonRestartRequest(BaseModel):
+    """POST /houses/{house_id}/restart-daemon body (all fields optional)."""
+
+    device_id: str | None = None
+    comment: str | None = None
+
+
 class CommandRead(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
