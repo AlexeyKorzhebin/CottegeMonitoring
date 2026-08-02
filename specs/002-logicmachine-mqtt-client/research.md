@@ -544,7 +544,54 @@ Loadavg LM (`34/1/6` 1‑мин) вырос с ~0.85 avg (14–16.07) до ~1.58
 
 **Правило:** `mqtt_tls_verify` включать **только** с CA-файлом, покрывающим актуальную цепочку брокера (сейчас YR2); после каждого renew — проверять handshake с LM. По умолчанию — verify off.
 
-Также при деплое v1.1.3 задокументировано: LM-супервизор **не** пересоздаёт убитый resident-процесс; для программного обновления watchdog использован путь: `db:update` таблицы `scripting` через одноразовый `.lp` (upload по FTP) + удаление stale `/var/run/gs-resident-73.pid` + ручной spawn `lua /lib/genohm-scada/core/scripting-resident.lua 73`.
+Также при деплое v1.1.3 задокументировано: LM-супервизор **не** пересоздаёт убитый resident-процесс; для программного обновления watchdog — **`./deploy/lm-watchdog-update.sh`** (R-017).
+
+---
+
+## R-017: Деплой и обновление на LM без Web UI (2026-08-03)
+
+### Контекст
+
+Операции на контроллере (деплой daemon, обновление Resident watchdog, TLS flags, health) должны выполняться из CI/терминала без входа в браузер LM. SCP не поддерживается.
+
+### Решение
+
+**Секреты:** `secrets/lm.env` (gitignore) — `LM_HOST`, `LM_FTP_*`, `LM_ADMIN_*`; опционально `LM_SSH_USER`, `LM_SSH_PASSWORD` для respawn resident.
+
+**Скрипты (корень репо):**
+
+| Скрипт | Назначение |
+|--------|------------|
+| `deploy/deploy-lftp.sh` | mirror `cm-client/` → `data/cottage-monitoring` + `daemon.lua` → `daemon/cottage-monitoring` |
+| `deploy/lm-apps.sh` | HTTP: `stop`/`start`/`restart`/`pause-wd`/`hold-wd`/`health` (admin + Referer) |
+| `deploy/lm-watchdog-update.sh` | Обновить Resident watchdog в таблице `scripting` + respawn процесса |
+
+**Полный цикл daemon:** `pause-wd` → `stop` → `deploy-lftp.sh` → `start` → `health`.
+
+**Resident watchdog (id на проде = 73, имя `watchdog-cm-mqtt`):**
+
+1. FTP: залить `watchdog-resident.lua` как `cm_wd_new.lua` и одноразовый `cm_script_update.lp`.
+2. HTTP: выполнить `.lp` — внутри `db:update('scripting', { script = code }, { id = 73 })`.
+3. SSH: `rm -f /var/run/gs-resident-73.pid` (иначе spawn откажется — stale pidfile).
+4. SSH: `(lua /lib/genohm-scada/core/scripting-resident.lua 73 </dev/null &)` — на LM нет `nohup`.
+5. Удалить временные файлы с FTP.
+
+**Почему нельзя только убить процесс:** init **не** respawn'ит resident после `kill`; код в БД обновится, но старый Lua останется в памяти до reboot или ручного spawn.
+
+**Почему нельзя только Web UI:** допустимо для первой установки; для повторяющихся обновлений — FTP+db быстрее и воспроизводимо.
+
+**`.lp` endpoints без UI:** `health_get.lp`, `tls_verify_off.lp`, `tls_verify_on.lp`, `wd_pause.lp`, `wd_hold.lp`, `config_save.lp` (POST JSON).
+
+**SSH vs HTTP:** `health_get.lp` требует Basic Auth **admin** (root SSH не даёт доступ к Apps storage напрямую удобно). `storage_probe.lp` на LM показывает ключи `cm_*` в storage.
+
+**Список resident scripts:** одноразовый probe через `db:getall("SELECT id,name,active FROM scripting WHERE type='resident'")` в `.lp` (см. инцидент 2026-08-03).
+
+### Operational caveats
+
+- Daemon runtime **только** `daemon/cottage-monitoring/daemon.lua`, не `data/.../daemon/`.
+- lftp: `set xfer:clobber yes`.
+- После renew cert брокера (R-013): проверить handshake с LM; при `tlsv1 alert unknown ca` — `tls_verify_off.lp`.
+- Docker server deploy: pin `mcp>=1.0,<2` (mcp 2.0 убрал `mcp.server.fastmcp` — падение 0.2.7 при первой сборке).
 
 ---
 
@@ -567,4 +614,5 @@ Loadavg LM (`34/1/6` 1‑мин) вырос с ~0.85 avg (14–16.07) до ~1.58
 | R-013 | Broker cert | short-chain + certbot hook auto-renew |
 | R-014 | bool false / ack | `safe_getvalue`; `cmd/ack/{request_id}` |
 | R-015 | CPU / batching | v1.1.2: batch + hb 3s + softer sleeps |
-| R-016 | Watchdog gap / zombie daemon | heartbeat+MQTT OK ≠ телеметрия; см. инцидент 2026-08-02, G1–G6 |
+| R-016 | Watchdog gap / zombie daemon | heartbeat+MQTT OK ≠ телеметрия; TLS verify+YR2; см. инцидент 2026-08-02 |
+| R-017 | Деплой без Web UI | lftp + lm-apps.sh + lm-watchdog-update.sh; resident pidfile respawn |

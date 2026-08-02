@@ -117,7 +117,7 @@ Daemon автоматически регистрируется при устан
 
 Скрипт `cm-client/scripts/watchdog-resident.lua` — soft (`cm_force_restart`) → hard (HTTP restart), cooldown 5 мин.
 
-**Установка (обязательно вручную):** Scripting → Resident → New → sleep **60 с** → Active → вставить файл целиком. Имя на проде: `watchdog-cm-mqtt`. Без этого шага watchdog **не существует** — только штатный супервизор LM (рестарт при **падении процесса**).
+**Установка:** Scripting → Resident (первый раз) **или** без Web UI — `./deploy/lm-watchdog-update.sh` (см. раздел ниже).
 
 **Что ловит:** `heartbeat_stale` (>120 с), `no_heartbeat`, `mqtt_offline` (>600 с при `cm_mqtt_connected=false`).
 
@@ -159,6 +159,128 @@ curl -X POST https://monitoring.black-castle.ru/api/v1/houses/house/restart-daem
 
 ---
 
+## Обновление на LM без Web UI
+
+Все команды — из корня репозитория, после `cp secrets/lm.env.example secrets/lm.env` и заполнения паролей. Подробности и находки — **R-017** в `research.md`.
+
+### Учётки и пути
+
+| Роль | Учётка | Где взять пароль |
+|------|--------|------------------|
+| FTP (заливка файлов) | `apps` | `LM_FTP_PASSWORD` в `secrets/lm.env` |
+| HTTP Apps API (stop/start/health, `.lp`) | `admin` | `LM_ADMIN_PASSWORD` в `secrets/lm.env` |
+| SSH (respawn Resident, опционально) | `root` | ключ `~/.ssh/config` → `lm_estate` или `LM_SSH_PASSWORD` |
+
+| Что | FTP-путь | Runtime на LM |
+|-----|----------|---------------|
+| UI, `.lp`, health | `data/cottage-monitoring/` | `/home/apps/store/data/cottage-monitoring/` |
+| Daemon (обязательно сюда) | `daemon/cottage-monitoring/daemon.lua` | `/home/apps/store/daemon/cottage-monitoring/daemon.lua` |
+
+**SCP на LM не работает** — только lftp/FTP.
+
+### Daemon + приложение (полный цикл)
+
+```bash
+./deploy/lm-apps.sh pause-wd    # не дать watchdog рестартить во время деплоя
+./deploy/lm-apps.sh stop
+./deploy/deploy-lftp.sh         # data/ + daemon/
+./deploy/lm-apps.sh start
+./deploy/lm-apps.sh health      # mqtt_connected, last_event_age
+```
+
+Один файл daemon без полного mirror:
+
+```bash
+source secrets/lm.env
+./deploy/lm-apps.sh pause-wd && ./deploy/lm-apps.sh stop
+lftp -u "$LM_FTP_USER","$LM_FTP_PASSWORD" "ftp://$LM_HOST" -e "
+set xfer:clobber yes
+cd daemon/cottage-monitoring
+lcd cm-client/daemon
+put daemon.lua
+bye
+"
+./deploy/lm-apps.sh start && ./deploy/lm-apps.sh health
+```
+
+### Resident watchdog (без Scripting → Resident в браузере)
+
+На проде: имя `watchdog-cm-mqtt`, **id=73**, sleep 60 с.
+
+```bash
+./deploy/lm-watchdog-update.sh      # id 73 по умолчанию
+./deploy/lm-watchdog-update.sh 73   # явный id
+```
+
+Скрипт: FTP → `cm_wd_new.lua` + одноразовый `cm_script_update.lp` → `db:update('scripting', …)` → удаление stale `/var/run/gs-resident-73.pid` → spawn `lua /lib/genohm-scada/core/scripting-resident.lua 73`.
+
+**Важно:** LM **не** пересоздаёт убитый resident-процесс сам (только при reboot). После `kill` без respawn watchdog молчит, хотя код в БД уже новый.
+
+Проверка id и имени resident (одноразовый probe через FTP, см. R-017):
+
+```bash
+# загрузить probe, выполнить curl, удалить — или смотреть ps:
+ssh root@192.168.100.130 "ps w | grep scripting-resident"
+```
+
+### Конфиг и TLS без Web UI
+
+| Действие | HTTP (admin + Referer) |
+|----------|-------------------------|
+| Отключить TLS verify (после смены цепочки брокера) | `GET …/tls_verify_off.lp` |
+| Включить TLS verify (только с подходящим CA) | `GET …/tls_verify_on.lp` |
+| Пауза watchdog на 5 мин | `./deploy/lm-apps.sh pause-wd` |
+| Сохранить конфиг JSON | `POST …/config_save.lp` body `config={…}` |
+
+Пример TLS off + restart:
+
+```bash
+source secrets/lm.env
+curl -sS -u "$LM_ADMIN_USER:$LM_ADMIN_PASSWORD" -H "Referer: http://$LM_HOST/apps/" \
+  "http://$LM_HOST/apps/data/cottage-monitoring/tls_verify_off.lp"
+./deploy/lm-apps.sh restart
+```
+
+Hard restart watchdog требует на LM (один раз, Scripting console или через config):
+
+```lua
+config.set('cottage-monitoring', 'lm_admin_password', '…')
+```
+
+### Удалённый рестарт daemon (с сервера, без FTP)
+
+Daemon >= v1.1.3, API write scope:
+
+```bash
+curl -X POST https://monitoring.black-castle.ru/api/v1/houses/house/restart-daemon \
+  -H "Authorization: Bearer <API_KEY>" -H 'Content-Type: application/json' \
+  -d '{"comment":"recover"}'
+```
+
+### Проверка телеметрии end-to-end
+
+```bash
+./deploy/lm-apps.sh health
+# last_event_age должен быть малым; mqtt_connected: true
+
+ssh elion "timeout 10 mosquitto_sub -h 127.0.0.1 -p 1883 -t 'cm/house/lm-main/v1/events/batch' -C 1"
+ssh elion "sudo -u postgres psql -d cottage_monitoring -t -c \
+  \"SELECT MAX(server_received_ts) FROM events WHERE house_id='house';\""
+```
+
+### Типичные ошибки (находки 2026-08)
+
+| Симптом | Причина | Действие |
+|---------|---------|----------|
+| `mqtt_connected: false`, reconnect растёт | `mqtt_tls_verify=true` + цепочка YR2 на брокере | `tls_verify_off.lp` + restart |
+| mosquitto: `tlsv1 alert unknown ca` | то же | verify off или CA под YR2 |
+| health в MQTT «живой», events нет | retained `status/health` со старым ts | смотреть `last_event_age` / `events/batch` |
+| watchdog hard restart не помогает | TLS/не тот сценарий | не путать с «зомби» localbus |
+| Resident не стартует после kill | stale `gs-resident-N.pid` | `rm` pidfile + manual spawn (R-017) |
+| Деплой в `data/.../daemon/` | неверный путь | только `daemon/cottage-monitoring/` |
+
+---
+
 ## Daemon не стартует после питания
 
 По [документации LogicMachine](https://kb.logicmachine.net/misc/apps/) daemon должен запускаться при загрузке. Однако у Dev apps это часто не выполняется:
@@ -181,7 +303,7 @@ curl -X POST https://monitoring.black-castle.ru/api/v1/houses/house/restart-daem
 - `ON_CONNECT` сбрасывает `cm_last_disconnect_ts` (исключает ложный многодневный `mqtt_offline`).
 - Команда `{"action":"restart"}` в `cmd`: ack → самоперезапуск через ~2 с (через `error('cm_force_restart_remote')`). Серверный API: `POST /api/v1/houses/{house_id}/restart-daemon`.
 - Watchdog: новое условие `events_stale` (default 900 с, `wd_events_stale_sec`); `wd_pause.lp`/`wd_hold.lp` также сбрасывают `cm_last_event_ts`.
-- **Деплой:** обновить и daemon (`deploy-lftp.sh`), и Resident-скрипт watchdog (вручную в Scripting → Resident, заменить содержимое).
+- **Деплой:** обновить daemon (`deploy-lftp.sh`) и watchdog (`deploy/lm-watchdog-update.sh`); Web UI не обязателен — см. **R-017**.
 
 ### Daemon v1.1.2 — CPU / event batching (2026-07-18)
 
@@ -219,9 +341,8 @@ Dial-команды дома (MCP) лучше гонять отдельным Op
 
 Пароли — в локальном `secrets/lm.env` (gitignore). В спеках только имена учёток и скрипты `./deploy/deploy-lftp.sh`, `./deploy/lm-apps.sh`. См. **001 R-012**.
 
-### Инцидент: телеметрия остановилась, daemon «жив» (2026-08-02)
+### Инцидент: телеметрия остановилась (2026-08-02)
 
-- **Симптом:** с ~13:07 МСК нет events в облаке; LM и elion в целом доступны.
-- **Факт:** процесс daemon с **2026-07-18** не перезапускался; `status/health` в MQTT шёл, `events/batch` — нет.
-- **Почему watchdog не помог:** условия аварии не выполнялись (свежий heartbeat + MQTT online). Подробный 5 Why и gap analysis — **R-016** в `research.md`.
-- **Обход:** Config → Save или HTTP restart daemon; дальше — доработки G1–G6 из R-016 (отдельная задача на код).
+- **Корневая причина (уточнено 03.08):** `mqtt_tls_verify=true` + renew цепочки брокера 29.07 (R12→YR2) → реконнект невозможен; триггер — keepalive timeout ~13:07 МСК. Подробно — **R-016** (дополнение).
+- **Фикс:** `tls_verify_off.lp` + restart; для профилактики — `events_stale` в watchdog (v1.1.3).
+- **Обход:** `./deploy/lm-apps.sh restart`, `POST …/restart-daemon`, или Config→Save.

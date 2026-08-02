@@ -33,12 +33,15 @@
 
 ```bash
 cp secrets/lm.env.example secrets/lm.env   # один раз, заполнить пароли
-./deploy/deploy-lftp.sh                    # без пароля в командной строке
 ./deploy/lm-apps.sh pause-wd
-./deploy/lm-apps.sh stop                   # затем upload, затем:
+./deploy/lm-apps.sh stop
+./deploy/deploy-lftp.sh                    # data/ + daemon/
 ./deploy/lm-apps.sh start
 ./deploy/lm-apps.sh health
+./deploy/lm-watchdog-update.sh             # обновить Resident watchdog без Web UI
 ```
+
+Полный runbook: `specs/002-logicmachine-mqtt-client/quickstart.md` (раздел «Обновление на LM без Web UI»), находки — `research.md` R-017.
 
 Учётки контроллера (LAN): FTP `apps`, веб `admin` — значения паролей только в `secrets/lm.env`.
 
@@ -90,10 +93,9 @@ Daemon автоматически регистрируется. Путь: `/daem
 
 ### Установка watchdog
 
-1. LM → **Scripting** → **Resident** → Add
-2. Name: `CM watchdog`, Sleep: `60`, Active: on
-3. Вставить содержимое `cm-client/scripts/watchdog-resident.lua`
-4. Save
+**Первый раз (Web UI):** LM → Scripting → Resident → Add, sleep 60 с, вставить `scripts/watchdog-resident.lua`.
+
+**Обновление (без Web UI):** `./deploy/lm-watchdog-update.sh` — см. quickstart R-017.
 
 ## Проверка
 
