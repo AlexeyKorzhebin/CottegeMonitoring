@@ -100,115 +100,1845 @@
     },
     {
       "id": 2,
-      "type": "table",
-      "title": "Свет сейчас",
+      "type": "row",
+      "title": "Сейчас",
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 2
+      },
+      "collapsed": false
+    },
+    {
+      "id": 3,
+      "type": "canvas",
+      "title": "1 этаж",
       "datasource": {
         "type": "postgres",
         "uid": "cottage-monitoring-pg"
       },
       "gridPos": {
-        "h": 12,
-        "w": 8,
+        "h": 10,
+        "w": 24,
         "x": 0,
-        "y": 2
+        "y": 3
       },
       "targets": [
         {
           "refId": "A",
           "rawQuery": true,
           "format": "table",
-          "rawSql": "SELECT\n  CASE WHEN CASE WHEN lower(cs.value #>> '{}') IN ('true','t','1') THEN 1 ELSE 0 END = 1 THEN '💡' ELSE '⭘' END AS icon,\n  o.name AS room,\n  CASE WHEN CASE WHEN lower(cs.value #>> '{}') IN ('true','t','1') THEN 1 ELSE 0 END = 1 THEN 'ON' ELSE 'OFF' END AS state,\n  cs.ts AS updated\nFROM objects o\nJOIN current_state cs ON cs.house_id = o.house_id AND replace(cs.ga, '-', '/') = o.ga\nWHERE o.house_id = 'house'\n  AND o.tags LIKE '%light%' AND o.tags LIKE '%control%'\nORDER BY CASE WHEN CASE WHEN lower(cs.value #>> '{}') IN ('true','t','1') THEN 1 ELSE 0 END = 1 THEN 0 ELSE 1 END, room"
+          "rawSql": "SELECT\n  MAX(CASE WHEN replace(cs.ga, '-', '/') = '1/2/6' THEN\n    CASE WHEN CASE WHEN lower(cs.value #>> '{}') IN ('true','t','1') THEN 1 ELSE 0 END = 1 THEN 'https://elion.black-castle.ru/grafana/public/img/cottage/light-on-128.png' ELSE 'https://elion.black-castle.ru/grafana/public/img/cottage/light-off-128.png' END\n  END) AS \"Гостиная\",\n  MAX(CASE WHEN replace(cs.ga, '-', '/') = '1/2/7' THEN\n    CASE WHEN CASE WHEN lower(cs.value #>> '{}') IN ('true','t','1') THEN 1 ELSE 0 END = 1 THEN 'https://elion.black-castle.ru/grafana/public/img/cottage/light-on-128.png' ELSE 'https://elion.black-castle.ru/grafana/public/img/cottage/light-off-128.png' END\n  END) AS \"Кухня\",\n  MAX(CASE WHEN replace(cs.ga, '-', '/') = '1/2/4' THEN\n    CASE WHEN CASE WHEN lower(cs.value #>> '{}') IN ('true','t','1') THEN 1 ELSE 0 END = 1 THEN 'https://elion.black-castle.ru/grafana/public/img/cottage/light-on-128.png' ELSE 'https://elion.black-castle.ru/grafana/public/img/cottage/light-off-128.png' END\n  END) AS \"Спальня\",\n  MAX(CASE WHEN replace(cs.ga, '-', '/') = '1/2/3' THEN\n    CASE WHEN CASE WHEN lower(cs.value #>> '{}') IN ('true','t','1') THEN 1 ELSE 0 END = 1 THEN 'https://elion.black-castle.ru/grafana/public/img/cottage/light-on-128.png' ELSE 'https://elion.black-castle.ru/grafana/public/img/cottage/light-off-128.png' END\n  END) AS \"Холл\",\n  MAX(CASE WHEN replace(cs.ga, '-', '/') = '1/2/2' THEN\n    CASE WHEN CASE WHEN lower(cs.value #>> '{}') IN ('true','t','1') THEN 1 ELSE 0 END = 1 THEN 'https://elion.black-castle.ru/grafana/public/img/cottage/light-on-128.png' ELSE 'https://elion.black-castle.ru/grafana/public/img/cottage/light-off-128.png' END\n  END) AS \"Тамбур\",\n  MAX(CASE WHEN replace(cs.ga, '-', '/') = '1/2/9' THEN\n    CASE WHEN CASE WHEN lower(cs.value #>> '{}') IN ('true','t','1') THEN 1 ELSE 0 END = 1 THEN 'https://elion.black-castle.ru/grafana/public/img/cottage/light-on-128.png' ELSE 'https://elion.black-castle.ru/grafana/public/img/cottage/light-off-128.png' END\n  END) AS \"Серверная\",\n  MAX(CASE WHEN replace(cs.ga, '-', '/') = '1/2/8' THEN\n    CASE WHEN CASE WHEN lower(cs.value #>> '{}') IN ('true','t','1') THEN 1 ELSE 0 END = 1 THEN 'https://elion.black-castle.ru/grafana/public/img/cottage/light-on-128.png' ELSE 'https://elion.black-castle.ru/grafana/public/img/cottage/light-off-128.png' END\n  END) AS \"Ванная\",\n  MAX(CASE WHEN replace(cs.ga, '-', '/') = '1/2/18' THEN\n    CASE WHEN CASE WHEN lower(cs.value #>> '{}') IN ('true','t','1') THEN 1 ELSE 0 END = 1 THEN 'https://elion.black-castle.ru/grafana/public/img/cottage/light-on-128.png' ELSE 'https://elion.black-castle.ru/grafana/public/img/cottage/light-off-128.png' END\n  END) AS \"Торшер\",\n  MAX(CASE WHEN replace(cs.ga, '-', '/') = '1/2/19' THEN\n    CASE WHEN CASE WHEN lower(cs.value #>> '{}') IN ('true','t','1') THEN 1 ELSE 0 END = 1 THEN 'https://elion.black-castle.ru/grafana/public/img/cottage/light-on-128.png' ELSE 'https://elion.black-castle.ru/grafana/public/img/cottage/light-off-128.png' END\n  END) AS \"Подсветка кухня\"\nFROM current_state cs\nWHERE cs.house_id = 'house'\n  AND replace(cs.ga, '-', '/') IN ('1/2/6', '1/2/7', '1/2/4', '1/2/3', '1/2/2', '1/2/9', '1/2/8', '1/2/18', '1/2/19')"
         }
       ],
-      "description": "💡 вкл / ⭘ выкл. Источник: control 1/1/* (не status 1/2/*)."
-    },
-    {
-      "id": 3,
-      "type": "timeseries",
-      "title": "Свет 1 этаж (0/1)",
-      "datasource": {
-        "type": "postgres",
-        "uid": "cottage-monitoring-pg"
-      },
-      "gridPos": {
-        "h": 6,
-        "w": 16,
-        "x": 8,
-        "y": 2
-      },
-      "targets": [
-        {
-          "refId": "A",
-          "rawQuery": true,
-          "format": "time_series",
-          "rawSql": "SELECT\n  $__timeGroupAlias(e.ts, $__interval),\n  max(CASE WHEN lower(e.value #>> '{}') IN ('true','t','1') THEN 1 ELSE 0 END) FILTER (WHERE e.ga = '1/2/6') AS \"Гостиная\",\n  max(CASE WHEN lower(e.value #>> '{}') IN ('true','t','1') THEN 1 ELSE 0 END) FILTER (WHERE e.ga = '1/2/7') AS \"Кухня\",\n  max(CASE WHEN lower(e.value #>> '{}') IN ('true','t','1') THEN 1 ELSE 0 END) FILTER (WHERE e.ga = '1/2/4') AS \"Спальня\",\n  max(CASE WHEN lower(e.value #>> '{}') IN ('true','t','1') THEN 1 ELSE 0 END) FILTER (WHERE e.ga = '1/2/3') AS \"Холл\",\n  max(CASE WHEN lower(e.value #>> '{}') IN ('true','t','1') THEN 1 ELSE 0 END) FILTER (WHERE e.ga = '1/2/2') AS \"Тамбур\",\n  max(CASE WHEN lower(e.value #>> '{}') IN ('true','t','1') THEN 1 ELSE 0 END) FILTER (WHERE e.ga = '1/2/9') AS \"Серверная\"\nFROM events e\nWHERE e.house_id = 'house'\n  AND e.ga IN ('1/2/6','1/2/7','1/2/4','1/2/3','1/2/2','1/2/9')\n  AND $__timeFilter(e.ts)\nGROUP BY 1 ORDER BY 1"
-        }
-      ],
-      "fieldConfig": {
-        "defaults": {
-          "custom": {
-            "fillOpacity": 10,
-            "spanNulls": false,
-            "insertNulls": 172800000,
-            "lineInterpolation": "linear"
-          }
-        }
-      },
       "options": {
-        "legend": {
-          "displayMode": "list",
-          "placement": "bottom",
-          "showLegend": true
-        },
+        "inlineEditing": false,
+        "showAdvancedTypes": true,
+        "panZoom": false,
+        "zoomToContent": true,
         "tooltip": {
-          "mode": "multi",
-          "sort": "none"
+          "mode": "none"
+        },
+        "root": {
+          "name": "Element",
+          "type": "frame",
+          "elements": [
+            {
+              "name": "Гостиная icon",
+              "type": "rectangle",
+              "constraint": {
+                "horizontal": "left",
+                "vertical": "top"
+              },
+              "placement": {
+                "left": 8,
+                "top": 8,
+                "width": 88,
+                "height": 88,
+                "rotation": 0
+              },
+              "background": {
+                "color": {
+                  "fixed": "transparent"
+                },
+                "image": {
+                  "mode": "field",
+                  "field": "Гостиная"
+                },
+                "size": "contain"
+              },
+              "border": {
+                "width": 0
+              },
+              "connections": [],
+              "config": {
+                "align": "center",
+                "valign": "middle",
+                "color": {
+                  "fixed": "#C8C8C8"
+                }
+              }
+            },
+            {
+              "name": "Гостиная label",
+              "type": "rectangle",
+              "constraint": {
+                "horizontal": "left",
+                "vertical": "top"
+              },
+              "placement": {
+                "left": 8,
+                "top": 96,
+                "width": 88,
+                "height": 22,
+                "rotation": 0
+              },
+              "background": {
+                "color": {
+                  "fixed": "transparent"
+                }
+              },
+              "border": {
+                "width": 0
+              },
+              "connections": [],
+              "config": {
+                "align": "center",
+                "valign": "middle",
+                "color": {
+                  "fixed": "#C8C8C8"
+                },
+                "text": {
+                  "mode": "fixed",
+                  "fixed": "Гостиная"
+                },
+                "size": 11
+              }
+            },
+            {
+              "name": "Кухня icon",
+              "type": "rectangle",
+              "constraint": {
+                "horizontal": "left",
+                "vertical": "top"
+              },
+              "placement": {
+                "left": 112,
+                "top": 8,
+                "width": 88,
+                "height": 88,
+                "rotation": 0
+              },
+              "background": {
+                "color": {
+                  "fixed": "transparent"
+                },
+                "image": {
+                  "mode": "field",
+                  "field": "Кухня"
+                },
+                "size": "contain"
+              },
+              "border": {
+                "width": 0
+              },
+              "connections": [],
+              "config": {
+                "align": "center",
+                "valign": "middle",
+                "color": {
+                  "fixed": "#C8C8C8"
+                }
+              }
+            },
+            {
+              "name": "Кухня label",
+              "type": "rectangle",
+              "constraint": {
+                "horizontal": "left",
+                "vertical": "top"
+              },
+              "placement": {
+                "left": 112,
+                "top": 96,
+                "width": 88,
+                "height": 22,
+                "rotation": 0
+              },
+              "background": {
+                "color": {
+                  "fixed": "transparent"
+                }
+              },
+              "border": {
+                "width": 0
+              },
+              "connections": [],
+              "config": {
+                "align": "center",
+                "valign": "middle",
+                "color": {
+                  "fixed": "#C8C8C8"
+                },
+                "text": {
+                  "mode": "fixed",
+                  "fixed": "Кухня"
+                },
+                "size": 11
+              }
+            },
+            {
+              "name": "Спальня icon",
+              "type": "rectangle",
+              "constraint": {
+                "horizontal": "left",
+                "vertical": "top"
+              },
+              "placement": {
+                "left": 216,
+                "top": 8,
+                "width": 88,
+                "height": 88,
+                "rotation": 0
+              },
+              "background": {
+                "color": {
+                  "fixed": "transparent"
+                },
+                "image": {
+                  "mode": "field",
+                  "field": "Спальня"
+                },
+                "size": "contain"
+              },
+              "border": {
+                "width": 0
+              },
+              "connections": [],
+              "config": {
+                "align": "center",
+                "valign": "middle",
+                "color": {
+                  "fixed": "#C8C8C8"
+                }
+              }
+            },
+            {
+              "name": "Спальня label",
+              "type": "rectangle",
+              "constraint": {
+                "horizontal": "left",
+                "vertical": "top"
+              },
+              "placement": {
+                "left": 216,
+                "top": 96,
+                "width": 88,
+                "height": 22,
+                "rotation": 0
+              },
+              "background": {
+                "color": {
+                  "fixed": "transparent"
+                }
+              },
+              "border": {
+                "width": 0
+              },
+              "connections": [],
+              "config": {
+                "align": "center",
+                "valign": "middle",
+                "color": {
+                  "fixed": "#C8C8C8"
+                },
+                "text": {
+                  "mode": "fixed",
+                  "fixed": "Спальня"
+                },
+                "size": 11
+              }
+            },
+            {
+              "name": "Холл icon",
+              "type": "rectangle",
+              "constraint": {
+                "horizontal": "left",
+                "vertical": "top"
+              },
+              "placement": {
+                "left": 320,
+                "top": 8,
+                "width": 88,
+                "height": 88,
+                "rotation": 0
+              },
+              "background": {
+                "color": {
+                  "fixed": "transparent"
+                },
+                "image": {
+                  "mode": "field",
+                  "field": "Холл"
+                },
+                "size": "contain"
+              },
+              "border": {
+                "width": 0
+              },
+              "connections": [],
+              "config": {
+                "align": "center",
+                "valign": "middle",
+                "color": {
+                  "fixed": "#C8C8C8"
+                }
+              }
+            },
+            {
+              "name": "Холл label",
+              "type": "rectangle",
+              "constraint": {
+                "horizontal": "left",
+                "vertical": "top"
+              },
+              "placement": {
+                "left": 320,
+                "top": 96,
+                "width": 88,
+                "height": 22,
+                "rotation": 0
+              },
+              "background": {
+                "color": {
+                  "fixed": "transparent"
+                }
+              },
+              "border": {
+                "width": 0
+              },
+              "connections": [],
+              "config": {
+                "align": "center",
+                "valign": "middle",
+                "color": {
+                  "fixed": "#C8C8C8"
+                },
+                "text": {
+                  "mode": "fixed",
+                  "fixed": "Холл"
+                },
+                "size": 11
+              }
+            },
+            {
+              "name": "Тамбур icon",
+              "type": "rectangle",
+              "constraint": {
+                "horizontal": "left",
+                "vertical": "top"
+              },
+              "placement": {
+                "left": 424,
+                "top": 8,
+                "width": 88,
+                "height": 88,
+                "rotation": 0
+              },
+              "background": {
+                "color": {
+                  "fixed": "transparent"
+                },
+                "image": {
+                  "mode": "field",
+                  "field": "Тамбур"
+                },
+                "size": "contain"
+              },
+              "border": {
+                "width": 0
+              },
+              "connections": [],
+              "config": {
+                "align": "center",
+                "valign": "middle",
+                "color": {
+                  "fixed": "#C8C8C8"
+                }
+              }
+            },
+            {
+              "name": "Тамбур label",
+              "type": "rectangle",
+              "constraint": {
+                "horizontal": "left",
+                "vertical": "top"
+              },
+              "placement": {
+                "left": 424,
+                "top": 96,
+                "width": 88,
+                "height": 22,
+                "rotation": 0
+              },
+              "background": {
+                "color": {
+                  "fixed": "transparent"
+                }
+              },
+              "border": {
+                "width": 0
+              },
+              "connections": [],
+              "config": {
+                "align": "center",
+                "valign": "middle",
+                "color": {
+                  "fixed": "#C8C8C8"
+                },
+                "text": {
+                  "mode": "fixed",
+                  "fixed": "Тамбур"
+                },
+                "size": 11
+              }
+            },
+            {
+              "name": "Серверная icon",
+              "type": "rectangle",
+              "constraint": {
+                "horizontal": "left",
+                "vertical": "top"
+              },
+              "placement": {
+                "left": 8,
+                "top": 128,
+                "width": 88,
+                "height": 88,
+                "rotation": 0
+              },
+              "background": {
+                "color": {
+                  "fixed": "transparent"
+                },
+                "image": {
+                  "mode": "field",
+                  "field": "Серверная"
+                },
+                "size": "contain"
+              },
+              "border": {
+                "width": 0
+              },
+              "connections": [],
+              "config": {
+                "align": "center",
+                "valign": "middle",
+                "color": {
+                  "fixed": "#C8C8C8"
+                }
+              }
+            },
+            {
+              "name": "Серверная label",
+              "type": "rectangle",
+              "constraint": {
+                "horizontal": "left",
+                "vertical": "top"
+              },
+              "placement": {
+                "left": 8,
+                "top": 216,
+                "width": 88,
+                "height": 22,
+                "rotation": 0
+              },
+              "background": {
+                "color": {
+                  "fixed": "transparent"
+                }
+              },
+              "border": {
+                "width": 0
+              },
+              "connections": [],
+              "config": {
+                "align": "center",
+                "valign": "middle",
+                "color": {
+                  "fixed": "#C8C8C8"
+                },
+                "text": {
+                  "mode": "fixed",
+                  "fixed": "Серверная"
+                },
+                "size": 11
+              }
+            },
+            {
+              "name": "Ванная icon",
+              "type": "rectangle",
+              "constraint": {
+                "horizontal": "left",
+                "vertical": "top"
+              },
+              "placement": {
+                "left": 112,
+                "top": 128,
+                "width": 88,
+                "height": 88,
+                "rotation": 0
+              },
+              "background": {
+                "color": {
+                  "fixed": "transparent"
+                },
+                "image": {
+                  "mode": "field",
+                  "field": "Ванная"
+                },
+                "size": "contain"
+              },
+              "border": {
+                "width": 0
+              },
+              "connections": [],
+              "config": {
+                "align": "center",
+                "valign": "middle",
+                "color": {
+                  "fixed": "#C8C8C8"
+                }
+              }
+            },
+            {
+              "name": "Ванная label",
+              "type": "rectangle",
+              "constraint": {
+                "horizontal": "left",
+                "vertical": "top"
+              },
+              "placement": {
+                "left": 112,
+                "top": 216,
+                "width": 88,
+                "height": 22,
+                "rotation": 0
+              },
+              "background": {
+                "color": {
+                  "fixed": "transparent"
+                }
+              },
+              "border": {
+                "width": 0
+              },
+              "connections": [],
+              "config": {
+                "align": "center",
+                "valign": "middle",
+                "color": {
+                  "fixed": "#C8C8C8"
+                },
+                "text": {
+                  "mode": "fixed",
+                  "fixed": "Ванная"
+                },
+                "size": 11
+              }
+            },
+            {
+              "name": "Торшер icon",
+              "type": "rectangle",
+              "constraint": {
+                "horizontal": "left",
+                "vertical": "top"
+              },
+              "placement": {
+                "left": 216,
+                "top": 128,
+                "width": 88,
+                "height": 88,
+                "rotation": 0
+              },
+              "background": {
+                "color": {
+                  "fixed": "transparent"
+                },
+                "image": {
+                  "mode": "field",
+                  "field": "Торшер"
+                },
+                "size": "contain"
+              },
+              "border": {
+                "width": 0
+              },
+              "connections": [],
+              "config": {
+                "align": "center",
+                "valign": "middle",
+                "color": {
+                  "fixed": "#C8C8C8"
+                }
+              }
+            },
+            {
+              "name": "Торшер label",
+              "type": "rectangle",
+              "constraint": {
+                "horizontal": "left",
+                "vertical": "top"
+              },
+              "placement": {
+                "left": 216,
+                "top": 216,
+                "width": 88,
+                "height": 22,
+                "rotation": 0
+              },
+              "background": {
+                "color": {
+                  "fixed": "transparent"
+                }
+              },
+              "border": {
+                "width": 0
+              },
+              "connections": [],
+              "config": {
+                "align": "center",
+                "valign": "middle",
+                "color": {
+                  "fixed": "#C8C8C8"
+                },
+                "text": {
+                  "mode": "fixed",
+                  "fixed": "Торшер"
+                },
+                "size": 11
+              }
+            },
+            {
+              "name": "Подсветка кухня icon",
+              "type": "rectangle",
+              "constraint": {
+                "horizontal": "left",
+                "vertical": "top"
+              },
+              "placement": {
+                "left": 320,
+                "top": 128,
+                "width": 88,
+                "height": 88,
+                "rotation": 0
+              },
+              "background": {
+                "color": {
+                  "fixed": "transparent"
+                },
+                "image": {
+                  "mode": "field",
+                  "field": "Подсветка кухня"
+                },
+                "size": "contain"
+              },
+              "border": {
+                "width": 0
+              },
+              "connections": [],
+              "config": {
+                "align": "center",
+                "valign": "middle",
+                "color": {
+                  "fixed": "#C8C8C8"
+                }
+              }
+            },
+            {
+              "name": "Подсветка кухня label",
+              "type": "rectangle",
+              "constraint": {
+                "horizontal": "left",
+                "vertical": "top"
+              },
+              "placement": {
+                "left": 320,
+                "top": 216,
+                "width": 88,
+                "height": 22,
+                "rotation": 0
+              },
+              "background": {
+                "color": {
+                  "fixed": "transparent"
+                }
+              },
+              "border": {
+                "width": 0
+              },
+              "connections": [],
+              "config": {
+                "align": "center",
+                "valign": "middle",
+                "color": {
+                  "fixed": "#C8C8C8"
+                },
+                "text": {
+                  "mode": "fixed",
+                  "fixed": "Подсветка кухня"
+                },
+                "size": 11
+              }
+            }
+          ]
         }
-      }
+      },
+      "description": "Жёлтая лампа = горит, тёмная = выключен. Источник: status 1/2/* (факт с выключателя), не control 1/1/*."
     },
     {
       "id": 4,
-      "type": "timeseries",
-      "title": "Свет 2 этаж / улица (0/1)",
+      "type": "canvas",
+      "title": "2 этаж",
       "datasource": {
         "type": "postgres",
         "uid": "cottage-monitoring-pg"
       },
       "gridPos": {
-        "h": 6,
+        "h": 10,
         "w": 16,
-        "x": 8,
-        "y": 8
+        "x": 0,
+        "y": 13
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "rawQuery": true,
+          "format": "table",
+          "rawSql": "SELECT\n  MAX(CASE WHEN replace(cs.ga, '-', '/') = '1/2/12' THEN\n    CASE WHEN CASE WHEN lower(cs.value #>> '{}') IN ('true','t','1') THEN 1 ELSE 0 END = 1 THEN 'https://elion.black-castle.ru/grafana/public/img/cottage/light-on-128.png' ELSE 'https://elion.black-castle.ru/grafana/public/img/cottage/light-off-128.png' END\n  END) AS \"Настя\",\n  MAX(CASE WHEN replace(cs.ga, '-', '/') = '1/2/13' THEN\n    CASE WHEN CASE WHEN lower(cs.value #>> '{}') IN ('true','t','1') THEN 1 ELSE 0 END = 1 THEN 'https://elion.black-castle.ru/grafana/public/img/cottage/light-on-128.png' ELSE 'https://elion.black-castle.ru/grafana/public/img/cottage/light-off-128.png' END\n  END) AS \"Тим\",\n  MAX(CASE WHEN replace(cs.ga, '-', '/') = '1/2/14' THEN\n    CASE WHEN CASE WHEN lower(cs.value #>> '{}') IN ('true','t','1') THEN 1 ELSE 0 END = 1 THEN 'https://elion.black-castle.ru/grafana/public/img/cottage/light-on-128.png' ELSE 'https://elion.black-castle.ru/grafana/public/img/cottage/light-off-128.png' END\n  END) AS \"Кабинет\",\n  MAX(CASE WHEN replace(cs.ga, '-', '/') = '1/2/15' THEN\n    CASE WHEN CASE WHEN lower(cs.value #>> '{}') IN ('true','t','1') THEN 1 ELSE 0 END = 1 THEN 'https://elion.black-castle.ru/grafana/public/img/cottage/light-on-128.png' ELSE 'https://elion.black-castle.ru/grafana/public/img/cottage/light-off-128.png' END\n  END) AS \"Холл 2эт\",\n  MAX(CASE WHEN replace(cs.ga, '-', '/') = '1/2/11' THEN\n    CASE WHEN CASE WHEN lower(cs.value #>> '{}') IN ('true','t','1') THEN 1 ELSE 0 END = 1 THEN 'https://elion.black-castle.ru/grafana/public/img/cottage/light-on-128.png' ELSE 'https://elion.black-castle.ru/grafana/public/img/cottage/light-off-128.png' END\n  END) AS \"Гостевая\",\n  MAX(CASE WHEN replace(cs.ga, '-', '/') = '1/2/16' THEN\n    CASE WHEN CASE WHEN lower(cs.value #>> '{}') IN ('true','t','1') THEN 1 ELSE 0 END = 1 THEN 'https://elion.black-castle.ru/grafana/public/img/cottage/light-on-128.png' ELSE 'https://elion.black-castle.ru/grafana/public/img/cottage/light-off-128.png' END\n  END) AS \"Ванна 2эт\",\n  MAX(CASE WHEN replace(cs.ga, '-', '/') = '1/2/17' THEN\n    CASE WHEN CASE WHEN lower(cs.value #>> '{}') IN ('true','t','1') THEN 1 ELSE 0 END = 1 THEN 'https://elion.black-castle.ru/grafana/public/img/cottage/light-on-128.png' ELSE 'https://elion.black-castle.ru/grafana/public/img/cottage/light-off-128.png' END\n  END) AS \"Чердак\",\n  MAX(CASE WHEN replace(cs.ga, '-', '/') = '1/2/20' THEN\n    CASE WHEN CASE WHEN lower(cs.value #>> '{}') IN ('true','t','1') THEN 1 ELSE 0 END = 1 THEN 'https://elion.black-castle.ru/grafana/public/img/cottage/light-on-128.png' ELSE 'https://elion.black-castle.ru/grafana/public/img/cottage/light-off-128.png' END\n  END) AS \"Тайфайтер\"\nFROM current_state cs\nWHERE cs.house_id = 'house'\n  AND replace(cs.ga, '-', '/') IN ('1/2/12', '1/2/13', '1/2/14', '1/2/15', '1/2/11', '1/2/16', '1/2/17', '1/2/20')"
+        }
+      ],
+      "options": {
+        "inlineEditing": false,
+        "showAdvancedTypes": true,
+        "panZoom": false,
+        "zoomToContent": true,
+        "tooltip": {
+          "mode": "none"
+        },
+        "root": {
+          "name": "Element",
+          "type": "frame",
+          "elements": [
+            {
+              "name": "Настя icon",
+              "type": "rectangle",
+              "constraint": {
+                "horizontal": "left",
+                "vertical": "top"
+              },
+              "placement": {
+                "left": 8,
+                "top": 8,
+                "width": 88,
+                "height": 88,
+                "rotation": 0
+              },
+              "background": {
+                "color": {
+                  "fixed": "transparent"
+                },
+                "image": {
+                  "mode": "field",
+                  "field": "Настя"
+                },
+                "size": "contain"
+              },
+              "border": {
+                "width": 0
+              },
+              "connections": [],
+              "config": {
+                "align": "center",
+                "valign": "middle",
+                "color": {
+                  "fixed": "#C8C8C8"
+                }
+              }
+            },
+            {
+              "name": "Настя label",
+              "type": "rectangle",
+              "constraint": {
+                "horizontal": "left",
+                "vertical": "top"
+              },
+              "placement": {
+                "left": 8,
+                "top": 96,
+                "width": 88,
+                "height": 22,
+                "rotation": 0
+              },
+              "background": {
+                "color": {
+                  "fixed": "transparent"
+                }
+              },
+              "border": {
+                "width": 0
+              },
+              "connections": [],
+              "config": {
+                "align": "center",
+                "valign": "middle",
+                "color": {
+                  "fixed": "#C8C8C8"
+                },
+                "text": {
+                  "mode": "fixed",
+                  "fixed": "Настя"
+                },
+                "size": 11
+              }
+            },
+            {
+              "name": "Тим icon",
+              "type": "rectangle",
+              "constraint": {
+                "horizontal": "left",
+                "vertical": "top"
+              },
+              "placement": {
+                "left": 112,
+                "top": 8,
+                "width": 88,
+                "height": 88,
+                "rotation": 0
+              },
+              "background": {
+                "color": {
+                  "fixed": "transparent"
+                },
+                "image": {
+                  "mode": "field",
+                  "field": "Тим"
+                },
+                "size": "contain"
+              },
+              "border": {
+                "width": 0
+              },
+              "connections": [],
+              "config": {
+                "align": "center",
+                "valign": "middle",
+                "color": {
+                  "fixed": "#C8C8C8"
+                }
+              }
+            },
+            {
+              "name": "Тим label",
+              "type": "rectangle",
+              "constraint": {
+                "horizontal": "left",
+                "vertical": "top"
+              },
+              "placement": {
+                "left": 112,
+                "top": 96,
+                "width": 88,
+                "height": 22,
+                "rotation": 0
+              },
+              "background": {
+                "color": {
+                  "fixed": "transparent"
+                }
+              },
+              "border": {
+                "width": 0
+              },
+              "connections": [],
+              "config": {
+                "align": "center",
+                "valign": "middle",
+                "color": {
+                  "fixed": "#C8C8C8"
+                },
+                "text": {
+                  "mode": "fixed",
+                  "fixed": "Тим"
+                },
+                "size": 11
+              }
+            },
+            {
+              "name": "Кабинет icon",
+              "type": "rectangle",
+              "constraint": {
+                "horizontal": "left",
+                "vertical": "top"
+              },
+              "placement": {
+                "left": 216,
+                "top": 8,
+                "width": 88,
+                "height": 88,
+                "rotation": 0
+              },
+              "background": {
+                "color": {
+                  "fixed": "transparent"
+                },
+                "image": {
+                  "mode": "field",
+                  "field": "Кабинет"
+                },
+                "size": "contain"
+              },
+              "border": {
+                "width": 0
+              },
+              "connections": [],
+              "config": {
+                "align": "center",
+                "valign": "middle",
+                "color": {
+                  "fixed": "#C8C8C8"
+                }
+              }
+            },
+            {
+              "name": "Кабинет label",
+              "type": "rectangle",
+              "constraint": {
+                "horizontal": "left",
+                "vertical": "top"
+              },
+              "placement": {
+                "left": 216,
+                "top": 96,
+                "width": 88,
+                "height": 22,
+                "rotation": 0
+              },
+              "background": {
+                "color": {
+                  "fixed": "transparent"
+                }
+              },
+              "border": {
+                "width": 0
+              },
+              "connections": [],
+              "config": {
+                "align": "center",
+                "valign": "middle",
+                "color": {
+                  "fixed": "#C8C8C8"
+                },
+                "text": {
+                  "mode": "fixed",
+                  "fixed": "Кабинет"
+                },
+                "size": 11
+              }
+            },
+            {
+              "name": "Холл 2эт icon",
+              "type": "rectangle",
+              "constraint": {
+                "horizontal": "left",
+                "vertical": "top"
+              },
+              "placement": {
+                "left": 320,
+                "top": 8,
+                "width": 88,
+                "height": 88,
+                "rotation": 0
+              },
+              "background": {
+                "color": {
+                  "fixed": "transparent"
+                },
+                "image": {
+                  "mode": "field",
+                  "field": "Холл 2эт"
+                },
+                "size": "contain"
+              },
+              "border": {
+                "width": 0
+              },
+              "connections": [],
+              "config": {
+                "align": "center",
+                "valign": "middle",
+                "color": {
+                  "fixed": "#C8C8C8"
+                }
+              }
+            },
+            {
+              "name": "Холл 2эт label",
+              "type": "rectangle",
+              "constraint": {
+                "horizontal": "left",
+                "vertical": "top"
+              },
+              "placement": {
+                "left": 320,
+                "top": 96,
+                "width": 88,
+                "height": 22,
+                "rotation": 0
+              },
+              "background": {
+                "color": {
+                  "fixed": "transparent"
+                }
+              },
+              "border": {
+                "width": 0
+              },
+              "connections": [],
+              "config": {
+                "align": "center",
+                "valign": "middle",
+                "color": {
+                  "fixed": "#C8C8C8"
+                },
+                "text": {
+                  "mode": "fixed",
+                  "fixed": "Холл 2эт"
+                },
+                "size": 11
+              }
+            },
+            {
+              "name": "Гостевая icon",
+              "type": "rectangle",
+              "constraint": {
+                "horizontal": "left",
+                "vertical": "top"
+              },
+              "placement": {
+                "left": 8,
+                "top": 128,
+                "width": 88,
+                "height": 88,
+                "rotation": 0
+              },
+              "background": {
+                "color": {
+                  "fixed": "transparent"
+                },
+                "image": {
+                  "mode": "field",
+                  "field": "Гостевая"
+                },
+                "size": "contain"
+              },
+              "border": {
+                "width": 0
+              },
+              "connections": [],
+              "config": {
+                "align": "center",
+                "valign": "middle",
+                "color": {
+                  "fixed": "#C8C8C8"
+                }
+              }
+            },
+            {
+              "name": "Гостевая label",
+              "type": "rectangle",
+              "constraint": {
+                "horizontal": "left",
+                "vertical": "top"
+              },
+              "placement": {
+                "left": 8,
+                "top": 216,
+                "width": 88,
+                "height": 22,
+                "rotation": 0
+              },
+              "background": {
+                "color": {
+                  "fixed": "transparent"
+                }
+              },
+              "border": {
+                "width": 0
+              },
+              "connections": [],
+              "config": {
+                "align": "center",
+                "valign": "middle",
+                "color": {
+                  "fixed": "#C8C8C8"
+                },
+                "text": {
+                  "mode": "fixed",
+                  "fixed": "Гостевая"
+                },
+                "size": 11
+              }
+            },
+            {
+              "name": "Ванна 2эт icon",
+              "type": "rectangle",
+              "constraint": {
+                "horizontal": "left",
+                "vertical": "top"
+              },
+              "placement": {
+                "left": 112,
+                "top": 128,
+                "width": 88,
+                "height": 88,
+                "rotation": 0
+              },
+              "background": {
+                "color": {
+                  "fixed": "transparent"
+                },
+                "image": {
+                  "mode": "field",
+                  "field": "Ванна 2эт"
+                },
+                "size": "contain"
+              },
+              "border": {
+                "width": 0
+              },
+              "connections": [],
+              "config": {
+                "align": "center",
+                "valign": "middle",
+                "color": {
+                  "fixed": "#C8C8C8"
+                }
+              }
+            },
+            {
+              "name": "Ванна 2эт label",
+              "type": "rectangle",
+              "constraint": {
+                "horizontal": "left",
+                "vertical": "top"
+              },
+              "placement": {
+                "left": 112,
+                "top": 216,
+                "width": 88,
+                "height": 22,
+                "rotation": 0
+              },
+              "background": {
+                "color": {
+                  "fixed": "transparent"
+                }
+              },
+              "border": {
+                "width": 0
+              },
+              "connections": [],
+              "config": {
+                "align": "center",
+                "valign": "middle",
+                "color": {
+                  "fixed": "#C8C8C8"
+                },
+                "text": {
+                  "mode": "fixed",
+                  "fixed": "Ванна 2эт"
+                },
+                "size": 11
+              }
+            },
+            {
+              "name": "Чердак icon",
+              "type": "rectangle",
+              "constraint": {
+                "horizontal": "left",
+                "vertical": "top"
+              },
+              "placement": {
+                "left": 216,
+                "top": 128,
+                "width": 88,
+                "height": 88,
+                "rotation": 0
+              },
+              "background": {
+                "color": {
+                  "fixed": "transparent"
+                },
+                "image": {
+                  "mode": "field",
+                  "field": "Чердак"
+                },
+                "size": "contain"
+              },
+              "border": {
+                "width": 0
+              },
+              "connections": [],
+              "config": {
+                "align": "center",
+                "valign": "middle",
+                "color": {
+                  "fixed": "#C8C8C8"
+                }
+              }
+            },
+            {
+              "name": "Чердак label",
+              "type": "rectangle",
+              "constraint": {
+                "horizontal": "left",
+                "vertical": "top"
+              },
+              "placement": {
+                "left": 216,
+                "top": 216,
+                "width": 88,
+                "height": 22,
+                "rotation": 0
+              },
+              "background": {
+                "color": {
+                  "fixed": "transparent"
+                }
+              },
+              "border": {
+                "width": 0
+              },
+              "connections": [],
+              "config": {
+                "align": "center",
+                "valign": "middle",
+                "color": {
+                  "fixed": "#C8C8C8"
+                },
+                "text": {
+                  "mode": "fixed",
+                  "fixed": "Чердак"
+                },
+                "size": 11
+              }
+            },
+            {
+              "name": "Тайфайтер icon",
+              "type": "rectangle",
+              "constraint": {
+                "horizontal": "left",
+                "vertical": "top"
+              },
+              "placement": {
+                "left": 320,
+                "top": 128,
+                "width": 88,
+                "height": 88,
+                "rotation": 0
+              },
+              "background": {
+                "color": {
+                  "fixed": "transparent"
+                },
+                "image": {
+                  "mode": "field",
+                  "field": "Тайфайтер"
+                },
+                "size": "contain"
+              },
+              "border": {
+                "width": 0
+              },
+              "connections": [],
+              "config": {
+                "align": "center",
+                "valign": "middle",
+                "color": {
+                  "fixed": "#C8C8C8"
+                }
+              }
+            },
+            {
+              "name": "Тайфайтер label",
+              "type": "rectangle",
+              "constraint": {
+                "horizontal": "left",
+                "vertical": "top"
+              },
+              "placement": {
+                "left": 320,
+                "top": 216,
+                "width": 88,
+                "height": 22,
+                "rotation": 0
+              },
+              "background": {
+                "color": {
+                  "fixed": "transparent"
+                }
+              },
+              "border": {
+                "width": 0
+              },
+              "connections": [],
+              "config": {
+                "align": "center",
+                "valign": "middle",
+                "color": {
+                  "fixed": "#C8C8C8"
+                },
+                "text": {
+                  "mode": "fixed",
+                  "fixed": "Тайфайтер"
+                },
+                "size": 11
+              }
+            }
+          ]
+        }
+      },
+      "description": "Жёлтая лампа = горит, тёмная = выключен. Источник: status 1/2/* (факт с выключателя), не control 1/1/*."
+    },
+    {
+      "id": 5,
+      "type": "canvas",
+      "title": "Улица",
+      "datasource": {
+        "type": "postgres",
+        "uid": "cottage-monitoring-pg"
+      },
+      "gridPos": {
+        "h": 10,
+        "w": 8,
+        "x": 16,
+        "y": 13
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "rawQuery": true,
+          "format": "table",
+          "rawSql": "SELECT\n  MAX(CASE WHEN replace(cs.ga, '-', '/') = '1/2/1' THEN\n    CASE WHEN CASE WHEN lower(cs.value #>> '{}') IN ('true','t','1') THEN 1 ELSE 0 END = 1 THEN 'https://elion.black-castle.ru/grafana/public/img/cottage/light-on-128.png' ELSE 'https://elion.black-castle.ru/grafana/public/img/cottage/light-off-128.png' END\n  END) AS \"Крыльцо\",\n  MAX(CASE WHEN replace(cs.ga, '-', '/') = '1/2/5' THEN\n    CASE WHEN CASE WHEN lower(cs.value #>> '{}') IN ('true','t','1') THEN 1 ELSE 0 END = 1 THEN 'https://elion.black-castle.ru/grafana/public/img/cottage/light-on-128.png' ELSE 'https://elion.black-castle.ru/grafana/public/img/cottage/light-off-128.png' END\n  END) AS \"Терраса\",\n  MAX(CASE WHEN replace(cs.ga, '-', '/') = '1/2/10' THEN\n    CASE WHEN CASE WHEN lower(cs.value #>> '{}') IN ('true','t','1') THEN 1 ELSE 0 END = 1 THEN 'https://elion.black-castle.ru/grafana/public/img/cottage/light-on-128.png' ELSE 'https://elion.black-castle.ru/grafana/public/img/cottage/light-off-128.png' END\n  END) AS \"Балкон\"\nFROM current_state cs\nWHERE cs.house_id = 'house'\n  AND replace(cs.ga, '-', '/') IN ('1/2/1', '1/2/5', '1/2/10')"
+        }
+      ],
+      "options": {
+        "inlineEditing": false,
+        "showAdvancedTypes": true,
+        "panZoom": false,
+        "zoomToContent": true,
+        "tooltip": {
+          "mode": "none"
+        },
+        "root": {
+          "name": "Element",
+          "type": "frame",
+          "elements": [
+            {
+              "name": "Крыльцо icon",
+              "type": "rectangle",
+              "constraint": {
+                "horizontal": "left",
+                "vertical": "top"
+              },
+              "placement": {
+                "left": 8,
+                "top": 8,
+                "width": 88,
+                "height": 88,
+                "rotation": 0
+              },
+              "background": {
+                "color": {
+                  "fixed": "transparent"
+                },
+                "image": {
+                  "mode": "field",
+                  "field": "Крыльцо"
+                },
+                "size": "contain"
+              },
+              "border": {
+                "width": 0
+              },
+              "connections": [],
+              "config": {
+                "align": "center",
+                "valign": "middle",
+                "color": {
+                  "fixed": "#C8C8C8"
+                }
+              }
+            },
+            {
+              "name": "Крыльцо label",
+              "type": "rectangle",
+              "constraint": {
+                "horizontal": "left",
+                "vertical": "top"
+              },
+              "placement": {
+                "left": 8,
+                "top": 96,
+                "width": 88,
+                "height": 22,
+                "rotation": 0
+              },
+              "background": {
+                "color": {
+                  "fixed": "transparent"
+                }
+              },
+              "border": {
+                "width": 0
+              },
+              "connections": [],
+              "config": {
+                "align": "center",
+                "valign": "middle",
+                "color": {
+                  "fixed": "#C8C8C8"
+                },
+                "text": {
+                  "mode": "fixed",
+                  "fixed": "Крыльцо"
+                },
+                "size": 11
+              }
+            },
+            {
+              "name": "Терраса icon",
+              "type": "rectangle",
+              "constraint": {
+                "horizontal": "left",
+                "vertical": "top"
+              },
+              "placement": {
+                "left": 112,
+                "top": 8,
+                "width": 88,
+                "height": 88,
+                "rotation": 0
+              },
+              "background": {
+                "color": {
+                  "fixed": "transparent"
+                },
+                "image": {
+                  "mode": "field",
+                  "field": "Терраса"
+                },
+                "size": "contain"
+              },
+              "border": {
+                "width": 0
+              },
+              "connections": [],
+              "config": {
+                "align": "center",
+                "valign": "middle",
+                "color": {
+                  "fixed": "#C8C8C8"
+                }
+              }
+            },
+            {
+              "name": "Терраса label",
+              "type": "rectangle",
+              "constraint": {
+                "horizontal": "left",
+                "vertical": "top"
+              },
+              "placement": {
+                "left": 112,
+                "top": 96,
+                "width": 88,
+                "height": 22,
+                "rotation": 0
+              },
+              "background": {
+                "color": {
+                  "fixed": "transparent"
+                }
+              },
+              "border": {
+                "width": 0
+              },
+              "connections": [],
+              "config": {
+                "align": "center",
+                "valign": "middle",
+                "color": {
+                  "fixed": "#C8C8C8"
+                },
+                "text": {
+                  "mode": "fixed",
+                  "fixed": "Терраса"
+                },
+                "size": 11
+              }
+            },
+            {
+              "name": "Балкон icon",
+              "type": "rectangle",
+              "constraint": {
+                "horizontal": "left",
+                "vertical": "top"
+              },
+              "placement": {
+                "left": 216,
+                "top": 8,
+                "width": 88,
+                "height": 88,
+                "rotation": 0
+              },
+              "background": {
+                "color": {
+                  "fixed": "transparent"
+                },
+                "image": {
+                  "mode": "field",
+                  "field": "Балкон"
+                },
+                "size": "contain"
+              },
+              "border": {
+                "width": 0
+              },
+              "connections": [],
+              "config": {
+                "align": "center",
+                "valign": "middle",
+                "color": {
+                  "fixed": "#C8C8C8"
+                }
+              }
+            },
+            {
+              "name": "Балкон label",
+              "type": "rectangle",
+              "constraint": {
+                "horizontal": "left",
+                "vertical": "top"
+              },
+              "placement": {
+                "left": 216,
+                "top": 96,
+                "width": 88,
+                "height": 22,
+                "rotation": 0
+              },
+              "background": {
+                "color": {
+                  "fixed": "transparent"
+                }
+              },
+              "border": {
+                "width": 0
+              },
+              "connections": [],
+              "config": {
+                "align": "center",
+                "valign": "middle",
+                "color": {
+                  "fixed": "#C8C8C8"
+                },
+                "text": {
+                  "mode": "fixed",
+                  "fixed": "Балкон"
+                },
+                "size": 11
+              }
+            }
+          ]
+        }
+      },
+      "description": "Жёлтая лампа = горит, тёмная = выключен. Источник: status 1/2/* (факт с выключателя), не control 1/1/*."
+    },
+    {
+      "id": 6,
+      "type": "row",
+      "title": "История",
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 23
+      },
+      "collapsed": false
+    },
+    {
+      "id": 7,
+      "type": "state-timeline",
+      "title": "1 этаж",
+      "datasource": {
+        "type": "postgres",
+        "uid": "cottage-monitoring-pg"
+      },
+      "gridPos": {
+        "h": 9,
+        "w": 24,
+        "x": 0,
+        "y": 24
       },
       "targets": [
         {
           "refId": "A",
           "rawQuery": true,
           "format": "time_series",
-          "rawSql": "SELECT\n  $__timeGroupAlias(e.ts, $__interval),\n  max(CASE WHEN lower(e.value #>> '{}') IN ('true','t','1') THEN 1 ELSE 0 END) FILTER (WHERE e.ga = '1/2/12') AS \"Настя\",\n  max(CASE WHEN lower(e.value #>> '{}') IN ('true','t','1') THEN 1 ELSE 0 END) FILTER (WHERE e.ga = '1/2/13') AS \"Тим\",\n  max(CASE WHEN lower(e.value #>> '{}') IN ('true','t','1') THEN 1 ELSE 0 END) FILTER (WHERE e.ga = '1/2/14') AS \"Кабинет\",\n  max(CASE WHEN lower(e.value #>> '{}') IN ('true','t','1') THEN 1 ELSE 0 END) FILTER (WHERE e.ga = '1/2/15') AS \"Холл 2эт\",\n  max(CASE WHEN lower(e.value #>> '{}') IN ('true','t','1') THEN 1 ELSE 0 END) FILTER (WHERE e.ga = '1/2/1') AS \"Крыльцо\",\n  max(CASE WHEN lower(e.value #>> '{}') IN ('true','t','1') THEN 1 ELSE 0 END) FILTER (WHERE e.ga = '1/2/5') AS \"Терраса\"\nFROM events e\nWHERE e.house_id = 'house'\n  AND e.ga IN ('1/2/12','1/2/13','1/2/14','1/2/15','1/2/1','1/2/5')\n  AND $__timeFilter(e.ts)\nGROUP BY 1 ORDER BY 1"
+          "rawSql": "WITH last_before AS (\n  SELECT DISTINCT ON (e.ga)\n    $__timeFrom()::timestamptz AS ts,\n    e.ga,\n    e.value\n  FROM events e\n  WHERE e.house_id = 'house'\n    AND e.ga IN ('1/2/6', '1/2/7', '1/2/4', '1/2/3', '1/2/2', '1/2/9', '1/2/8', '1/2/18', '1/2/19')\n    AND e.ts < $__timeFrom()::timestamptz\n  ORDER BY e.ga, e.ts DESC\n),\nin_range AS (\n  SELECT e.ts, e.ga, e.value\n  FROM events e\n  WHERE e.house_id = 'house'\n    AND e.ga IN ('1/2/6', '1/2/7', '1/2/4', '1/2/3', '1/2/2', '1/2/9', '1/2/8', '1/2/18', '1/2/19')\n    AND $__timeFilter(e.ts)\n)\nSELECT\n  s.ts AS time,\n  CASE WHEN lower(s.value #>> '{}') IN ('true','t','1') THEN 1 ELSE 0 END AS value,\n  CASE s.ga WHEN '1/2/6' THEN 'Гостиная' WHEN '1/2/7' THEN 'Кухня' WHEN '1/2/4' THEN 'Спальня' WHEN '1/2/3' THEN 'Холл' WHEN '1/2/2' THEN 'Тамбур' WHEN '1/2/9' THEN 'Серверная' WHEN '1/2/8' THEN 'Ванная' WHEN '1/2/18' THEN 'Торшер' WHEN '1/2/19' THEN 'Подсветка кухня' END AS metric\nFROM (\n  SELECT ts, ga, value FROM last_before\n  UNION ALL\n  SELECT ts, ga, value FROM in_range\n) s\nORDER BY time, metric"
         }
       ],
       "fieldConfig": {
         "defaults": {
+          "decimals": 0,
           "custom": {
-            "fillOpacity": 10,
-            "spanNulls": false,
-            "insertNulls": 172800000,
-            "lineInterpolation": "linear"
-          }
+            "fillOpacity": 100,
+            "lineWidth": 0,
+            "spanNulls": true
+          },
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "#3A3A3A",
+                "value": null
+              },
+              {
+                "color": "#3A3A3A",
+                "value": 0
+              },
+              {
+                "color": "#F5C400",
+                "value": 1
+              }
+            ]
+          },
+          "mappings": [
+            {
+              "type": "value",
+              "options": {
+                "0": {
+                  "text": "выкл",
+                  "color": "#3A3A3A",
+                  "index": 0
+                },
+                "1": {
+                  "text": "ВКЛ",
+                  "color": "#F5C400",
+                  "index": 1
+                }
+              }
+            }
+          ]
         }
       },
       "options": {
+        "mergeValues": true,
+        "showValue": "never",
+        "alignValue": "center",
+        "rowHeight": 0.85,
         "legend": {
           "displayMode": "list",
           "placement": "bottom",
           "showLegend": true
         },
         "tooltip": {
-          "mode": "multi",
+          "mode": "single",
           "sort": "none"
+        },
+        "perPage": 20
+      },
+      "description": "Строб: жёлтый = ВКЛ, тёмный = выкл. Ширина полосы = сколько горел. Наведите курсор — длительность интервала. Сырые events, без группировки по интервалу."
+    },
+    {
+      "id": 8,
+      "type": "state-timeline",
+      "title": "2 этаж",
+      "datasource": {
+        "type": "postgres",
+        "uid": "cottage-monitoring-pg"
+      },
+      "gridPos": {
+        "h": 9,
+        "w": 16,
+        "x": 0,
+        "y": 33
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "rawQuery": true,
+          "format": "time_series",
+          "rawSql": "WITH last_before AS (\n  SELECT DISTINCT ON (e.ga)\n    $__timeFrom()::timestamptz AS ts,\n    e.ga,\n    e.value\n  FROM events e\n  WHERE e.house_id = 'house'\n    AND e.ga IN ('1/2/12', '1/2/13', '1/2/14', '1/2/15', '1/2/11', '1/2/16', '1/2/17', '1/2/20')\n    AND e.ts < $__timeFrom()::timestamptz\n  ORDER BY e.ga, e.ts DESC\n),\nin_range AS (\n  SELECT e.ts, e.ga, e.value\n  FROM events e\n  WHERE e.house_id = 'house'\n    AND e.ga IN ('1/2/12', '1/2/13', '1/2/14', '1/2/15', '1/2/11', '1/2/16', '1/2/17', '1/2/20')\n    AND $__timeFilter(e.ts)\n)\nSELECT\n  s.ts AS time,\n  CASE WHEN lower(s.value #>> '{}') IN ('true','t','1') THEN 1 ELSE 0 END AS value,\n  CASE s.ga WHEN '1/2/12' THEN 'Настя' WHEN '1/2/13' THEN 'Тим' WHEN '1/2/14' THEN 'Кабинет' WHEN '1/2/15' THEN 'Холл 2эт' WHEN '1/2/11' THEN 'Гостевая' WHEN '1/2/16' THEN 'Ванна 2эт' WHEN '1/2/17' THEN 'Чердак' WHEN '1/2/20' THEN 'Тайфайтер' END AS metric\nFROM (\n  SELECT ts, ga, value FROM last_before\n  UNION ALL\n  SELECT ts, ga, value FROM in_range\n) s\nORDER BY time, metric"
         }
-      }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "decimals": 0,
+          "custom": {
+            "fillOpacity": 100,
+            "lineWidth": 0,
+            "spanNulls": true
+          },
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "#3A3A3A",
+                "value": null
+              },
+              {
+                "color": "#3A3A3A",
+                "value": 0
+              },
+              {
+                "color": "#F5C400",
+                "value": 1
+              }
+            ]
+          },
+          "mappings": [
+            {
+              "type": "value",
+              "options": {
+                "0": {
+                  "text": "выкл",
+                  "color": "#3A3A3A",
+                  "index": 0
+                },
+                "1": {
+                  "text": "ВКЛ",
+                  "color": "#F5C400",
+                  "index": 1
+                }
+              }
+            }
+          ]
+        }
+      },
+      "options": {
+        "mergeValues": true,
+        "showValue": "never",
+        "alignValue": "center",
+        "rowHeight": 0.85,
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "single",
+          "sort": "none"
+        },
+        "perPage": 20
+      },
+      "description": "Строб: жёлтый = ВКЛ, тёмный = выкл. Ширина полосы = сколько горел. Наведите курсор — длительность интервала. Сырые events, без группировки по интервалу."
+    },
+    {
+      "id": 9,
+      "type": "state-timeline",
+      "title": "Улица",
+      "datasource": {
+        "type": "postgres",
+        "uid": "cottage-monitoring-pg"
+      },
+      "gridPos": {
+        "h": 9,
+        "w": 8,
+        "x": 16,
+        "y": 33
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "rawQuery": true,
+          "format": "time_series",
+          "rawSql": "WITH last_before AS (\n  SELECT DISTINCT ON (e.ga)\n    $__timeFrom()::timestamptz AS ts,\n    e.ga,\n    e.value\n  FROM events e\n  WHERE e.house_id = 'house'\n    AND e.ga IN ('1/2/1', '1/2/5', '1/2/10')\n    AND e.ts < $__timeFrom()::timestamptz\n  ORDER BY e.ga, e.ts DESC\n),\nin_range AS (\n  SELECT e.ts, e.ga, e.value\n  FROM events e\n  WHERE e.house_id = 'house'\n    AND e.ga IN ('1/2/1', '1/2/5', '1/2/10')\n    AND $__timeFilter(e.ts)\n)\nSELECT\n  s.ts AS time,\n  CASE WHEN lower(s.value #>> '{}') IN ('true','t','1') THEN 1 ELSE 0 END AS value,\n  CASE s.ga WHEN '1/2/1' THEN 'Крыльцо' WHEN '1/2/5' THEN 'Терраса' WHEN '1/2/10' THEN 'Балкон' END AS metric\nFROM (\n  SELECT ts, ga, value FROM last_before\n  UNION ALL\n  SELECT ts, ga, value FROM in_range\n) s\nORDER BY time, metric"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "decimals": 0,
+          "custom": {
+            "fillOpacity": 100,
+            "lineWidth": 0,
+            "spanNulls": true
+          },
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "#3A3A3A",
+                "value": null
+              },
+              {
+                "color": "#3A3A3A",
+                "value": 0
+              },
+              {
+                "color": "#F5C400",
+                "value": 1
+              }
+            ]
+          },
+          "mappings": [
+            {
+              "type": "value",
+              "options": {
+                "0": {
+                  "text": "выкл",
+                  "color": "#3A3A3A",
+                  "index": 0
+                },
+                "1": {
+                  "text": "ВКЛ",
+                  "color": "#F5C400",
+                  "index": 1
+                }
+              }
+            }
+          ]
+        }
+      },
+      "options": {
+        "mergeValues": true,
+        "showValue": "never",
+        "alignValue": "center",
+        "rowHeight": 0.85,
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "single",
+          "sort": "none"
+        },
+        "perPage": 20
+      },
+      "description": "Строб: жёлтый = ВКЛ, тёмный = выкл. Ширина полосы = сколько горел. Наведите курсор — длительность интервала. Сырые events, без группировки по интервалу."
     }
   ]
 }

@@ -1,16 +1,63 @@
 # OpenClaw connection (elion)
 
+## Native MCP (preferred, agent `cottage`)
+
+OpenClaw-managed server in `~/.openclaw/openclaw.json`:
+
+```json
+"mcp": {
+  "servers": {
+    "cottage": {
+      "url": "http://127.0.0.1:8321/mcp",
+      "transport": "streamable-http",
+      "headers": { "Authorization": "Bearer ${COTTAGE_API_KEY}" },
+      "connectTimeout": 10,
+      "timeout": 30,
+      "supportsParallelToolCalls": true,
+      "toolFilter": { "exclude": ["resources_*", "prompts_*"] }
+    }
+  }
+}
+```
+
+Agent tool policy:
+
+- `cottage`: `profile: "minimal"`, `alsoAllow: ["bundle-mcp"]` (no `exec`)
+- `main`: `deny: ["bundle-mcp"]`
+
+Ops:
+
+```bash
+# as openclaw, with user systemd dbus
+openclaw mcp probe cottage          # expect 15 house tools
+openclaw mcp doctor cottage
+openclaw mcp reload                 # after config change
+# gateway already has COTTAGE_API_KEY via EnvironmentFile cottage-env
+```
+
+Smoke (no Telegram deliver):
+
+```bash
+openclaw agent --agent cottage \
+  --session-key agent:cottage:smoke \
+  --message "Верни online_status и active_object_count" \
+  --json --timeout 120
+# expect toolCall cottage__get_house_status, not exec/mcporter
+```
+
+## Legacy mcporter (benches / shell debug)
+
 - mcporter alias: `cottage` → prod `http://127.0.0.1:8321/mcp`
 - Optional alias: `cottage-dev` → `http://127.0.0.1:8322/mcp`
+- Dry-run: `cottage-dry` + header `X-Cottage-Dry-Run: 1`
 - Auth: `COTTAGE_API_KEY` / secrets under `~/.openclaw/secrets/cottage-prod-api-key`
-- List tools: `mcporter list cottage --schema`
+- List tools: `mcporter list cottage --schema` (not `list-commands`)
 - Call: `mcporter call cottage.get_house_status`
 
-## MCP session reuse (keep-alive)
+### MCP session reuse (keep-alive)
 
 Each ephemeral `mcporter call` opens a new MCP HTTP session (`Created new transport with session ID`).
-For multi-step agent turns (ListTools → set_lights → get_command_status) that adds handshake
-overhead on every tool. Enable keep-alive so the daemon holds one session open:
+For multi-step agent turns that adds handshake overhead. Enable keep-alive:
 
 `~/.openclaw/workspace/config/mcporter.json`:
 
@@ -22,8 +69,6 @@ overhead on every tool. Enable keep-alive so the daemon holds one session open:
 }
 ```
 
-Start daemon (auto-restarts via `systemd --user` unit `mcporter-daemon.service`):
-
 ```bash
 cd ~/.openclaw/workspace
 mcporter --config ./config/mcporter.json daemon start
@@ -31,7 +76,8 @@ mcporter daemon status   # cottage: idle
 ```
 
 Verify: two consecutive calls should log only **one** `Created new transport` on the server.
-- Create key (on host, after image deploy):
+
+Create key (on host, after image deploy):
 
 ```bash
 sudo docker run --rm --network=host \

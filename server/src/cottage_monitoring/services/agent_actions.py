@@ -34,6 +34,92 @@ from cottage_monitoring.services.object_resolver import (
 
 logger = structlog.get_logger(__name__)
 
+def _as_on(value: Any) -> bool | None:
+    """Coerce current_state JSON into on/off. None if unknown."""
+    if value is None:
+        return None
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, (int, float)):
+        return bool(value)
+    if isinstance(value, str):
+        lowered = value.strip().lower()
+        if lowered in ("true", "t", "1", "on"):
+            return True
+        if lowered in ("false", "f", "0", "off", ""):
+            return False
+    return bool(value)
+
+
+def _status_base_name(name: str) -> str:
+    return name.replace(" :status", "").strip()
+
+
+def _object_tagset(obj: Object) -> set[str]:
+    return {t.strip().lower() for t in (obj.tags or "").split(",") if t.strip()}
+
+
+def _is_control_object(obj: Object) -> bool:
+    return "control" in _object_tagset(obj)
+
+
+def _status_sibling_names(obj: Object) -> list[str]:
+    """Likely status object names for a control GA (KNX `:status` or BLE `_state`)."""
+    name = obj.name or ""
+    names = [f"{name} :status"]
+    lower = name.lower()
+    if lower.endswith("_cmd"):
+        stem = name[:-4]
+        names.extend([f"{stem}_state", f"{stem}_status"])
+    return names
+
+
+def _feedback_value(
+    obj: Object,
+    states: dict[str, Any],
+    by_name: dict[str, Object],
+    by_ga: dict[str, Object],
+) -> Any:
+    """Value to compare for skip_unchanged. Prefer status sibling over control GA."""
+    if not _is_control_object(obj):
+        return states.get(obj.ga)
+    for cand in _status_sibling_names(obj):
+        sibling = by_name.get(cand)
+        if sibling is not None:
+            return states.get(sibling.ga)
+    parts = (obj.ga or "").split("/")
+    if len(parts) == 3:
+        try:
+            alt_ga = f"{parts[0]}/{int(parts[1]) + 1}/{parts[2]}"
+        except ValueError:
+            alt_ga = ""
+        sibling = by_ga.get(alt_ga)
+        if (
+            sibling is not None
+            and "status" in _object_tagset(sibling)
+            and "control" not in _object_tagset(sibling)
+        ):
+            return states.get(sibling.ga)
+    return states.get(obj.ga)
+
+
+async def _light_status_by_control_name(
+    session: AsyncSession,
+    house_id: str,
+    states: dict[str, Any],
+) -> dict[str, Any]:
+    """Map control object name → status GA value.
+
+    Status objects usually lack floor tags (`2floor`), so this loads all light
+    statuses (query=None) and pairs them by name. Wall switches update 1/2/*,
+    not 1/1/* — skip_unchanged must use this map, not control state.
+    """
+    statuses = await resolve_objects(
+        session, house_id, query=None, kind=DiscoverKind.LIGHT, role=ObjectRole.LIGHT_STATUS
+    )
+    return {_status_base_name(s.name): states.get(s.ga) for s in statuses.matches}
+
+
 def _norm_ga(ga: str) -> str:
     """Normalize GA to slash form used by objects schema (1/2/3).
 
@@ -110,13 +196,18 @@ def _group_appliances(matches: list, states: dict[str, Any]) -> list[dict[str, A
         val = states.get(m.ga)
         if "cmd" in n or ("zigbee_send" in tags and ("control" in tags or "ble" in tags)):
             g["cmd_ga"] = m.ga
-            g["on"] = val
+            g["_cmd"] = val
         elif "temp" in n or "temp" in tags:
             g["temp_ga"] = m.ga
             g["temp"] = val
         elif "state" in n or "status" in n or "status" in tags:
             g["state_ga"] = m.ga
             g["state"] = val
+    for g in groups.values():
+        # Physical on/off is state (33/1/38), not cmd (33/1/39) — same split as lights.
+        state_on = _as_on(g["state"]) if g["state_ga"] is not None else None
+        cmd_on = _as_on(g.pop("_cmd", None)) if g["cmd_ga"] is not None else None
+        g["on"] = state_on if state_on is not None else cmd_on
     return list(groups.values())
 
 
@@ -236,18 +327,12 @@ async def list_lights(session: AsyncSession, house_id: str, *, query: str | None
     controls = await resolve_objects(
         session, house_id, query=query, kind=DiscoverKind.LIGHT, role=ObjectRole.LIGHT_CONTROL
     )
-    statuses = await resolve_objects(
-        session, house_id, query=query, kind=DiscoverKind.LIGHT, role=ObjectRole.LIGHT_STATUS
-    )
-    status_by_base = {}
-    for s in statuses.matches:
-        base = s.name.replace(" :status", "").strip()
-        status_by_base[base] = states.get(s.ga)
+    status_by_base = await _light_status_by_control_name(session, house_id, states)
 
     items = []
     for c in controls.matches:
         val = status_by_base.get(c.name, states.get(c.ga))
-        items.append({"name": c.name, "ga": c.ga, "value": val, "on": bool(val) if val is not None else None})
+        items.append({"name": c.name, "ga": c.ga, "value": val, "on": _as_on(val)})
     return {"items": items, "total": len(items)}
 
 
@@ -356,11 +441,13 @@ async def set_lights(
             "candidates": [{"name": m.name, "ga": m.ga} for m in result.matches],
         }
 
+    status_by_base = await _light_status_by_control_name(session, house_id, states)
+
     skipped: list[dict[str, Any]] = []
     to_change: list[tuple[str, str]] = []
     for m in result.matches:
-        current = states.get(m.ga)
-        current_on = bool(current) if current is not None else None
+        current = status_by_base.get(m.name, states.get(m.ga))
+        current_on = _as_on(current)
         if skip_unchanged and current_on is not None and current_on == on:
             skipped.append({"name": m.name, "ga": m.ga, "on": current_on})
             continue
@@ -424,6 +511,18 @@ async def set_commands(
     )
     objs = {o.ga: o for o in objs_result.scalars().all()}
 
+    sibling_names = [n for o in objs.values() for n in _status_sibling_names(o)]
+    by_name: dict[str, Object] = {o.name: o for o in objs.values() if o.name}
+    by_ga: dict[str, Object] = dict(objs)
+    if sibling_names:
+        sib_result = await session.execute(
+            select(Object).where(Object.house_id == house_id, Object.name.in_(sibling_names))
+        )
+        for sib in sib_result.scalars().all():
+            if sib.name:
+                by_name[sib.name] = sib
+            by_ga[sib.ga] = sib
+
     skipped: list[dict[str, Any]] = []
     by_device: dict[str, list[dict[str, Any]]] = {}
     for item in normalized:
@@ -436,7 +535,7 @@ async def set_commands(
         if not obj.device_id:
             raise HTTPException(status_code=400, detail=f"Cannot resolve device_id for {ga}")
 
-        current = states.get(ga)
+        current = _feedback_value(obj, states, by_name, by_ga)
         if skip_unchanged and current is not None and current == value:
             skipped.append({"ga": ga, "value": value, "current": current})
             continue

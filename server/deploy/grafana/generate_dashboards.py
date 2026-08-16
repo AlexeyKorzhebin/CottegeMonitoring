@@ -15,6 +15,49 @@ CS_NUM = "(cs.value #>> '{}')::double precision"
 CS_BOOL = "CASE WHEN lower(cs.value #>> '{}') IN ('true','t','1') THEN 1 ELSE 0 END"
 CS_JOIN = "replace(cs.ga, '-', '/')"
 
+# Instant lights: status 1/2/* (wall switches), not stale control 1/1/* (R-017).
+LIGHTS_NOW_DESC = (
+    "Жёлтая лампа = горит, тёмная = выключен. "
+    "Источник: status 1/2/* (факт с выключателя), не control 1/1/*."
+)
+LIGHTS_HISTORY_DESC = (
+    "Строб: жёлтый = ВКЛ, тёмный = выкл. Ширина полосы = сколько горел. "
+    "Наведите курсор — длительность интервала. Сырые events, без группировки по интервалу."
+)
+LIGHT_ICON_ON = (
+    "https://elion.black-castle.ru/grafana/public/img/cottage/light-on-128.png"
+)
+LIGHT_ICON_OFF = (
+    "https://elion.black-castle.ru/grafana/public/img/cottage/light-off-128.png"
+)
+# Same GAs as history charts. Canvas cannot spawn elements from query rows.
+LIGHTS_1F = [
+    ("Гостиная", "1/2/6"),
+    ("Кухня", "1/2/7"),
+    ("Спальня", "1/2/4"),
+    ("Холл", "1/2/3"),
+    ("Тамбур", "1/2/2"),
+    ("Серверная", "1/2/9"),
+    ("Ванная", "1/2/8"),
+    ("Торшер", "1/2/18"),
+    ("Подсветка кухня", "1/2/19"),
+]
+LIGHTS_2F = [
+    ("Настя", "1/2/12"),
+    ("Тим", "1/2/13"),
+    ("Кабинет", "1/2/14"),
+    ("Холл 2эт", "1/2/15"),
+    ("Гостевая", "1/2/11"),
+    ("Ванна 2эт", "1/2/16"),
+    ("Чердак", "1/2/17"),
+    ("Тайфайтер", "1/2/20"),
+]
+LIGHTS_OUT = [
+    ("Крыльцо", "1/2/1"),
+    ("Терраса", "1/2/5"),
+    ("Балкон", "1/2/10"),
+]
+
 # Cross-links between cottage dashboards (root_url includes /grafana/).
 DASH_LINKS = [
     {
@@ -230,6 +273,240 @@ def on_off_stat(title, x, y, w, h, sql, description=None):
     )
 
 
+def _light_icon_sql(rooms: list[tuple[str, str]]) -> str:
+    """One row, one URL column per room. Canvas Field mode needs named columns."""
+    cols = []
+    for name, ga in rooms:
+        cols.append(
+            f"""  MAX(CASE WHEN {CS_JOIN} = '{ga}' THEN
+    CASE WHEN {CS_BOOL} = 1 THEN '{LIGHT_ICON_ON}' ELSE '{LIGHT_ICON_OFF}' END
+  END) AS "{name}\""""
+        )
+    gas = ", ".join(f"'{ga}'" for _name, ga in rooms)
+    return (
+        "SELECT\n"
+        + ",\n".join(cols)
+        + f"\nFROM current_state cs\nWHERE cs.house_id = 'house'\n  AND {CS_JOIN} IN ({gas})"
+    )
+
+
+def _canvas_rect(*, name, left, top, width, height, image_field=None, text=None, text_size=12):
+    el = {
+        "name": name,
+        "type": "rectangle",
+        "constraint": {"horizontal": "left", "vertical": "top"},
+        "placement": {
+            "left": left,
+            "top": top,
+            "width": width,
+            "height": height,
+            "rotation": 0,
+        },
+        "background": {"color": {"fixed": "transparent"}},
+        "border": {"width": 0},
+        "connections": [],
+        "config": {
+            "align": "center",
+            "valign": "middle",
+            "color": {"fixed": "#C8C8C8"},
+        },
+    }
+    if image_field:
+        el["background"]["image"] = {"mode": "field", "field": image_field}
+        el["background"]["size"] = "contain"
+    if text is not None:
+        el["config"]["text"] = {"mode": "fixed", "fixed": text}
+        el["config"]["size"] = text_size
+    return el
+
+
+def light_tiles(title, x, y, w, h, rooms: list[tuple[str, str]], cols: int, description=None):
+    """Canvas grid: PNG lamp tile + room caption. Stat cannot embed images."""
+    icon = 88
+    label_h = 22
+    gap_x = 16
+    gap_y = 10
+    pad = 8
+    elements = []
+    for i, (name, _ga) in enumerate(rooms):
+        col = i % cols
+        row = i // cols
+        left = pad + col * (icon + gap_x)
+        top = pad + row * (icon + label_h + gap_y)
+        elements.append(
+            _canvas_rect(
+                name=f"{name} icon",
+                left=left,
+                top=top,
+                width=icon,
+                height=icon,
+                image_field=name,
+            )
+        )
+        elements.append(
+            _canvas_rect(
+                name=f"{name} label",
+                left=left,
+                top=top + icon,
+                width=icon,
+                height=label_h,
+                text=name,
+                text_size=11,
+            )
+        )
+    p = panel_common(title, "canvas", x, y, w, h)
+    p["targets"] = [sql_target("A", _light_icon_sql(rooms), fmt="table")]
+    p["options"] = {
+        "inlineEditing": False,
+        "showAdvancedTypes": True,
+        "panZoom": False,
+        "zoomToContent": True,
+        "tooltip": {"mode": "none"},
+        "root": {"name": "Element", "type": "frame", "elements": elements},
+    }
+    p["description"] = description or LIGHTS_NOW_DESC
+    return p
+
+
+def _light_history_sql(rooms: list[tuple[str, str]]) -> str:
+    """Raw on/off events plus last state at range start (so the first strobe has duration)."""
+    cases = " ".join(f"WHEN '{ga}' THEN '{name}'" for name, ga in rooms)
+    gas = ", ".join(f"'{ga}'" for _name, ga in rooms)
+    return f"""
+WITH last_before AS (
+  SELECT DISTINCT ON (e.ga)
+    $__timeFrom()::timestamptz AS ts,
+    e.ga,
+    e.value
+  FROM events e
+  WHERE e.house_id = 'house'
+    AND e.ga IN ({gas})
+    AND e.ts < $__timeFrom()::timestamptz
+  ORDER BY e.ga, e.ts DESC
+),
+in_range AS (
+  SELECT e.ts, e.ga, e.value
+  FROM events e
+  WHERE e.house_id = 'house'
+    AND e.ga IN ({gas})
+    AND $__timeFilter(e.ts)
+)
+SELECT
+  s.ts AS time,
+  CASE WHEN lower(s.value #>> '{{}}') IN ('true','t','1') THEN 1 ELSE 0 END AS value,
+  CASE s.ga {cases} END AS metric
+FROM (
+  SELECT ts, ga, value FROM last_before
+  UNION ALL
+  SELECT ts, ga, value FROM in_range
+) s
+ORDER BY time, metric
+""".strip()
+
+
+def light_history(title, x, y, w, h, rooms: list[tuple[str, str]]):
+    """State timeline (strobe): yellow = on, dark = off, bar width = duration."""
+    p = panel_common(title, "state-timeline", x, y, w, h)
+    p["targets"] = [sql_target("A", _light_history_sql(rooms), fmt="time_series")]
+    p["fieldConfig"] = {
+        "defaults": {
+            "decimals": 0,
+            "custom": {
+                "fillOpacity": 100,
+                "lineWidth": 0,
+                "spanNulls": True,
+            },
+            "color": {"mode": "thresholds"},
+            "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                    {"color": "#3A3A3A", "value": None},
+                    {"color": "#3A3A3A", "value": 0},
+                    {"color": "#F5C400", "value": 1},
+                ],
+            },
+            "mappings": [
+                {
+                    "type": "value",
+                    "options": {
+                        "0": {"text": "выкл", "color": "#3A3A3A", "index": 0},
+                        "1": {"text": "ВКЛ", "color": "#F5C400", "index": 1},
+                    },
+                }
+            ],
+        }
+    }
+    p["options"] = {
+        "mergeValues": True,
+        "showValue": "never",
+        "alignValue": "center",
+        "rowHeight": 0.85,
+        "legend": {
+            "displayMode": "list",
+            "placement": "bottom",
+            "showLegend": True,
+        },
+        "tooltip": {"mode": "single", "sort": "none"},
+        "perPage": 20,
+    }
+    p["description"] = LIGHTS_HISTORY_DESC
+    return p
+
+
+def heat_tiles(title, x, y, w, h, description=None):
+    """Glanceable floor-relay grid: orange = heating, dark = off. Status 1/5/*."""
+    sql = f"""
+SELECT
+  now() AS time,
+  CASE WHEN {CS_BOOL} = 1 THEN 1 ELSE 0 END AS value,
+  replace(replace(o.name, 'ТП - ', ''), ' :status', '') AS metric
+FROM objects o
+JOIN current_state cs ON cs.house_id = o.house_id AND {CS_JOIN} = o.ga
+WHERE o.house_id = 'house'
+  AND o.tags LIKE '%heat%'
+  AND o.tags LIKE '%status%'
+  AND o.tags NOT LIKE '%control%'
+ORDER BY time, metric
+""".strip()
+    p = panel_common(title, "stat", x, y, w, h)
+    p["targets"] = [sql_target("A", sql, fmt="time_series")]
+    p["fieldConfig"] = {
+        "defaults": {
+            "decimals": 0,
+            "color": {"mode": "thresholds"},
+            "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                    {"color": "#3A3A3A", "value": None},
+                    {"color": "#3A3A3A", "value": 0},
+                    {"color": "#E85D04", "value": 1},
+                ],
+            },
+            "mappings": [
+                {
+                    "type": "value",
+                    "options": {
+                        "0": {"text": "○", "index": 0},
+                        "1": {"text": "греет", "index": 1},
+                    },
+                }
+            ],
+        }
+    }
+    p["options"] = {
+        "reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": False},
+        "orientation": "auto",
+        "textMode": "value_and_name",
+        "colorMode": "background",
+        "graphMode": "none",
+        "justifyMode": "center",
+        "wideLayout": True,
+        "showPercentChange": False,
+    }
+    p["description"] = description or "Оранжевая плитка = реле зоны греет. Статусы 1/5/*."
+    return p
+
+
 def table(title, x, y, w, h, sql, description=None, field_config=None):
     p = panel_common(title, "table", x, y, w, h)
     p["targets"] = [sql_target("A", sql, fmt="table")]
@@ -268,6 +545,7 @@ def row(title, y):
 
 
 def dashboard(title: str, uid: str, panels: list, tags: list[str], refresh="30s"):
+    # Default auto-refresh 30s (instant tiles + most graphs). Batteries / LM Load use 1m.
     for i, p in enumerate(panels, start=1):
         p["id"] = i
     return {
@@ -429,59 +707,17 @@ ORDER BY 1
     )
     y += 7
 
-    panels.append(row("Свет и отопление", y))
+    panels.append(row("Свет", y))
     y += 1
-
-    panels.append(
-        table(
-            "Свет",
-            0,
-            y,
-            12,
-            10,
-            f"""
-SELECT
-  CASE WHEN {CS_BOOL} = 1 THEN '💡' ELSE '⭘' END AS icon,
-  o.name AS room,
-  CASE WHEN {CS_BOOL} = 1 THEN 'ON' ELSE 'OFF' END AS state,
-  cs.ts AS updated
-FROM objects o
-JOIN current_state cs ON cs.house_id = o.house_id AND {CS_JOIN} = o.ga
-WHERE o.house_id = 'house'
-  AND o.tags LIKE '%light%'
-  AND o.tags LIKE '%control%'
-ORDER BY CASE WHEN {CS_BOOL} = 1 THEN 0 ELSE 1 END, room
-""".strip(),
-            description=(
-                "💡 = вкл, ⭘ = выкл. Берём control GA 1/1/* (не status 1/2/*) — "
-                "у status иногда битый timestamp/значение."
-            ),
-        )
-    )
-    panels.append(
-        table(
-            "Тёплые полы (реле)",
-            12,
-            y,
-            12,
-            10,
-            f"""
-SELECT
-  CASE WHEN {CS_BOOL} = 1 THEN '🔥' ELSE '❄' END AS icon,
-  replace(o.name, ' :status', '') AS zone,
-  CASE WHEN {CS_BOOL} = 1 THEN 'ON' ELSE 'OFF' END AS relay,
-  cs.ts AS updated
-FROM objects o
-JOIN current_state cs ON cs.house_id = o.house_id AND {CS_JOIN} = o.ga
-WHERE o.house_id = 'house'
-  AND o.tags LIKE '%heat%'
-  AND o.tags LIKE '%status%'
-ORDER BY CASE WHEN {CS_BOOL} = 1 THEN 0 ELSE 1 END, zone
-""".strip(),
-            description="🔥 = реле зоны греет, ❄ = выкл. Статусы 1/5/*.",
-        )
-    )
+    panels.append(light_tiles("1 этаж", 0, y, 10, 10, LIGHTS_1F, cols=3))
+    panels.append(light_tiles("2 этаж", 10, y, 10, 10, LIGHTS_2F, cols=3))
+    panels.append(light_tiles("Улица", 20, y, 4, 10, LIGHTS_OUT, cols=1))
     y += 10
+
+    panels.append(row("Тёплые полы", y))
+    y += 1
+    panels.append(heat_tiles("Реле зон", 0, y, 24, 5))
+    y += 5
 
     panels.append(row("Температура и влажность в помещениях (воздух 33/1/*)", y))
     y += 1
@@ -1006,76 +1242,19 @@ def lights():
     y = 0
     panels.append(nav_panel(y))
     y += 2
-    panels.append(
-        table(
-            "Свет сейчас",
-            0,
-            y,
-            8,
-            12,
-            f"""
-SELECT
-  CASE WHEN {CS_BOOL} = 1 THEN '💡' ELSE '⭘' END AS icon,
-  o.name AS room,
-  CASE WHEN {CS_BOOL} = 1 THEN 'ON' ELSE 'OFF' END AS state,
-  cs.ts AS updated
-FROM objects o
-JOIN current_state cs ON cs.house_id = o.house_id AND {CS_JOIN} = o.ga
-WHERE o.house_id = 'house'
-  AND o.tags LIKE '%light%' AND o.tags LIKE '%control%'
-ORDER BY CASE WHEN {CS_BOOL} = 1 THEN 0 ELSE 1 END, room
-""".strip(),
-            description="💡 вкл / ⭘ выкл. Источник: control 1/1/* (не status 1/2/*).",
-        )
-    )
-    panels.append(
-        timeseries(
-            "Свет 1 этаж (0/1)",
-            8,
-            y,
-            16,
-            6,
-            f"""
-SELECT
-  $__timeGroupAlias(e.ts, $__interval),
-  max({BOOL01}) FILTER (WHERE e.ga = '1/2/6') AS "Гостиная",
-  max({BOOL01}) FILTER (WHERE e.ga = '1/2/7') AS "Кухня",
-  max({BOOL01}) FILTER (WHERE e.ga = '1/2/4') AS "Спальня",
-  max({BOOL01}) FILTER (WHERE e.ga = '1/2/3') AS "Холл",
-  max({BOOL01}) FILTER (WHERE e.ga = '1/2/2') AS "Тамбур",
-  max({BOOL01}) FILTER (WHERE e.ga = '1/2/9') AS "Серверная"
-FROM events e
-WHERE e.house_id = 'house'
-  AND e.ga IN ('1/2/6','1/2/7','1/2/4','1/2/3','1/2/2','1/2/9')
-  AND $__timeFilter(e.ts)
-GROUP BY 1 ORDER BY 1
-""".strip(),
-        )
-    )
-    panels.append(
-        timeseries(
-            "Свет 2 этаж / улица (0/1)",
-            8,
-            y + 6,
-            16,
-            6,
-            f"""
-SELECT
-  $__timeGroupAlias(e.ts, $__interval),
-  max({BOOL01}) FILTER (WHERE e.ga = '1/2/12') AS "Настя",
-  max({BOOL01}) FILTER (WHERE e.ga = '1/2/13') AS "Тим",
-  max({BOOL01}) FILTER (WHERE e.ga = '1/2/14') AS "Кабинет",
-  max({BOOL01}) FILTER (WHERE e.ga = '1/2/15') AS "Холл 2эт",
-  max({BOOL01}) FILTER (WHERE e.ga = '1/2/1') AS "Крыльцо",
-  max({BOOL01}) FILTER (WHERE e.ga = '1/2/5') AS "Терраса"
-FROM events e
-WHERE e.house_id = 'house'
-  AND e.ga IN ('1/2/12','1/2/13','1/2/14','1/2/15','1/2/1','1/2/5')
-  AND $__timeFilter(e.ts)
-GROUP BY 1 ORDER BY 1
-""".strip(),
-        )
-    )
+    panels.append(row("Сейчас", y))
+    y += 1
+    panels.append(light_tiles("1 этаж", 0, y, 24, 10, LIGHTS_1F, cols=5))
+    y += 10
+    panels.append(light_tiles("2 этаж", 0, y, 16, 10, LIGHTS_2F, cols=4))
+    panels.append(light_tiles("Улица", 16, y, 8, 10, LIGHTS_OUT, cols=3))
+    y += 10
+    panels.append(row("История", y))
+    y += 1
+    panels.append(light_history("1 этаж", 0, y, 24, 9, LIGHTS_1F))
+    y += 9
+    panels.append(light_history("2 этаж", 0, y, 16, 9, LIGHTS_2F))
+    panels.append(light_history("Улица", 16, y, 8, 9, LIGHTS_OUT))
     return dashboard(
         "Cottage — Lights",
         "cottage-lights",

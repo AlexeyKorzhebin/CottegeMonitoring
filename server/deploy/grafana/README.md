@@ -10,7 +10,7 @@ Provisioned dashboards for house telemetry from PostgreSQL/TimescaleDB
 | `cottage-overview` | Overview | Instant: online, auto-heat, Total P, daily kWh, outdoor °C; lights & floor relays tables; room air temps |
 | `cottage-energy` | Electricity | Power/Q/S/PF/Hz; Total P & per-phase P; Urms/Irms; hourly kWh |
 | `cottage-climate` | Climate | Air temp & humidity timeseries; weather now; floor vs setpoint; relay history |
-| `cottage-lights` | Lights | Instant ON/OFF table + 0/1 history by floor |
+| `cottage-lights` | Lights | Colored ON/OFF tiles + 0/1 history by floor |
 | `cottage-batteries` | Batteries | Zigbee battery % table |
 | `cottage-lm-load` | LM Load | loadavg 1/5/15 мин (GA `34/1/6..8`); суточная статистика |
 
@@ -81,4 +81,8 @@ Creates contact point `cottage-telegram`, route `team=cottage`, alerts:
 
 - `current_state.ga` may use dash form (`1-2-3`); SQL normalizes with `replace(ga,'-','/')`.
 - Timeseries use `$__timeGroupAlias` over `events` (hypertable) to downsample.
+- Instant light tiles: Canvas + PNG at `/usr/share/grafana/public/img/cottage/` (SQL returns absolute HTTPS URL; Grafana `getPublicOrAbsoluteUrl` otherwise prefixes `build/`). Stat cannot embed images.
+- Light history: state-timeline strobes from raw `events` plus last state at `$__timeFrom()` (bar width = on/off duration).
+- Instant heat Stat tiles: `now() AS time` + `ORDER BY time, metric` (Grafana long→wide needs time-sorted rows; otherwise **No data**).
+- Auto-refresh: 30s (Overview/Energy/Climate/Lights), 1m (Batteries, LM Load).
 - Grafana 12 stores provisioned dashboards in unified storage (may not show in classic `dashboard` sqlite table).

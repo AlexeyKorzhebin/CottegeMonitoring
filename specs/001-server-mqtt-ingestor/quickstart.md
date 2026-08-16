@@ -190,7 +190,20 @@ ssh elion 'sudo systemctl daemon-reload && sudo systemctl restart cottage-monito
 
 Сеть: **bridge** + `host.docker.internal:host-gateway` (не `--network=host`).
 
-Текущий pin: **`cottage-monitoring:0.2.7`** (`server/deploy/IMAGE_PIN.yaml`).
+Текущий pin: **`cottage-monitoring:0.2.9`** (`server/deploy/IMAGE_PIN.yaml`).
+
+### Сделано в 0.2.9 + live elion
+
+| Пункт | Статус |
+|-------|--------|
+| `set_commands` skip_unchanged | status sibling (`:status` / `_state`), не control GA |
+| `get_kettle.on` | state `33/1/38`, не cmd `33/1/39` |
+
+### Сделано в 0.2.8 + live elion
+
+| Пункт | Статус |
+|-------|--------|
+| `set_lights` skip_unchanged | смотрит status `1/2/*`, не control `1/1/*` (R-017) |
 
 ### Сделано в 0.2.7 + live elion
 
@@ -276,6 +289,10 @@ python3 run_bench.py --e2e --mcp-alias cottage-dry --out results/e2e.json
 **RTT** (Round-Trip Time) = `ts_ack − ts_sent` в таблице `commands`. Пример живого теста: ON ~2.5 с, OFF ~0.5 с. Отдельных таймингов «только сеть» / «только grp.write» нет — они внутри `command_ack`.
 
 **API keys:** `cottage-create-api-key` внутри контейнера; временные ключи после теста — `revoked_at=now()`. Бот (OpenClaw) хранит prod/dev ключи в `~/.openclaw/secrets/` на elion (не в git).
+
+**OpenClaw cottage MCP (R-016):** native `mcp.servers.cottage` → `http://127.0.0.1:8321/mcp`, tools `cottage__*`; агент `cottage` — `minimal` + `alsoAllow: ["bundle-mcp"]` (без `exec`); `main` — `deny: ["bundle-mcp"]`. mcporter остаётся для benches/`cottage-dry`. См. `skills/cottage-monitoring/references/openclaw-connection.md`.
+
+**`set_lights` skip (R-017, 2026-08-15):** `skip_unchanged` смотрит status `1/2/*` (факт с выключателя), не control `1/1/*`. Иначе зональный OFF гасит только группы, чей control ещё `true` (типично холл после бота), а комнаты со стены пропускает. То же для `set_commands` (sibling `:status`/`_state`) и `get_kettle.on` (state `33/1/38`, не cmd).
 
 ### MCP model bench (Caila × cottage tools)
 
@@ -424,14 +441,14 @@ mosquitto_sub -h localhost -t "cm/+/+/v1/#" -v
 
 База: `https://elion.black-castle.ru/grafana/` (за nginx).
 
-| UID | Title | Содержание |
-|-----|-------|------------|
-| `cottage-overview` | Overview | Online, мощность, kWh, свет/ТП снимки |
-| `cottage-energy` | Electricity | P/Q/U/I/PF/Hz, суточные/часовые kWh |
-| `cottage-climate` | Climate | Воздух/влажность, погода, полы |
-| `cottage-lights` | Lights | Статусы света + история |
-| `cottage-batteries` | Batteries | Zigbee battery % |
-| `cottage-lm-load` | LM Load | loadavg LM: GA `34/1/6` (1м), `34/1/7` (5м), `34/1/8` (15м) |
+| UID | Title | Содержание | Refresh |
+|-----|-------|------------|---------|
+| `cottage-overview` | Overview | Online, мощность, kWh, свет Canvas / ТП снимки | 30s |
+| `cottage-energy` | Electricity | P/Q/U/I/PF/Hz, суточные/часовые kWh | 30s |
+| `cottage-climate` | Climate | Воздух/влажность, погода, полы | 30s |
+| `cottage-lights` | Lights | Canvas сейчас + state-timeline история `1/2/*` | 30s |
+| `cottage-batteries` | Batteries | Zigbee battery % | 1m |
+| `cottage-lm-load` | LM Load | loadavg LM: GA `34/1/6` (1м), `34/1/7` (5м), `34/1/8` (15м) | 1m |
 
 Папка Grafana: **Cottage** (`folderUid=ffsa6lrlntse8b`).
 Datasource: PostgreSQL UID `cottage-monitoring-pg` → БД `cottage_monitoring`,
@@ -478,4 +495,13 @@ Grafana на elion — OSS. Для агента: MCP `user-grafana` →
   `replace(cs.ga,'-','/') = o.ga`.
 - Timeseries: `$__timeGroupAlias(e.ts, $__interval)` по hypertable `events`
   (не `NULL`-gapfill на длинных диапазонах — ломает браузер).
+- Instant-плитки **света**: Canvas, SQL format `table`, колонка = URL иконки
+  (`public/img/cottage/light-on-128.png` / `light-off-128.png`). Stat PNG не показывает.
+  URL в запросе — абсолютный `https://…` (иначе Grafana клеит `build/`).
+- История света: **state-timeline** (строб), сырые `events` + last-state на `$__timeFrom()`
+  (иначе первая полоса без длительности). Не `$__timeGroupAlias`.
+- Instant-плитки **ТП** (Stat, format `time_series`): `now() AS time` и
+  `ORDER BY time, metric`. Grafana long→wide падает на `ORDER BY metric`
+  («not sorted by time» → **No data**); `cs.ts` старше окна дашборда тоже режет точки.
+- Auto-refresh дашборда: **30s** (Overview/Energy/Climate/Lights), **1m** (Batteries, LM Load).
 - Loadavg пишется LM в `34/1/6..8` и попадает в prod `events` (~раз в минуту для load1).

@@ -11,6 +11,10 @@ echo "== ensure remote staging dir =="
 ssh elion 'mkdir -p /tmp/cottage-grafana-dashboards'
 scp "$ROOT"/dashboards/cottage_*.json \
   "$ROOT/provisioning/dashboards/cottage_dashboards.yaml" \
+  "$ROOT"/icons/light-on-128.png \
+  "$ROOT"/icons/light-off-128.png \
+  "$ROOT"/icons/light-on.svg \
+  "$ROOT"/icons/light-off.svg \
   elion:/tmp/cottage-grafana-dashboards/
 
 echo "== remote install =="
@@ -76,6 +80,15 @@ sudo mkdir -p /var/lib/grafana/dashboards/cottage
 sudo install -o grafana -g grafana -m 644 \
   /tmp/cottage-grafana-dashboards/cottage_*.json \
   /var/lib/grafana/dashboards/cottage/
+
+echo "== light icons =="
+sudo mkdir -p /usr/share/grafana/public/img/cottage
+sudo install -m 644 \
+  /tmp/cottage-grafana-dashboards/light-on-128.png \
+  /tmp/cottage-grafana-dashboards/light-off-128.png \
+  /tmp/cottage-grafana-dashboards/light-on.svg \
+  /tmp/cottage-grafana-dashboards/light-off.svg \
+  /usr/share/grafana/public/img/cottage/
 
 echo "== reload grafana =="
 sudo systemctl restart grafana-server

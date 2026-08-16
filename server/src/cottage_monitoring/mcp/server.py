@@ -192,8 +192,8 @@ async def set_light(query: str, on: bool) -> str:
 @mcp.tool(
     description=(
         "Turn multiple lights on/off in one MQTT batch. Use for zones: «1 этаж», «уличное», "
-        "«2 этаж». Skips fixtures already in target state (skip_unchanged=true by default). "
-        "Prefer over looping set_light — one request_id, one ack."
+        "«2 этаж». skip_unchanged (default true) uses status feedback 1/2/*, not control 1/1/* "
+        "(wall switches update status only). Prefer over looping set_light — one request_id, one ack."
     )
 )
 async def set_lights(query: str, on: bool, skip_unchanged: bool = True) -> str:
@@ -214,7 +214,9 @@ async def set_lights(query: str, on: bool, skip_unchanged: bool = True) -> str:
 @mcp.tool(
     description=(
         "Send arbitrary GA/value commands in batch. Input: items=[{ga,value}, ...]. "
-        "Server groups items by device and sends minimal number of MQTT commands."
+        "Server groups items by device and sends minimal MQTT commands. "
+        "skip_unchanged (default true) compares against status sibling when writing a "
+        "control GA (1/2/* for lights, 1/5/* for heat, *_state for BLE), not the control itself."
     )
 )
 async def set_commands(

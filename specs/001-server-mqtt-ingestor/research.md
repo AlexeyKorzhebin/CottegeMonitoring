@@ -646,6 +646,56 @@ OpenClaw `main` на `gpt-5.6-sol` даёт ощущение ответа ~1 м�
 
 ---
 
+## R-016: OpenClaw native MCP вместо exec/mcporter (2026-08)
+
+### Контекст
+
+Агент `cottage` ходил в дом через `exec` + `mcporter`. Модель иногда вызывала несуществующее `mcporter list-commands cottage` → exit 1 → баннер `⚠️ Exec failed` в Telegram (даже когда skill запрещал list).
+
+### Решение
+
+1. `mcp.servers.cottage` в `openclaw.json` (streamable-http → `127.0.0.1:8321/mcp`, `Authorization: Bearer ${COTTAGE_API_KEY}`).
+2. `toolFilter.exclude`: `resources_*`, `prompts_*`.
+3. Agent `cottage`: `tools.profile=minimal`, `alsoAllow: ["bundle-mcp"]` — **без** `exec`.
+4. Agent `main`: `tools.deny: ["bundle-mcp"]` — house tools не светятся в общем чате.
+5. mcporter остаётся для benches / `cottage-dry` / shell debug.
+
+### Verify (2026-08-10)
+
+- `openclaw mcp probe cottage` → 15 tools.
+- Smoke: `cottage__get_house_status`; follow-up «детальнее» → `cottage__get_energy_status` + `cottage__get_temperature`, без exec.
+
+### Артефакты
+
+- `skills/cottage-monitoring/references/openclaw-connection.md`
+- `specs/001-server-mqtt-ingestor/openclaw-cottage-agent-instructions.md`
+
+---
+
+## R-017: `set_lights` skip_unchanged должен смотреть status, не control (2026-08-15)
+
+### Контекст
+
+Telegram: «выключи свет на втором этаже». Агент вызвал `set_lights query=«2 этаж» on=false`. Ответ: выключен холл, остальные зоны уже были выключены. Физически остались гореть Настя, Тим, кабинет, ванна 2 этаж.
+
+Команда `f09b8339-da9a-4c08-8214-294f6a0dd61a` (19:13:15Z, status=ok) отправила **один** GA: `1/1/15` (холл 2 этаж). `skip_unchanged` сравнивал `current_state` **control** `1/1/*`. Выключатели на стене пишут в **status** `1/2/*`; control часто остаётся `false`. R-001 уже фиксирует: control «не обязательно отражает реальное состояние».
+
+Дополнительно: status-объекты **без** тега `2floor` (только `light,status`). Резолв status с query «2 этаж» находит лишь имена с «2 этаж» в названии (холл, ванна) — Настя/Тим/кабинет не матчятся. Карту feedback надо строить по **всем** light status, парить по имени с control.
+
+### Решение
+
+`set_lights` / `list_lights`: on/off для skip и отображения = status `1/2/*` (имя `«Свет - … :status»`), fallback на control если status нет. Пишем по-прежнему в control `1/1/*`.
+
+Та же дыра в **`set_commands`** (`skip_unchanged` сравнивал GA записи = control) и в **`get_kettle`**: поле `on` бралось из cmd `33/1/39`, не из state `33/1/38`. Live 2026-08-16: cmd=`true`, state=`false` (чайник выключен, агент мог сказать «уже включён»). `set_kettle` skip не делает — пишет всегда. `set_climate` / REST `/commands` / `set_light` skip не используют. `get_climate.relay_on` уже status `1/5/*`.
+
+Дополнение: `set_commands` skip смотрит sibling (`:status` / `_state` / KNX mid+1); `get_kettle.on` = state, fallback cmd.
+
+### Verify
+
+Live 2026-08-15: control всех 2floor = false; status ON: `1/2/12` Настя, `1/2/13` Тим, `1/2/14` кабинет, `1/2/16` ванна.
+
+---
+
 ## R-015: Grafana — дашборды телеметрии и алерты (2026-07)
 
 ### Контекст
@@ -665,6 +715,16 @@ FR-045 оставлял Grafana-дашборды **метрик приложен
    - `cottage-lm-load15-high` — GA `34/1/8` > **2.0** for **10m** (warning); `noDataState=OK`.
    - Секреты: `/etc/cottage-monitoring/telegram.env`. Скрипт: `deploy_alerts.sh`.
 5. **MCP:** service account token для Cursor (`grafana-mcp.token`); OSS → не Cloud Assistant.
+
+### Lights instant (2026-08-16)
+
+Таблицы «Свет» / «Свет сейчас» раньше брали **control** `1/1/*` (комментарий: «у status битый timestamp» — старый Lua `false→nil`, **002 R-014**). После фикса daemon status `1/2/*` достовернее (выключатель). История графиков уже была на `1/2/*`. Реле ТП в Overview/Climate — status `1/5/*` (без изменений).
+
+Stat-плитки (`time_series` + колонка `metric`): Grafana Postgres long→wide требует сортировку по `time`. `ORDER BY metric` даёт **No data**. Instant-снимок для ТП (Stat) по-прежнему `now() AS time`.
+
+Свет сейчас (2026-08-16, вечер): Stat не умеет PNG. Плитки света — **Canvas**: прямоугольник с `background.image.mode=field`, SQL (format `table`) отдаёт URL `light-on-128.png` / `light-off-128.png`. Иконки: `server/deploy/grafana/icons/` → `/usr/share/grafana/public/img/cottage/` (полный URL, иначе Grafana префиксует `build/`). Список комнат зашит (как история графиков) — Canvas не плодит элементы из строк запроса.
+
+История света: не timeseries 0/1, а **state-timeline** (строб). Сырые `events` + снимок last-state на левой границе окна (`DISTINCT ON ga … ts < $__timeFrom()`), иначе полоса не знает состояние до первого события в диапазоне. Auto-refresh дашбордов Cottage: 30s, кроме Batteries/LM Load (1m).
 
 ### Отклонено / не смешивать
 
@@ -699,3 +759,5 @@ FR-045 оставлял Grafana-дашборды **метрик приложен
 | R-013 | Dry-run MCP writes | `X-Cottage-Dry-Run` → status=dry_run, no MQTT | Mock broker / model-only |
 | R-014 | Cottage agent model | OpenClaw agent `cottage` + gemini-3.5-flash, min context | sol на main / Hermes `/model` |
 | R-015 | Grafana telemetria | PG dashboards + Telegram alerts (load15) | App Alert Engine / only Prometheus |
+| R-016 | OpenClaw native MCP | `mcp.servers.cottage` + `bundle-mcp` (no exec) | mcporter via `exec` / list-commands |
+| R-017 | set_lights skip | skip_unchanged по status `1/2/*`, не control `1/1/*` | force / skip_unchanged=false |

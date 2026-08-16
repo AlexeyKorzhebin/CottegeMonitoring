@@ -1,11 +1,13 @@
 # CottageMonitoring image pin (source of truth: GitHub AlexeyKorzhebin/CottegeMonitoring)
 
-version: "0.2.7"
+version: "0.2.9"
 git_ref: "main"
-image_tag: "cottage-monitoring:0.2.7"
+image_tag: "cottage-monitoring:0.2.9"
 image_digest: ""
 overlay_retired: true
-replaces_overlay: "cottage-monitoring:0.2.6"
+replaces_overlay: "cottage-monitoring:0.2.8"
 notes: |
+  v0.2.9: set_commands skip_unchanged uses status sibling; get_kettle.on from state not cmd.
+  v0.2.8: set_lights skip_unchanged uses status 1/2/* (not stale control 1/1/*).
   v0.2.7: POST /houses/{id}/restart-daemon (MQTT action=restart);
   pin mcp>=1.0,<2 (mcp 2.0 removed mcp.server.fastmcp).

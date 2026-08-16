@@ -2,7 +2,7 @@
 
 Спека: [research.md](./research.md) **R-014**, dry-run **R-013**. Skill: `skills/cottage-monitoring/`.
 
-## Статус (live, 2026-07-17)
+## Статус (live, 2026-08-10)
 
 На elion уже работает:
 
@@ -14,8 +14,9 @@
 | Workspace | `/home/openclaw/.openclaw/workspace-cottage/` |
 | Skill | только `cottage-monitoring` |
 | Telegram | топик «🏡 Усадьба» → binding на `cottage` |
-| MCP | mcporter alias `cottage` → `http://127.0.0.1:8321/mcp` |
-| Dry-run тесты | alias `cottage-dry` + header `X-Cottage-Dry-Run` |
+| MCP | **native** `mcp.servers.cottage` → `http://127.0.0.1:8321/mcp` (tools `cottage__*`) |
+| Tools policy | cottage: `minimal` + `alsoAllow: ["bundle-mcp"]` (без `exec`); main: `deny: ["bundle-mcp"]` |
+| Dry-run / benches | mcporter alias `cottage-dry` + header `X-Cottage-Dry-Run` |
 
 `AGENTS.md` и skill лежат на диске и подхватываются на каждом run — **не нужно** повторять routing-инструкцию в каждой сессии. Разовое «перечитай AGENTS» — только после правки файлов, чтобы текущий чат сразу подхватил изменения.
 
@@ -23,11 +24,12 @@
 
 ---
 
-## Почему не `mcporter list` / `list-commands`
+## Почему native MCP, а не `exec` + mcporter
 
-1. Каталог tools уже в skill — лишний ход и задержка.
-2. Модель часто ломает синтаксис (`list-commands` как «сервер» → `Unknown MCP server`).
-3. После ошибки семантического tool нужен `set_kettle` / `discover`, а не «покажи все команды».
+1. Tools попадают в function-calling (`cottage__get_house_status` и т.д.) — модель не «исследует» CLI.
+2. `mcporter list-commands` **не существует** → `Unknown MCP server 'list-commands'` → баннер `Exec failed` в Telegram.
+3. Skill/AGENTS задают routing; discovery через list не нужен.
+4. На «детальнее» — сразу `get_temperature` / `get_energy_status` / `get_climate`, не list.
 
 ---
 
@@ -80,7 +82,9 @@
 ```markdown
 # AGENTS.md — cottage
 
-Ты агент управления дачей через CottageMonitoring MCP (`mcporter` alias `cottage`).
+Ты агент управления дачей через CottageMonitoring MCP.
+Tools доступны как native OpenClaw MCP (`cottage__…`) — вызывай их напрямую.
+Не используй `exec`, `mcporter`, `list`, `list-commands`.
 
 ## Routing ladder (обязательно)
 
@@ -90,21 +94,20 @@
    - чайник / teapot / Redmond → `set_kettle` / `get_kettle` (НЕ искать среди ламп, НЕ set_lights)
    - уставка ТП → `set_climate(setpoint_c)` без `force_relay`
    - отчёт / энергия / климат read → `get_house_status` / `get_energy_status` / `get_climate` / `get_temperature`
+   - «детальнее / подробнее» после статуса → `get_temperature` + `get_energy_status` (+ `get_climate` если про отопление)
 2. Имя устройства без зоны → сразу `set_light` или `discover` с этим query.
 3. Неизвестный прибор (не свет/климат/чайник) → `discover(query="<имя>", kind="all")` (или kind=appliance).
    - нашёл однозначный control → действуй (`set_light` / `set_commands` с ga+value)
    - ambiguous → спроси, покажи кандидатов
    - пусто → скажи «не нашёл», не выдумывай GA
-4. НЕ вызывай `mcporter list` / `list-commands` перед действием — tools уже известны из skill.
 
 ## Правила
 
-- Отвечай кратко. Tools только; не выдумывай GA.
+- Отвечай кратко. Только native MCP tools; не выдумывай GA.
 - «весь свет» без этажа/зоны → уточни или зоны «1 этаж» / «2 этаж» / «уличное».
 - Не трогай авто-балансировку отопления без явной просьбы.
 - Не делать web/research и не ходить в main memory.
-- Явная команда пользователя («включи», «выключи», «установи») — сразу production alias `cottage`, без dry-run и без лишнего подтверждения.
-- Alias `cottage-dry` — только если пользователь прямо попросил dry-run/тест.
+- Явная команда пользователя («включи», «выключи», «установи») — сразу действуй, без лишнего подтверждения.
 - Уточняй только при ambiguous / потенциально опасной команде.
 ```
 
@@ -129,8 +132,8 @@ rsync -az skills/cottage-monitoring/ elion:/tmp/cottage-monitoring-skill/
 - Узкое место — LLM + большой контекст main, не MQTT/MCP (~1 с).
 - gemini-3.5-flash ≈ 2× быстрее sol на коротком промпте; с min context обычно ≥2×.
 - Skill: ~/.openclaw/workspace/skills/cottage-monitoring/ (и копия в workspace-cottage).
-- MCP: mcporter alias `cottage` → http://127.0.0.1:8321/mcp.
-- Для тестов write без MQTT: cottage-dry (X-Cottage-Dry-Run).
+- MCP: native `mcp.servers.cottage` → http://127.0.0.1:8321/mcp (tools `cottage__*`).
+- Для тестов write без MQTT: mcporter cottage-dry (X-Cottage-Dry-Run).
 
 Сделай на elion:
 
@@ -142,17 +145,25 @@ rsync -az skills/cottage-monitoring/ elion:/tmp/cottage-monitoring-skill/
      --model caila/just-ai/google-gemini/gemini-3.5-flash \
      --non-interactive
    skills = только ["cottage-monitoring"]; heartbeat off; memorySearch disabled;
-   thinkingDefault = "low".
+   thinkingDefault = "low";
+   tools: profile minimal + alsoAllow bundle-mcp (без exec).
+   main: tools.deny bundle-mcp.
 
-3) workspace-cottage: skill + AGENTS.md из спеки openclaw-cottage-agent-instructions.md
+3) openclaw mcp add cottage --url http://127.0.0.1:8321/mcp \
+     --transport streamable-http \
+     --header "Authorization=Bearer ${COTTAGE_API_KEY}" \
+     + toolFilter exclude resources_*,prompts_*.
+   COTTAGE_API_KEY уже в gateway EnvironmentFile cottage-env.
+
+4) workspace-cottage: skill + AGENTS.md из спеки openclaw-cottage-agent-instructions.md
    (канон выше). НЕ копировать MEMORY/SOUL/HEARTBEAT из main.
 
-4) Telegram topic «Усадьба» → agentId cottage. main остаётся на sol.
+5) Telegram topic «Усадьба» → agentId cottage. main остаётся на sol.
 
-5) Smoke: отчёт по дому; свет на этаже; включи чайник → set_kettle;
-   температура чайника; энергия по фазам. Не вызывай mcporter list/list-commands.
+6) Smoke: openclaw agent --agent cottage … get_house_status; «детальнее» без exec;
+   свет / чайник / энергия. Не используй mcporter list/list-commands в агенте.
 
-6) Не меняй primary model main на Flash. Backup openclaw.json. validate + gateway restart.
+7) Не меняй primary model main на Flash. Backup openclaw.json. validate + gateway restart.
 ```
 
 ---

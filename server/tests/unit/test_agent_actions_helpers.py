@@ -52,3 +52,23 @@ def test_group_appliances_teapot_summary() -> None:
     assert g["on"] is True
     assert g["temp"] == 54
     assert g["state"] is True
+
+
+def test_group_appliances_on_prefers_state_not_stale_cmd() -> None:
+    matches = [
+        SimpleNamespace(
+            ga="33/1/39",
+            name="ble_teapot_RK-M173S_cmd",
+            role=ObjectRole.ZIGBEE_APPLIANCE,
+            tags=["ble", "control", "zigbee_send"],
+        ),
+        SimpleNamespace(
+            ga="33/1/38",
+            name="ble_teapot_RK-M173S_state",
+            role=ObjectRole.ZIGBEE_APPLIANCE,
+            tags=["ble", "teapot", "status"],
+        ),
+    ]
+    groups = _group_appliances(matches, {"33/1/39": True, "33/1/38": False})
+    assert groups[0]["on"] is False
+    assert groups[0]["state"] is False

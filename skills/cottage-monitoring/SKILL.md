@@ -15,13 +15,13 @@ MCP/API bind to **loopback only** (`127.0.0.1`) on the elion host — no public 
 - **MCP URL (dev, same host):** `http://127.0.0.1:8322/mcp`
 - **Auth:** `Authorization: Bearer cm_<secret>` (API key scoped to one house)
 
-### OpenClaw / mcporter (elion)
+### OpenClaw (elion) — native MCP
 
-1. Prefer tools via mcporter alias `cottage` → prod `http://127.0.0.1:8321/mcp`.
-2. Optional alias `cottage-dev` → `http://127.0.0.1:8322/mcp`.
-3. `mcporter call cottage.<tool> ...` (tools are known from this skill — avoid `list` before writes).
-4. **Session reuse:** `lifecycle: "keep-alive"` in mcporter config + `mcporter daemon` running (see `references/openclaw-connection.md`).
-5. See `references/openclaw-connection.md` on the OpenClaw host.
+1. **Preferred:** OpenClaw `mcp.servers.cottage` → prod `http://127.0.0.1:8321/mcp` (tools appear as `cottage__<tool>`).
+2. Agent `cottage`: `tools.profile=minimal` + `alsoAllow: ["bundle-mcp"]` (no `exec` — do not invent CLI).
+3. Agent `main`: `tools.deny: ["bundle-mcp"]` so house tools stay out of the general chat.
+4. Auth: `Authorization: Bearer ${COTTAGE_API_KEY}` (gateway env from `~/.openclaw/secrets/cottage-env`).
+5. Optional/legacy: mcporter alias `cottage` / `cottage-dev` for benches and shell debugging — see `references/openclaw-connection.md`.
 
 ### Hermes example (`~/.hermes/config.yaml`)
 
@@ -46,7 +46,7 @@ Store `COTTAGE_API_KEY` in env — never commit it.
 | «Влажность» | `get_sensors` kind=sensor |
 | «Свет в …» read | `list_lights` / `discover` kind=light |
 | «Включи/выключи свет» (одна лампа/комната) | `set_light` |
-| «Выключи свет на 1 этаже» / зона / улица | `set_lights` — **один batch**, не цикл `set_light` |
+| «Выключи свет на 1 этаже» / зона / улица | `set_lights` — **один batch**, не цикл `set_light`. Skip смотрит status (`1/2/*`), не control |
 | «Отопление / тёплые полы» read | `get_climate` + `get_heating_diagnostics` |
 | «Поставь 22 градуса» (ТП) | `set_climate` — **setpoint only** |
 | «Сколько жрём электричества» | `get_energy_status` |
@@ -57,7 +57,7 @@ Store `COTTAGE_API_KEY` in env — never commit it.
 
 ## Routing ladder (critical)
 
-Порядок выбора tool — сверху вниз. **Не** вызывай `mcporter list` / `list-commands` перед действием.
+Порядок выбора tool — сверху вниз. Вызывай native MCP tools (`cottage__…` / имена ниже). **Не** используй `exec` / `mcporter list` / `list-commands`. На «детальнее / подробнее» сразу `get_temperature` + `get_energy_status` (+ `get_climate` при отоплении).
 
 1. **Семантический tool**, если интент ясен:
    - зона/этаж/улица света → `set_lights`
