@@ -5,12 +5,14 @@ from cottage_monitoring.api.devices import router as devices_router
 from cottage_monitoring.api.events import router as events_router
 from cottage_monitoring.api.houses import router as houses_router
 from cottage_monitoring.api.objects import router as objects_router
+from cottage_monitoring.api.ops import router as ops_router
 from cottage_monitoring.api.rpc import router as rpc_router
 from cottage_monitoring.api.schemas import router as schemas_router
 from cottage_monitoring.api.state import router as state_router
 
 api_router = APIRouter()
 
+api_router.include_router(ops_router, tags=["ops"])
 api_router.include_router(houses_router, tags=["houses"])
 api_router.include_router(devices_router, tags=["devices"])
 api_router.include_router(state_router, tags=["state"])

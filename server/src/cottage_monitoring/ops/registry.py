@@ -42,3 +42,19 @@ class OpsRegistry:
 
 
 registry = OpsRegistry()
+
+
+def register(spec: OpSpec) -> OpSpec:
+    return registry.register(spec)
+
+
+def get(name: str) -> OpSpec:
+    return registry.get(name)
+
+
+def all_ops() -> tuple[OpSpec, ...]:
+    return registry.all()
+
+
+def op_names() -> tuple[str, ...]:
+    return registry.names()

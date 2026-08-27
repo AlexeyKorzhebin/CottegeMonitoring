@@ -824,3 +824,4 @@ Stat-плитки (`time_series` + колонка `metric`): Grafana Postgres lo
 | R-018 | Principal grants | `house_ids` + `authorize`; DB column unchanged | junction `api_key_houses` |
 | R-019 | GET /houses grants | `list_houses` handler; auth off → all, else IN house_ids | unfiltered list / POST /ops/list_houses |
 | R-020 | Ops registry + dispatch | `OpSpec`/`OpsRegistry`, resolve house (>1 грант → 400), write rate-limit в диспетчере | params-валидация в диспетчере / выбор первого дома |
+| R-021 | Каталог Ops → две грани | `catalog.load_catalog()` в lifespan; MCP tools генерируются из реестра; REST `GET /ops` + `POST .../ops/{name}` | ручные `@mcp.tool` рядом с реестром / регистрация по импорту |

@@ -1,3 +1,5 @@
+import uuid
+
 from cottage_monitoring.models.object import Object
 from cottage_monitoring.services.object_resolver import (
     ObjectRole,
@@ -111,8 +113,10 @@ def test_resolve_ambiguous_with_explicit_light_role(monkeypatch) -> None:
 async def test_resolve_kitchen_light_unique(db_session) -> None:
     from cottage_monitoring.services.house_service import ensure_house
 
-    house_id = "resolver-test-house"
+    # Unique per run: a fixed house_id made the test pass only against a clean DB.
+    house_id = f"resolver-test-{uuid.uuid4().hex[:12]}"
     await ensure_house(house_id, session=db_session)
+    await db_session.commit()
     db_session.add(
         Object(
             house_id=house_id,

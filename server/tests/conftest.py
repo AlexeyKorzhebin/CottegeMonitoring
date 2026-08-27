@@ -13,6 +13,11 @@ if _env_test.exists() and os.environ.get("COTTAGE_USE_SERVER_FOR_TESTS") != "0":
     from dotenv import load_dotenv
     load_dotenv(_env_test)
 
+# Tests must not write operation_traces to the shared dev DB. It also keeps unit
+# tests off the connection pool: record_trace() opens its own session, and one
+# opened from an asyncio.run() loop poisons the pool for later async tests.
+os.environ.setdefault("TRACE_PERSIST", "false")
+
 from collections.abc import AsyncGenerator
 
 import pytest
@@ -22,6 +27,24 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from cottage_monitoring.db.session import async_session_factory
 from cottage_monitoring.deps import redis_cache
+
+
+@pytest.fixture(autouse=True)
+def _keep_session_event_loop():
+    """Restore the loop that asyncio.run() clears.
+
+    Unit tests drive coroutines with asyncio.run(), which sets the current event
+    loop to None on exit. pytest-asyncio's session-scoped loop is looked up via
+    asyncio.get_event_loop(), so without this every async test that runs after a
+    unit test in the same process fails with "no current event loop".
+    """
+    try:
+        loop = asyncio.get_event_loop_policy().get_event_loop()
+    except RuntimeError:
+        loop = None
+    yield
+    if loop is not None and not loop.is_closed():
+        asyncio.set_event_loop(loop)
 
 
 @pytest_asyncio.fixture

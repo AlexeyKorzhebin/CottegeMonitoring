@@ -49,6 +49,23 @@ def _no_rate_limit() -> Any:
     )
 
 
+def _auth_required(enabled: bool) -> Any:
+    return patch.object(dispatch_module.settings, "auth_required", enabled)
+
+
+# --- spec validation --------------------------------------------------------
+
+
+def test_op_spec_rejects_unknown_permission() -> None:
+    with pytest.raises(ValueError):
+        _spec(AsyncMock(), name="set_light", permission="admin")
+
+
+def test_op_spec_rejects_empty_name() -> None:
+    with pytest.raises(ValueError):
+        _spec(AsyncMock(), name="  ")
+
+
 # --- registry ---------------------------------------------------------------
 
 
@@ -180,6 +197,74 @@ def test_dispatch_requires_house_id_for_two_grants() -> None:
     assert ei.value.detail == "house_id required"
     handler.assert_not_awaited()
     limiter.assert_not_awaited()
+
+
+def test_dispatch_without_context_requires_api_key_when_auth_on() -> None:
+    handler = AsyncMock()
+    with _auth_required(True), pytest.raises(HTTPException) as ei:
+        asyncio.run(
+            dispatch(
+                None,
+                _spec(handler),
+                house_id="h1",
+                params={},
+                session=MagicMock(),
+            )
+        )
+    assert ei.value.status_code == 401
+    assert ei.value.detail == "API key required"
+    handler.assert_not_awaited()
+
+
+def test_dispatch_without_context_runs_open_when_auth_off() -> None:
+    """AUTH_REQUIRED=false is open access here, exactly as on the resource REST."""
+    handler = AsyncMock(return_value={"ok": True})
+    session = MagicMock()
+    with _auth_required(False):
+        result = asyncio.run(
+            dispatch(
+                None,
+                _spec(handler),
+                house_id="h1",
+                params={"query": "кухня"},
+                session=session,
+            )
+        )
+    assert result == {"ok": True}
+    handler.assert_awaited_once_with(session, "h1", query="кухня")
+
+
+def test_dispatch_without_context_still_needs_house_id_when_auth_off() -> None:
+    handler = AsyncMock()
+    with _auth_required(False), pytest.raises(HTTPException) as ei:
+        asyncio.run(
+            dispatch(
+                None,
+                _spec(handler),
+                house_id=None,
+                params={},
+                session=MagicMock(),
+            )
+        )
+    assert ei.value.status_code == 400
+    assert ei.value.detail == "house_id required"
+    handler.assert_not_awaited()
+
+
+def test_dispatch_without_context_lists_all_houses_when_auth_off() -> None:
+    handler = AsyncMock(return_value={"items": []})
+    session = MagicMock()
+    with _auth_required(False):
+        asyncio.run(
+            dispatch(
+                None,
+                _spec(handler, name="list_houses", house_scoped=False),
+                house_id=None,
+                params={},
+                session=session,
+            )
+        )
+    handler.assert_awaited_once_with(session, house_ids=None)
 
 
 def test_dispatch_denies_ungranted_house() -> None:

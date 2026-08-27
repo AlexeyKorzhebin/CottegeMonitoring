@@ -45,6 +45,11 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     setup_logging()
     logger.info("starting", env=settings.env, mqtt_topics=settings.mqtt_subscription_topics)
 
+    # Ops registry feeds both faces; register before serving either of them.
+    from cottage_monitoring.ops.catalog import load_catalog
+
+    load_catalog()
+
     # FastMCP Streamable HTTP requires session_manager.run() in the parent lifespan
     # when the MCP Starlette app is mounted (child lifespan is not started).
     from cottage_monitoring.mcp.server import mcp as mcp_server

@@ -290,7 +290,17 @@ python3 run_bench.py --e2e --mcp-alias cottage-dry --out results/e2e.json
 
 **API keys:** `cottage-create-api-key` внутри контейнера; временные ключи после теста — `revoked_at=now()`. Бот (OpenClaw) хранит prod/dev ключи в `~/.openclaw/secrets/` на elion (не в git). Контекст ключа — `house_ids` (из колонки `api_keys.house_id`); путь `/api/v1/houses/{id}` проверяет `authorize(ctx, id, "read")` (**R-018**). `GET /api/v1/houses` при auth отдаёт только гранты ключа; при `AUTH_REQUIRED=false` — все дома (**R-019**).
 
-**Ops (R-020):** каталог операций — `server/src/cottage_monitoring/ops/`: `spec.OpSpec` (имя = MCP tool = сегмент URL), `registry.registry`, `dispatch.dispatch(ctx, spec, *, house_id, params, session)`. Диспетчер сам проверяет scope, резолвит дом (один грант — аргумент можно опустить, два и больше без аргумента — 400 `house_id required`, чужой дом — 403) и вызывает write rate-limit. Регистрация каталога и грани REST/MCP — следующие задачи.
+**Ops (R-020):** каталог операций — `server/src/cottage_monitoring/ops/`: `spec.OpSpec` (имя = MCP tool = сегмент URL), `registry.registry`, `dispatch.dispatch(ctx, spec, *, house_id, params, session)`. Диспетчер сам проверяет scope, резолвит дом (один грант — аргумент можно опустить, два и больше без аргумента — 400 `house_id required`, чужой дом — 403) и вызывает write rate-limit. Без контекста ключа: `AUTH_REQUIRED=true` → 401, `false` → открыто, как на ресурсном REST.
+
+**Каталог и две грани (R-021):** 16 операций из `ops/catalog.py`, параметры — модели `ops/params.py` (`extra="forbid"`; `house_id` не поле). `load_catalog()` вызывается в lifespan `main.py` — он же строит MCP tools из реестра (ручных `@mcp.tool` больше нет). Грани:
+
+| Грань | Вызов |
+|-------|-------|
+| MCP | tool = `OpSpec.name`; у house-scoped — опциональный `house_id`; ответ и ошибки — та же JSON-строка (`{status, code, error}`) |
+| REST | `GET /api/v1/ops` (фильтр по scopes ключа), `POST /api/v1/houses/{house_id}/ops/{name}` (только house-scoped; `house_id` в теле → 422) |
+| REST | `GET /api/v1/houses` — единственная грань не-house-scoped `list_houses`; отдельного `POST /ops/list_houses` нет |
+
+Расхождение имён ловит `server/tests/unit/test_ops_drift.py` (реестр == MCP tools == `GET /ops` для write-ключа).
 
 **OpenClaw cottage MCP (R-016):** native `mcp.servers.cottage` → `http://127.0.0.1:8321/mcp`, tools `cottage__*`; агент `cottage` — `minimal` + `alsoAllow: ["bundle-mcp"]` (без `exec`); `main` — `deny: ["bundle-mcp"]`. mcporter остаётся для benches/`cottage-dry`. См. `skills/cottage-monitoring/references/openclaw-connection.md`.
 

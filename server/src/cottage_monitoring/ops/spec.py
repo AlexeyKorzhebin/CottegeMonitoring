@@ -27,3 +27,11 @@ class OpSpec:
     description: str
     handler: Callable[..., Awaitable[dict]]
     params_model: type[BaseModel] | None
+
+    def __post_init__(self) -> None:
+        if not self.name or not self.name.strip():
+            raise ValueError("OpSpec.name must be a non-empty string")
+        if self.permission not in ("read", "write"):
+            raise ValueError(
+                f"OpSpec.permission must be 'read' or 'write', got {self.permission!r}"
+            )

@@ -42,6 +42,55 @@ Response wrapper for list endpoints:
 
 ## Endpoints
 
+### Ops
+
+Семантические операции из общего каталога (`ops/catalog.py`). Те же записи дают MCP tools, так что имя Op = имя tool = сегмент URL. Ресурсные эндпоинты ниже (по GA) остаются как были.
+
+#### GET /api/v1/ops
+
+Каталог операций, разрешённых scopes ключа: read-only ключ не видит write-операции. При `AUTH_REQUIRED=false` — весь каталог.
+
+Response 200:
+```json
+{
+  "items": [
+    {
+      "name": "list_lights",
+      "permission": "read",
+      "house_scoped": true,
+      "description": "List lights with current on/off state."
+    }
+  ],
+  "total": 16
+}
+```
+
+#### POST /api/v1/houses/{house_id}/ops/{name}
+
+Вызов house-scoped операции. Тело — параметры Op (модель из `ops/params.py`), **без** `house_id`: дом берётся из пути.
+
+Request (`set_lights`):
+```json
+{
+  "query": "1 этаж",
+  "on": false,
+  "skip_unchanged": true
+}
+```
+
+Response 200 — тот же `dict`, что возвращает handler (и что MCP отдаёт JSON-строкой).
+
+| Код | Когда |
+|-----|-------|
+| 404 | нет такой Op или она не house-scoped (`list_houses` — только `GET /api/v1/houses`) |
+| 422 | параметры не прошли валидацию, в том числе `house_id` в теле |
+| 403 | нет нужного scope (`read`/`write`) или дом не в грантах ключа |
+| 429 | write rate-limit по ключу |
+
+Заголовок `X-Cottage-Dry-Run: 1` работает как на `POST /commands`.
+
+---
+
 ### Houses
 
 #### GET /api/v1/houses

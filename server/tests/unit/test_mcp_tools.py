@@ -1,9 +1,10 @@
-"""MCP tool registration and auth gate tests (no live house/MQTT)."""
+"""MCP face: tools generated from the Ops registry, auth gate, JSON error contract."""
 
 from __future__ import annotations
 
 import asyncio
 import json
+from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
 from uuid import uuid4
 
@@ -15,58 +16,56 @@ from starlette.routing import Route
 from cottage_monitoring.auth.context import ApiKeyContext
 from cottage_monitoring.auth.middleware import ApiKeyAuthMiddleware
 from cottage_monitoring.mcp.server import mcp
+from cottage_monitoring.ops.catalog import load_catalog
+from cottage_monitoring.ops.registry import all_ops
+from cottage_monitoring.services import agent_actions
 
 
-def test_mcp_registers_expected_tools() -> None:
+def _ctx(*houses: str, scopes: tuple[str, ...] = ("read", "write")) -> ApiKeyContext:
+    return ApiKeyContext(
+        key_id=uuid4(),
+        name="mcp-test",
+        scopes=frozenset(scopes),
+        house_ids=frozenset(houses),
+    )
+
+
+def _session_cm(session: Any) -> MagicMock:
+    cm = MagicMock()
+    cm.__aenter__ = AsyncMock(return_value=session)
+    cm.__aexit__ = AsyncMock(return_value=None)
+    return cm
+
+
+def test_mcp_registers_exactly_the_registered_ops() -> None:
+    load_catalog()
     tools = asyncio.run(mcp.list_tools())
-    names = {t.name for t in tools}
-    expected = {
-        "get_house_status",
-        "discover",
-        "get_temperature",
-        "get_sensors",
-        "list_lights",
-        "set_light",
-        "set_lights",
-        "set_commands",
-        "get_climate",
-        "set_climate",
-        "get_energy_status",
-        "get_heating_diagnostics",
-        "get_kettle",
-        "set_kettle",
-        "get_command_status",
-    }
-    assert expected <= names
+    assert {t.name for t in tools} == {spec.name for spec in all_ops()}
 
 
-def test_require_scope_denies_missing_write() -> None:
-    from cottage_monitoring.mcp.server import _require_scope
+def test_tool_runs_through_fastmcp_argument_validation() -> None:
+    """The generated signature must survive FastMCP's own arg model, not just a direct call."""
+    from cottage_monitoring.mcp import server as mcp_server
 
-    ctx = ApiKeyContext(
-        key_id=uuid4(),
-        house_ids=frozenset({"house1"}),
-        scopes=frozenset({"read"}),
-        name="readonly",
-    )
-    err = _require_scope(ctx, "write")
-    assert err is not None
-    payload = json.loads(err)
-    assert payload["status"] == "error"
-    assert payload["code"] == 403
-    assert "write" in payload["error"].lower()
+    load_catalog()
+    session = MagicMock()
+    handler = AsyncMock(return_value={"items": [], "total": 0})
 
+    async def _run() -> Any:
+        with (
+            patch.object(mcp_server, "get_current_api_key_context", return_value=_ctx("house1")),
+            patch.object(
+                mcp_server, "async_session_factory", return_value=_session_cm(session)
+            ),
+            patch.object(agent_actions, "list_lights", handler),
+        ):
+            return await mcp.call_tool("list_lights", {"query": "кухня"})
 
-def test_require_scope_allows_write() -> None:
-    from cottage_monitoring.mcp.server import _require_scope
-
-    ctx = ApiKeyContext(
-        key_id=uuid4(),
-        house_ids=frozenset({"house1"}),
-        scopes=frozenset({"read", "write"}),
-        name="rw",
-    )
-    assert _require_scope(ctx, "write") is None
+    result = asyncio.run(_run())
+    blocks = result[0] if isinstance(result, tuple) else result
+    payload = json.loads(blocks[0].text)
+    assert payload == {"items": [], "total": 0}
+    handler.assert_awaited_once_with(session, "house1", query="кухня")
 
 
 def test_with_session_maps_http_exception_to_json() -> None:
@@ -84,24 +83,16 @@ def test_with_session_maps_http_exception_to_json() -> None:
 def test_set_light_tool_returns_ambiguous_without_http_error() -> None:
     from cottage_monitoring.mcp import server as mcp_server
 
-    ctx = ApiKeyContext(
-        key_id=uuid4(),
-        house_ids=frozenset({"house1"}),
-        scopes=frozenset({"read", "write"}),
-        name="rw",
-    )
-    fake_session = MagicMock()
-    cm = MagicMock()
-    cm.__aenter__ = AsyncMock(return_value=fake_session)
-    cm.__aexit__ = AsyncMock(return_value=None)
+    load_catalog()
+    session = MagicMock()
 
     async def _run() -> str:
         with (
-            patch.object(mcp_server, "get_current_api_key_context", return_value=ctx),
-            patch.object(mcp_server.agent_actions, "check_write_rate_limit", AsyncMock()),
-            patch.object(mcp_server, "async_session_factory", return_value=cm),
+            patch.object(mcp_server, "get_current_api_key_context", return_value=_ctx("house1")),
+            patch.object(agent_actions, "check_write_rate_limit", AsyncMock()),
+            patch.object(mcp_server, "async_session_factory", return_value=_session_cm(session)),
             patch.object(
-                mcp_server.agent_actions,
+                agent_actions,
                 "set_light",
                 AsyncMock(
                     return_value={
@@ -114,11 +105,92 @@ def test_set_light_tool_returns_ambiguous_without_http_error() -> None:
                 ),
             ),
         ):
-            return await mcp_server.set_light(query="гостиная торшер", on=True)
+            return await mcp_server._op_tools["set_light"](query="гостиная торшер", on=True)
 
     payload = json.loads(asyncio.run(_run()))
     assert payload["status"] == "ambiguous"
     assert len(payload["candidates"]) == 2
+
+
+def test_single_house_tool_works_without_house_id_argument() -> None:
+    """Telegram regression: a one-house key never passes house_id."""
+    from cottage_monitoring.mcp import server as mcp_server
+
+    load_catalog()
+    session = MagicMock()
+    status = AsyncMock(return_value={"online_status": "online"})
+
+    async def _run() -> str:
+        with (
+            patch.object(mcp_server, "get_current_api_key_context", return_value=_ctx("house1")),
+            patch.object(mcp_server, "async_session_factory", return_value=_session_cm(session)),
+            patch.object(agent_actions, "get_house_status", status),
+        ):
+            return await mcp_server._op_tools["get_house_status"]()
+
+    payload = json.loads(asyncio.run(_run()))
+    assert payload["online_status"] == "online"
+    status.assert_awaited_once_with(session, "house1")
+
+
+def test_two_house_key_without_house_id_is_a_json_error() -> None:
+    from cottage_monitoring.mcp import server as mcp_server
+
+    load_catalog()
+
+    async def _run() -> str:
+        with (
+            patch.object(
+                mcp_server, "get_current_api_key_context", return_value=_ctx("house1", "house2")
+            ),
+            patch.object(
+                mcp_server, "async_session_factory", return_value=_session_cm(MagicMock())
+            ),
+        ):
+            return await mcp_server._op_tools["get_house_status"]()
+
+    payload = json.loads(asyncio.run(_run()))
+    assert payload == {"status": "error", "code": 400, "error": "house_id required"}
+
+
+def test_two_house_key_with_house_id_reaches_the_named_house() -> None:
+    from cottage_monitoring.mcp import server as mcp_server
+
+    load_catalog()
+    session = MagicMock()
+    status = AsyncMock(return_value={"online_status": "online"})
+
+    async def _run() -> str:
+        with (
+            patch.object(
+                mcp_server, "get_current_api_key_context", return_value=_ctx("house1", "house2")
+            ),
+            patch.object(mcp_server, "async_session_factory", return_value=_session_cm(session)),
+            patch.object(agent_actions, "get_house_status", status),
+        ):
+            return await mcp_server._op_tools["get_house_status"](house_id="house2")
+
+    json.loads(asyncio.run(_run()))
+    status.assert_awaited_once_with(session, "house2")
+
+
+def test_tool_without_api_key_returns_json_401(monkeypatch) -> None:
+    from cottage_monitoring.mcp import server as mcp_server
+
+    monkeypatch.setattr("cottage_monitoring.ops.dispatch.settings.auth_required", True)
+    load_catalog()
+
+    async def _run() -> str:
+        with (
+            patch.object(mcp_server, "get_current_api_key_context", return_value=None),
+            patch.object(
+                mcp_server, "async_session_factory", return_value=_session_cm(MagicMock())
+            ),
+        ):
+            return await mcp_server._op_tools["get_house_status"]()
+
+    payload = json.loads(asyncio.run(_run()))
+    assert payload == {"status": "error", "code": 401, "error": "API key required"}
 
 
 def test_auth_middleware_rejects_mcp_without_key(monkeypatch) -> None:
@@ -168,16 +240,20 @@ def test_auth_middleware_allows_health_without_key(monkeypatch) -> None:
 def test_set_climate_tool_requires_write_scope() -> None:
     from cottage_monitoring.mcp import server as mcp_server
 
-    ctx = ApiKeyContext(
-        key_id=uuid4(),
-        house_ids=frozenset({"house1"}),
-        scopes=frozenset({"read"}),
-        name="readonly",
-    )
+    load_catalog()
 
     async def _run() -> str:
-        with patch.object(mcp_server, "get_current_api_key_context", return_value=ctx):
-            return await mcp_server.set_climate(query="кухня", setpoint_c=24.0)
+        with (
+            patch.object(
+                mcp_server,
+                "get_current_api_key_context",
+                return_value=_ctx("house1", scopes=("read",)),
+            ),
+            patch.object(
+                mcp_server, "async_session_factory", return_value=_session_cm(MagicMock())
+            ),
+        ):
+            return await mcp_server._op_tools["set_climate"](query="кухня", setpoint_c=24.0)
 
     payload = json.loads(asyncio.run(_run()))
     assert payload["status"] == "error"
@@ -187,34 +263,43 @@ def test_set_climate_tool_requires_write_scope() -> None:
 def test_set_climate_tool_calls_service() -> None:
     from cottage_monitoring.mcp import server as mcp_server
 
-    ctx = ApiKeyContext(
-        key_id=uuid4(),
-        house_ids=frozenset({"house1"}),
-        scopes=frozenset({"read", "write"}),
-        name="rw",
-    )
-    fake_session = MagicMock()
-    cm = MagicMock()
-    cm.__aenter__ = AsyncMock(return_value=fake_session)
-    cm.__aexit__ = AsyncMock(return_value=None)
+    load_catalog()
+    session = MagicMock()
+    set_sp = AsyncMock(return_value={"request_id": "r1", "ga": "1/6/7", "setpoint": 28})
 
-    async def _run() -> tuple[str, MagicMock]:
-        set_sp = AsyncMock(
-            return_value={"request_id": "r1", "ga": "1/6/7", "setpoint": 28}
-        )
+    async def _run() -> str:
         with (
-            patch.object(mcp_server, "get_current_api_key_context", return_value=ctx),
-            patch.object(mcp_server.agent_actions, "check_write_rate_limit", AsyncMock()),
-            patch.object(mcp_server, "async_session_factory", return_value=cm),
-            patch.object(mcp_server.agent_actions, "set_climate_setpoint", set_sp),
+            patch.object(mcp_server, "get_current_api_key_context", return_value=_ctx("house1")),
+            patch.object(agent_actions, "check_write_rate_limit", AsyncMock()),
+            patch.object(mcp_server, "async_session_factory", return_value=_session_cm(session)),
+            patch.object(agent_actions, "set_climate_setpoint", set_sp),
         ):
-            result = await mcp_server.set_climate(query="кухня", setpoint_c=28.0)
-        return result, set_sp
+            return await mcp_server._op_tools["set_climate"](query="кухня", setpoint_c=28.0)
 
-    result, set_sp = asyncio.run(_run())
-    payload = json.loads(result)
+    payload = json.loads(asyncio.run(_run()))
     assert payload["request_id"] == "r1"
     assert payload["ga"] == "1/6/7"
     set_sp.assert_awaited_once()
     assert set_sp.await_args.kwargs["setpoint_c"] == 28.0
     assert set_sp.await_args.kwargs["query"] == "кухня"
+
+
+def test_list_houses_tool_uses_key_grants() -> None:
+    from cottage_monitoring.mcp import server as mcp_server
+    from cottage_monitoring.ops import houses as houses_ops
+
+    load_catalog()
+    session = MagicMock()
+    ctx = _ctx("house1", "house2")
+    handler = AsyncMock(return_value={"items": [], "total": 0})
+
+    async def _run() -> str:
+        with (
+            patch.object(mcp_server, "get_current_api_key_context", return_value=ctx),
+            patch.object(mcp_server, "async_session_factory", return_value=_session_cm(session)),
+            patch.object(houses_ops, "list_houses", handler),
+        ):
+            return await mcp_server._op_tools["list_houses"]()
+
+    json.loads(asyncio.run(_run()))
+    handler.assert_awaited_once_with(session, house_ids=ctx.house_ids)
