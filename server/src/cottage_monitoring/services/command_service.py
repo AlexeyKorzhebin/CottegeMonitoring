@@ -96,10 +96,12 @@ async def send_command(
     When dry_run is true (explicit arg or X-Cottage-Dry-Run request header),
     the command is persisted with status ``dry_run`` and MQTT publish is skipped.
     """
-    from cottage_monitoring.auth.context import is_command_dry_run
+    from cottage_monitoring.auth.context import get_current_api_key_context, is_command_dry_run
 
     if dry_run is None:
         dry_run = is_command_dry_run()
+
+    ctx = get_current_api_key_context()
 
     own_session = session is None
     if own_session:
@@ -120,6 +122,7 @@ async def send_command(
             ts_sent=now,
             payload=mqtt_payload,
             status="dry_run" if dry_run else "sent",
+            actor_key_id=ctx.key_id if ctx is not None else None,
         )
         session.add(cmd)
 

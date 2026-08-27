@@ -315,6 +315,7 @@ CREATE TABLE schema_versions (
 | status | VARCHAR(16) | NOT NULL, DEFAULT 'sent' | sent / ok / error / timeout |
 | results | JSONB | | Результаты из ack |
 | retry_count | INTEGER | NOT NULL, DEFAULT 0 | Счётчик повторных отправок |
+| actor_key_id | UUID | NULL, FK → api_keys.id | API-ключ, отправивший команду (R-022) |
 | created_at | TIMESTAMPTZ | NOT NULL, DEFAULT now() | Время создания записи |
 
 ```sql
@@ -328,6 +329,7 @@ CREATE TABLE commands (
     status          VARCHAR(16) NOT NULL DEFAULT 'sent',
     results         JSONB,
     retry_count     INTEGER NOT NULL DEFAULT 0,
+    actor_key_id    UUID REFERENCES api_keys(id),
     created_at      TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 

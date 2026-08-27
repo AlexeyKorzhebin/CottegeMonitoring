@@ -756,6 +756,26 @@ Live 2026-08-15: control всех 2floor = false; status ON: `1/2/12` Настя
 
 ---
 
+## R-022: `commands.actor_key_id` — актор команды (2026-08-27)
+
+### Контекст
+
+Nord Ops требует аудит «кто отправил команду». Комментарий в payload (`mcp set_lights …`) ненадёжен: его можно опустить или подделать. Нужна колонка в `commands`, которую пишет единственная точка постановки команды.
+
+### Решение
+
+- `commands.actor_key_id UUID NULL`, FK `api_keys.id` (alembic `008`).
+- `send_command` читает `get_current_api_key_context()`: если ctx есть — `actor_key_id = ctx.key_id`; если нет (dry-run без ключа, ingest, `AUTH_REQUIRED=false`) — NULL.
+- REST `POST /commands` и write-Ops не пишут колонку сами: все пути идут через `command_service.send_command`.
+- `CommandRead` / грани REST и MCP не меняются: колонка — источник истины в БД, не в ответе API.
+
+### Отклонено
+
+- Писать `actor_key_id` в диспетчере Ops или в `POST /commands` — дублирует и пропускает другие входы в `send_command`.
+- Обязательная колонка — ломает dry-run и пути без ключа.
+
+---
+
 ## R-015: Grafana — дашборды телеметрии и алерты (2026-07)
 
 ### Контекст
@@ -825,3 +845,4 @@ Stat-плитки (`time_series` + колонка `metric`): Grafana Postgres lo
 | R-019 | GET /houses grants | `list_houses` handler; auth off → all, else IN house_ids | unfiltered list / POST /ops/list_houses |
 | R-020 | Ops registry + dispatch | `OpSpec`/`OpsRegistry`, resolve house (>1 грант → 400), write rate-limit в диспетчере | params-валидация в диспетчере / выбор первого дома |
 | R-021 | Каталог Ops → две грани | `catalog.load_catalog()` в lifespan; MCP tools генерируются из реестра; REST `GET /ops` + `POST .../ops/{name}` | ручные `@mcp.tool` рядом с реестром / регистрация по импорту |
+| R-022 | Command actor | `commands.actor_key_id` nullable FK `api_keys.id`; пишет только `send_command` из ctx | колонка в диспетчере / обязательный FK |

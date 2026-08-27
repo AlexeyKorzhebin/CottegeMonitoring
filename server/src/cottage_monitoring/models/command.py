@@ -28,6 +28,9 @@ class Command(Base):
     status: Mapped[str] = mapped_column(String(16), nullable=False, server_default="sent")
     results: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
     retry_count: Mapped[int] = mapped_column(Integer, nullable=False, server_default="0")
+    actor_key_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("api_keys.id"), nullable=True
+    )
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=func.now()
     )

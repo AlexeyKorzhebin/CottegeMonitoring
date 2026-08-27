@@ -214,7 +214,7 @@ ssh elion 'sudo systemctl daemon-reload && sudo systemctl restart cottage-monito
 
 ### Dry-run команд (без MQTT)
 
-Заголовок `X-Cottage-Dry-Run: 1` на `/mcp` или `/api/v1`: `send_command` пишет запись со `status=dry_run` и **не публикует** в MQTT. Для бенчей агентов: mcporter alias `cottage-dry` + `server/scripts/bench_mcp_models/run_bench.py --e2e`.
+Заголовок `X-Cottage-Dry-Run: 1` на `/mcp` или `/api/v1`: `send_command` пишет запись со `status=dry_run` и **не публикует** в MQTT. Для бенчей агентов: mcporter alias `cottage-dry` + `server/scripts/bench_mcp_models/run_bench.py --e2e`. Если в запросе есть API-ключ, в запись пишется `commands.actor_key_id`; без контекста ключа колонка остаётся NULL (**R-022**, alembic 008).
 
 ```bash
 # на elion (openclaw)
@@ -301,6 +301,8 @@ python3 run_bench.py --e2e --mcp-alias cottage-dry --out results/e2e.json
 | REST | `GET /api/v1/houses` — единственная грань не-house-scoped `list_houses`; отдельного `POST /ops/list_houses` нет |
 
 Расхождение имён ловит `server/tests/unit/test_ops_drift.py` (реестр == MCP tools == `GET /ops` для write-ключа).
+
+**Актор команды (R-022):** `send_command` пишет `commands.actor_key_id = ctx.key_id`, когда `get_current_api_key_context()` не пуст (MCP/REST с ключом). Без ctx — NULL. Миграция `008_command_actor_key` на prod ещё не накатывалась (только `cottage_monitoring_dev` для тестов).
 
 **OpenClaw cottage MCP (R-016):** native `mcp.servers.cottage` → `http://127.0.0.1:8321/mcp`, tools `cottage__*`; агент `cottage` — `minimal` + `alsoAllow: ["bundle-mcp"]` (без `exec`); `main` — `deny: ["bundle-mcp"]`. mcporter остаётся для benches/`cottage-dry`. См. `skills/cottage-monitoring/references/openclaw-connection.md`.
 
