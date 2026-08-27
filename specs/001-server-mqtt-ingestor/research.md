@@ -716,6 +716,25 @@ Live 2026-08-15: control всех 2floor = false; status ON: `1/2/12` Настя
 
 ---
 
+## R-019: GET /houses only grants + handler `list_houses` (2026-08-27)
+
+### Контекст
+
+`GET /api/v1/houses` отдавал все ряды `houses`. Middleware режет только путь `/houses/{id}`; список домов был утечкой грантов.
+
+### Решение
+
+- Handler `ops.houses.list_houses(session, *, house_ids: frozenset[str] | None) -> {items, total}`: `None` (auth off) — все дома; frozenset — `House.house_id IN house_ids`.
+- REST `GET /houses` только берёт ctx (или None) и зовёт тот же handler. MCP `list_houses` и реестр Ops — отдельные задачи.
+- Shape ответа без изменений (`HouseRead` items + `total`).
+
+### Отклонено
+
+- Отдельный `POST /ops/list_houses`.
+- Регистрация MCP tool в этой задаче.
+
+---
+
 ## R-015: Grafana — дашборды телеметрии и алерты (2026-07)
 
 ### Контекст
@@ -782,3 +801,4 @@ Stat-плитки (`time_series` + колонка `metric`): Grafana Postgres lo
 | R-016 | OpenClaw native MCP | `mcp.servers.cottage` + `bundle-mcp` (no exec) | mcporter via `exec` / list-commands |
 | R-017 | set_lights skip | skip_unchanged по status `1/2/*`, не control `1/1/*` | force / skip_unchanged=false |
 | R-018 | Principal grants | `house_ids` + `authorize`; DB column unchanged | junction `api_key_houses` |
+| R-019 | GET /houses grants | `list_houses` handler; auth off → all, else IN house_ids | unfiltered list / POST /ops/list_houses |

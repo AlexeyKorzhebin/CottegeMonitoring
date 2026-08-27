@@ -46,7 +46,7 @@ Response wrapper for list endpoints:
 
 #### GET /api/v1/houses
 
-Список всех домов.
+Список домов. При `AUTH_REQUIRED=true` — только дома из грантов ключа (`house_ids`). При выключенной auth — все дома. Handler: `list_houses(session, *, house_ids)` (`ops.houses`).
 
 Response 200:
 ```json

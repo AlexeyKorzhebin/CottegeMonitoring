@@ -6,12 +6,14 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from cottage_monitoring.auth.deps import require_write_scope
+from cottage_monitoring.auth.context import ApiKeyContext
+from cottage_monitoring.auth.deps import get_api_key_context, require_write_scope
 from cottage_monitoring.db.session import get_session
 from cottage_monitoring.models.device import Device
 from cottage_monitoring.models.house import House
 from cottage_monitoring.models.object import Object
 from cottage_monitoring.models.schema_version import SchemaVersion
+from cottage_monitoring.ops.houses import list_houses as list_houses_handler
 from cottage_monitoring.schemas.house import HouseDetail, HouseRead, HouseUpdate
 
 router = APIRouter()
@@ -20,48 +22,11 @@ router = APIRouter()
 @router.get("/houses")
 async def list_houses(
     session: AsyncSession = Depends(get_session),
+    ctx: ApiKeyContext | None = Depends(get_api_key_context),
 ) -> dict:
-    """List all houses with object_count and current_schema_hash."""
-    result = await session.execute(select(House))
-    houses = result.scalars().all()
-
-    items = []
-    for house in houses:
-        # Count objects and devices for this house
-        obj_count_q = select(func.count()).select_from(Object).where(
-            Object.house_id == house.house_id
-        )
-        object_count = (await session.execute(obj_count_q)).scalar_one()
-
-        dev_count_q = select(func.count()).select_from(Device).where(
-            Device.house_id == house.house_id
-        )
-        device_count = (await session.execute(dev_count_q)).scalar_one()
-
-        # Get latest schema_hash
-        schema_q = (
-            select(SchemaVersion.schema_hash)
-            .where(SchemaVersion.house_id == house.house_id)
-            .order_by(SchemaVersion.ts.desc())
-            .limit(1)
-        )
-        schema_result = await session.execute(schema_q)
-        current_schema_hash = schema_result.scalar_one_or_none()
-
-        items.append(
-            HouseRead(
-                house_id=house.house_id,
-                created_at=house.created_at,
-                last_seen=house.last_seen,
-                online_status=house.online_status,
-                is_active=house.is_active,
-                object_count=object_count,
-                device_count=device_count,
-                current_schema_hash=current_schema_hash,
-            )
-        )
-
-    return {"items": [i.model_dump(mode="json") for i in items], "total": len(items)}
+    """List houses visible to the caller. Auth off → all houses; else grants only."""
+    house_ids = None if ctx is None else ctx.house_ids
+    return await list_houses_handler(session, house_ids=house_ids)
 
 
 @router.get("/houses/{house_id}")
