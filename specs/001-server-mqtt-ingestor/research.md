@@ -735,6 +735,27 @@ Live 2026-08-15: control всех 2floor = false; status ON: `1/2/12` Настя
 
 ---
 
+## R-020: Реестр Ops, диспетчер и резолв дома (2026-08-27)
+
+### Контекст
+
+Семантика жила только в MCP-обёртках: house_id прятался в ключе, write rate-limit срабатывал лишь на MCP-грани, а REST-грани Ops не было. Нужен один каталог операций на обе грани.
+
+### Решение
+
+- `ops/spec.py`: `OpSpec(name, permission, house_scoped, description, handler, params_model)` (frozen dataclass). `name` = имя MCP tool = сегмент URL.
+- `ops/registry.py`: `OpsRegistry.register/get/names/all`; повторное имя — `ValueError`, неизвестное имя в `get` — HTTP 404. Модульный синглтон `registry`.
+- `ops/resolve_house.py`: `resolve_house_id(ctx, house_scoped, requested)` — только членство в грантах. Не house-scoped → `None`; 0 грантов → 403; чужой дом → 403; один грант без аргумента → он же; >1 без аргумента → 400 `"house_id required"` (первый дом не выбираем).
+- `ops/dispatch.py`: `dispatch(ctx, spec, *, house_id, params, session)` — `require_scope(permission)` → резолв дома → `authorize(ctx, house, permission)` → для write `agent_actions.check_write_rate_limit(ctx)` → handler. House-scoped: `handler(session, house_id, **params)`; non-scoped: `handler(session, house_ids=ctx.house_ids, **params)`, то есть `list_houses` фильтрует по грантам сам, а не по MQTT house_id.
+- Rate-limit остаётся и в MCP-обёртках, пока они не переведены на реестр (следующая задача); двойного лимита нет, так как грань зовёт либо диспетчер, либо старую обёртку.
+
+### Отклонено
+
+- Валидация `params` по `params_model` внутри диспетчера — схему проверяет грань (FastAPI body / MCP tool schema); диспетчер не дублирует.
+- Поддержка `ctx=None` (AUTH_REQUIRED=false) в диспетчере — решается на грани, когда появятся REST/MCP биндинги.
+
+---
+
 ## R-015: Grafana — дашборды телеметрии и алерты (2026-07)
 
 ### Контекст
@@ -802,3 +823,4 @@ Stat-плитки (`time_series` + колонка `metric`): Grafana Postgres lo
 | R-017 | set_lights skip | skip_unchanged по status `1/2/*`, не control `1/1/*` | force / skip_unchanged=false |
 | R-018 | Principal grants | `house_ids` + `authorize`; DB column unchanged | junction `api_key_houses` |
 | R-019 | GET /houses grants | `list_houses` handler; auth off → all, else IN house_ids | unfiltered list / POST /ops/list_houses |
+| R-020 | Ops registry + dispatch | `OpSpec`/`OpsRegistry`, resolve house (>1 грант → 400), write rate-limit в диспетчере | params-валидация в диспетчере / выбор первого дома |

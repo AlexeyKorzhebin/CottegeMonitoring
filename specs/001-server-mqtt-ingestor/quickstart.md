@@ -290,6 +290,8 @@ python3 run_bench.py --e2e --mcp-alias cottage-dry --out results/e2e.json
 
 **API keys:** `cottage-create-api-key` внутри контейнера; временные ключи после теста — `revoked_at=now()`. Бот (OpenClaw) хранит prod/dev ключи в `~/.openclaw/secrets/` на elion (не в git). Контекст ключа — `house_ids` (из колонки `api_keys.house_id`); путь `/api/v1/houses/{id}` проверяет `authorize(ctx, id, "read")` (**R-018**). `GET /api/v1/houses` при auth отдаёт только гранты ключа; при `AUTH_REQUIRED=false` — все дома (**R-019**).
 
+**Ops (R-020):** каталог операций — `server/src/cottage_monitoring/ops/`: `spec.OpSpec` (имя = MCP tool = сегмент URL), `registry.registry`, `dispatch.dispatch(ctx, spec, *, house_id, params, session)`. Диспетчер сам проверяет scope, резолвит дом (один грант — аргумент можно опустить, два и больше без аргумента — 400 `house_id required`, чужой дом — 403) и вызывает write rate-limit. Регистрация каталога и грани REST/MCP — следующие задачи.
+
 **OpenClaw cottage MCP (R-016):** native `mcp.servers.cottage` → `http://127.0.0.1:8321/mcp`, tools `cottage__*`; агент `cottage` — `minimal` + `alsoAllow: ["bundle-mcp"]` (без `exec`); `main` — `deny: ["bundle-mcp"]`. mcporter остаётся для benches/`cottage-dry`. См. `skills/cottage-monitoring/references/openclaw-connection.md`.
 
 **`set_lights` skip (R-017, 2026-08-15):** `skip_unchanged` смотрит status `1/2/*` (факт с выключателя), не control `1/1/*`. Иначе зональный OFF гасит только группы, чей control ещё `true` (типично холл после бота), а комнаты со стены пропускает. То же для `set_commands` (sibling `:status`/`_state`) и `get_kettle.on` (state `33/1/38`, не cmd).
