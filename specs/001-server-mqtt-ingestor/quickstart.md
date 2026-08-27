@@ -306,6 +306,14 @@ python3 run_bench.py --e2e --mcp-alias cottage-dry --out results/e2e.json
 
 **OpenClaw cottage MCP (R-016):** native `mcp.servers.cottage` → `http://127.0.0.1:8321/mcp`, tools `cottage__*`; агент `cottage` — `minimal` + `alsoAllow: ["bundle-mcp"]` (без `exec`); `main` — `deny: ["bundle-mcp"]`. mcporter остаётся для benches/`cottage-dry`. См. `skills/cottage-monitoring/references/openclaw-connection.md`.
 
+**Skill + catalog CLI (R-023):** Telegram и оператор смотрят в один каталог (16 Ops). Skill/`AGENTS.md` — routing + `list_houses`/`house_id`, не JSON-схемы. После образа с Nord Ops, на elion:
+
+1. `openclaw skills install /path/to/skills/cottage-monitoring --agent cottage --force` (или скопировать в `/home/openclaw/.openclaw/workspace/skills/cottage-monitoring/`; workspace-cottage — симлинк сюда).
+2. Обновить `/home/openclaw/.openclaw/workspace-cottage/AGENTS.md` из канона в `specs/001-server-mqtt-ingestor/openclaw-cottage-agent-instructions.md`.
+3. `openclaw mcp probe cottage` — 16 tools, включая `list_houses`. Старый Telegram-чат: `/new` или перечитать AGENTS.
+
+Сверка без MCP-сессии (оператор, не агент cottage): `cottage-ops catalog` / `cottage-ops catalog --json` — `load_catalog()`, те же имена, что реестр. В образе: `--entrypoint cottage-ops`.
+
 **`set_lights` skip (R-017, 2026-08-15):** `skip_unchanged` смотрит status `1/2/*` (факт с выключателя), не control `1/1/*`. Иначе зональный OFF гасит только группы, чей control ещё `true` (типично холл после бота), а комнаты со стены пропускает. То же для `set_commands` (sibling `:status`/`_state`) и `get_kettle.on` (state `33/1/38`, не cmd).
 
 ### MCP model bench (Caila × cottage tools)

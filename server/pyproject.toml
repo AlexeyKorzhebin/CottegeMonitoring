@@ -37,6 +37,7 @@ dev = [
 
 [project.scripts]
 cottage-create-api-key = "cottage_monitoring.cli.create_api_key:main"
+cottage-ops = "cottage_monitoring.cli.ops_catalog:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]

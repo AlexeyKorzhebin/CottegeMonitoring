@@ -29,20 +29,28 @@ Ops:
 
 ```bash
 # as openclaw, with user systemd dbus
-openclaw mcp probe cottage          # expect 15 house tools
+openclaw mcp probe cottage          # expect 16 house tools, including list_houses
 openclaw mcp doctor cottage
 openclaw mcp reload                 # after config change
 # gateway already has COTTAGE_API_KEY via EnvironmentFile cottage-env
 ```
 
-Smoke (no Telegram deliver):
+Smoke (no Telegram deliver; single-house key — omit `house_id`):
 
 ```bash
 openclaw agent --agent cottage \
   --session-key agent:cottage:smoke \
   --message "Верни online_status и active_object_count" \
   --json --timeout 120
-# expect toolCall cottage__get_house_status, not exec/mcporter
+# expect toolCall cottage__get_house_status without house_id, not exec/mcporter
+```
+
+Operator catalog check (not for the `cottage` agent — `exec` stays forbidden):
+
+```bash
+cottage-ops catalog
+cottage-ops catalog --json
+# same names as the Ops registry / MCP tools/list
 ```
 
 ## Legacy mcporter (benches / shell debug)

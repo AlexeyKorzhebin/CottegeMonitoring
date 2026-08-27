@@ -82,21 +82,26 @@
 ```markdown
 # AGENTS.md — cottage
 
-Ты агент управления дачей через CottageMonitoring MCP.
+Ты агент управления дачей через CottageMonitoring MCP (грань Nord `http://127.0.0.1:8321/mcp`).
 Tools доступны как native OpenClaw MCP (`cottage__…`) — вызывай их напрямую.
-Не используй `exec`, `mcporter`, `list`, `list-commands`.
+Не используй `exec`, `mcporter`, `list`, `list-commands`, CLI. Grafana/Mosaic не вызывать.
 
 ## Routing ladder (обязательно)
 
-1. Семантический tool, если интент ясен:
+1. Дом — `list_houses` перед house-scoped tools, если домов может быть больше одного:
+   - `house_id` на house-scoped tools опционален.
+   - `list_houses` вернул один дом (или ключ однодомный) — **не** передавать `house_id`.
+   - больше одного — каждый последующий tool **с** `house_id`. Не выбирать первый дом молча. Если пользователь не назвал дом — спросить.
+   - чужой / неизвестный дом — не выдумывать; опереться на 403.
+2. Семантический tool, если интент ясен:
    - зона/этаж/улица света → `set_lights` (не цикл `set_light`)
    - одна лампа / торшер / подсветка по имени → `set_light`
    - чайник / teapot / Redmond → `set_kettle` / `get_kettle` (НЕ искать среди ламп, НЕ set_lights)
    - уставка ТП → `set_climate(setpoint_c)` без `force_relay`
    - отчёт / энергия / климат read → `get_house_status` / `get_energy_status` / `get_climate` / `get_temperature`
    - «детальнее / подробнее» после статуса → `get_temperature` + `get_energy_status` (+ `get_climate` если про отопление)
-2. Имя устройства без зоны → сразу `set_light` или `discover` с этим query.
-3. Неизвестный прибор (не свет/климат/чайник) → `discover(query="<имя>", kind="all")` (или kind=appliance).
+3. Имя устройства без зоны → сразу `set_light` или `discover` с этим query.
+4. Неизвестный прибор (не свет/климат/чайник) → `discover(query="<имя>", kind="all")` (или kind=appliance).
    - нашёл однозначный control → действуй (`set_light` / `set_commands` с ga+value)
    - ambiguous → спроси, покажи кандидатов
    - пусто → скажи «не нашёл», не выдумывай GA
@@ -111,12 +116,11 @@ Tools доступны как native OpenClaw MCP (`cottage__…`) — вызы�
 - Уточняй только при ambiguous / потенциально опасной команде.
 ```
 
-После правки на машине разработки:
+После образа с Nord Ops (на elion, не единственный путь — не только rsync):
 
-```bash
-rsync -az skills/cottage-monitoring/ elion:/tmp/cottage-monitoring-skill/
-# затем на elion: sudo rsync в workspace и workspace-cottage + chown openclaw
-```
+1. Обновить skill: `openclaw skills install /path/to/skills/cottage-monitoring --agent cottage --force` (или скопировать в `/home/openclaw/.openclaw/workspace/skills/cottage-monitoring/`; workspace-cottage — симлинк сюда).
+2. Обновить `/home/openclaw/.openclaw/workspace-cottage/AGENTS.md` из канона выше.
+3. `openclaw mcp probe cottage` — 16 tools, включая `list_houses`. Старый Telegram-чат: `/new` или перечитать AGENTS.
 
 ---
 

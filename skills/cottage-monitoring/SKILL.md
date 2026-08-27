@@ -5,15 +5,15 @@ description: Control and monitor the cottage via CottageMonitoring MCP (lights, 
 
 # Cottage Monitoring MCP
 
-Connect agents (Hermes, OpenClaw, Cursor) to the CottageMonitoring MCP server.
+Connect agents (Hermes, OpenClaw, Cursor) to the CottageMonitoring MCP face of Nord.
 
 ## Connection (localhost only)
 
-MCP/API bind to **loopback only** (`127.0.0.1`) on the elion host — no public nginx URL by design.
+MCP binds to **loopback only** (`127.0.0.1`) on the elion host — no public nginx URL by design. OpenClaw uses this MCP face, not a separate MCP server. Do not call Grafana or Mosaic.
 
 - **MCP URL (prod, same host):** `http://127.0.0.1:8321/mcp`
 - **MCP URL (dev, same host):** `http://127.0.0.1:8322/mcp`
-- **Auth:** `Authorization: Bearer cm_<secret>` (API key scoped to one house)
+- **Auth:** `Authorization: Bearer cm_<secret>` (API key with grants on one or more houses)
 
 ### OpenClaw (elion) — native MCP
 
@@ -39,6 +39,7 @@ Store `COTTAGE_API_KEY` in env — never commit it.
 
 | User intent | Tool |
 |-------------|------|
+| «Какой дом / список домов» | `list_houses` |
 | «Как дела у дома?» / online | `get_house_status` |
 | «Найди объект…» | `discover` |
 | «Температура в …» (комната) | `get_temperature` — **air** from Zigbee `33/1/*` |
@@ -57,20 +58,25 @@ Store `COTTAGE_API_KEY` in env — never commit it.
 
 ## Routing ladder (critical)
 
-Порядок выбора tool — сверху вниз. Вызывай native MCP tools (`cottage__…` / имена ниже). **Не** используй `exec` / `mcporter list` / `list-commands`. На «детальнее / подробнее» сразу `get_temperature` + `get_energy_status` (+ `get_climate` при отоплении).
+Порядок выбора tool — сверху вниз. Вызывай native MCP tools (`cottage__…` / имена ниже). **Не** используй `exec` / `mcporter list` / `list-commands`. На «детальнее / подробнее» сразу `get_temperature` + `get_energy_status` (+ `get_climate` при отоплении). Схемы аргументов — в MCP `tools/list`, не дублируй их.
 
-1. **Семантический tool**, если интент ясен:
+1. **Дом** — `list_houses` перед house-scoped tools, если домов может быть больше одного:
+   - `house_id` на house-scoped tools **опционален**.
+   - `list_houses` вернул один дом (или ключ однодомный) — **не** передавать `house_id` (как сейчас).
+   - вернул больше одного — каждый последующий tool **с** `house_id`. Не выбирать первый дом молча. Если пользователь не назвал дом — спросить.
+   - чужой / неизвестный дом — не выдумывать; опереться на 403.
+2. **Семантический tool**, если интент ясен:
    - зона/этаж/улица света → `set_lights`
    - одна лампа / торшер / подсветка по имени → `set_light`
    - чайник / teapot / Redmond → `set_kettle` / `get_kettle` (**не** `set_lights`, **не** поиск среди ламп)
    - уставка ТП → `set_climate`
    - отчёт / энергия / климат read → соответствующие `get_*`
-2. **Имя устройства без зоны** (торшер, подсветка стола, розетка «X») → сразу `set_light` / `discover` с этим query.
-3. **Неизвестный прибор** (не свет/климат/чайник) → `discover(query="<имя>", kind="all")` или `kind="appliance"`.
+3. **Имя устройства без зоны** (торшер, подсветка стола, розетка «X») → сразу `set_light` / `discover` с этим query.
+4. **Неизвестный прибор** (не свет/климат/чайник) → `discover(query="<имя>", kind="all")` или `kind="appliance"`.
    - Нашёл control GA → действуй через подходящий tool (`set_light` если light_control; иначе `set_commands` с `[{ga,value}]` если это единственный однозначный control).
    - `ambiguous` → спроси пользователя, покажи 2–5 кандидатов.
    - Пусто → скажи, что не нашёл; не выдумывай GA.
-4. Не ограничивайся только светом/климатом/отчётом — чайник и прочие appliance входят в MCP.
+5. Не ограничивайся только светом/климатом/отчётом — чайник и прочие appliance входят в MCP.
 
 ## Heating rules (critical)
 
@@ -89,7 +95,7 @@ From `manage_warm_floor.lua`:
 - Read before write when unsure.
 - Do not spam commands; one action per user request.
 - **Performance:** never loop `set_light` for a floor/zone — use `set_lights` once. One `get_command_status` per `request_id`, not per lamp. `cmd_timeout` is 60s — N sequential commands can take minutes.
-- API key = full house access within scopes (`read` / `write`).
+- API key = machine grants on house(s) within scopes (`read` / `write`). Not a user login.
 - Prefer loopback MCP; do not expose `/mcp` publicly.
 
 ## Synonyms

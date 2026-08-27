@@ -776,6 +776,28 @@ Nord Ops требует аудит «кто отправил команду». �
 
 ---
 
+## R-023: OpenClaw skill + `cottage-ops catalog` (2026-08-28)
+
+### Контекст
+
+Реестр и две грани уже есть (R-020, R-021): 16 Ops, MCP tools генерируются из каталога, REST `GET /ops` / `POST .../ops/{name}`. Telegram-агент `cottage` эти HTTP-грани не читает — он видит `SKILL.md` и `AGENTS.md`. Без `list_houses` / правил `house_id` в промпте Flash угадывает дом или зовёт CLI. Оператору нужна сверка имён без MCP-сессии и без открытия skill.
+
+### Решение
+
+- `SKILL.md` и канон `AGENTS.md` — короткий routing ladder + `list_houses` / `house_id` (дублировать в обоих: Flash может увидеть только одно). JSON-схемы Ops в промпт не копировать (`tools/list` уже отдаёт их). `bootstrapMaxChars` cottage = 5000, не раздувать.
+- Telegram остаётся на MCP (`cottage__*`). REST `POST /ops` агенту не учить. CLI агенту не давать (`exec` запрещён).
+- Операторский `cottage-ops catalog` / `catalog --json`: `load_catalog()` и те же имена, что реестр. Entry point в образе рядом с `cottage-create-api-key`.
+- Выкладка skill на elion **после** образа с 16 tools: `openclaw skills install … --agent cottage --force` (или копия в `workspace/skills/cottage-monitoring/`; cottage workspace — симлинк). Затем канон в `workspace-cottage/AGENTS.md`, `openclaw mcp probe cottage` — 16 tools, старый чат `/new`.
+
+### Отклонено
+
+- JSON-схемы Ops в skill/AGENTS.
+- REST `POST /ops` в промпте Telegram-агента.
+- `cottage-ops` в `alsoAllow` агента cottage.
+- rsync как единственный путь выкладки skill.
+
+---
+
 ## R-015: Grafana — дашборды телеметрии и алерты (2026-07)
 
 ### Контекст
@@ -846,3 +868,4 @@ Stat-плитки (`time_series` + колонка `metric`): Grafana Postgres lo
 | R-020 | Ops registry + dispatch | `OpSpec`/`OpsRegistry`, resolve house (>1 грант → 400), write rate-limit в диспетчере | params-валидация в диспетчере / выбор первого дома |
 | R-021 | Каталог Ops → две грани | `catalog.load_catalog()` в lifespan; MCP tools генерируются из реестра; REST `GET /ops` + `POST .../ops/{name}` | ручные `@mcp.tool` рядом с реестром / регистрация по импорту |
 | R-022 | Command actor | `commands.actor_key_id` nullable FK `api_keys.id`; пишет только `send_command` из ctx | колонка в диспетчере / обязательный FK |
+| R-023 | Skill + catalog CLI | SKILL/AGENTS: `list_houses`+`house_id`; `cottage-ops catalog` = реестр; probe 16 tools | схемы Ops в промпте / REST POST в skill / CLI агенту |
