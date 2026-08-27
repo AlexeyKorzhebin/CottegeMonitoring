@@ -54,9 +54,9 @@ async def authenticate_raw_key(
 
     ctx = ApiKeyContext(
         key_id=row.id,
-        house_id=row.house_id,
-        scopes=frozenset(row.scopes or []),
         name=row.name,
+        scopes=frozenset(row.scopes or []),
+        house_ids=frozenset({row.house_id}),
     )
     api_key_context_var.set(ctx)
     return ctx
@@ -116,5 +116,11 @@ async def require_write_scope(request: Request) -> None:
 
 
 def assert_house_access(ctx: ApiKeyContext, house_id: str) -> None:
-    if ctx.house_id != house_id:
+    if house_id not in ctx.house_ids:
         raise HTTPException(status_code=403, detail="API key not valid for this house")
+
+
+def authorize(ctx: ApiKeyContext, house_id: str, permission: str) -> None:
+    if house_id not in ctx.house_ids:
+        raise HTTPException(status_code=403, detail="API key not valid for this house")
+    require_scope(ctx, permission)

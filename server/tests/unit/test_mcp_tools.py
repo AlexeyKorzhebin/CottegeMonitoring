@@ -45,7 +45,7 @@ def test_require_scope_denies_missing_write() -> None:
 
     ctx = ApiKeyContext(
         key_id=uuid4(),
-        house_id="house1",
+        house_ids=frozenset({"house1"}),
         scopes=frozenset({"read"}),
         name="readonly",
     )
@@ -62,7 +62,7 @@ def test_require_scope_allows_write() -> None:
 
     ctx = ApiKeyContext(
         key_id=uuid4(),
-        house_id="house1",
+        house_ids=frozenset({"house1"}),
         scopes=frozenset({"read", "write"}),
         name="rw",
     )
@@ -86,7 +86,7 @@ def test_set_light_tool_returns_ambiguous_without_http_error() -> None:
 
     ctx = ApiKeyContext(
         key_id=uuid4(),
-        house_id="house1",
+        house_ids=frozenset({"house1"}),
         scopes=frozenset({"read", "write"}),
         name="rw",
     )
@@ -170,7 +170,7 @@ def test_set_climate_tool_requires_write_scope() -> None:
 
     ctx = ApiKeyContext(
         key_id=uuid4(),
-        house_id="house1",
+        house_ids=frozenset({"house1"}),
         scopes=frozenset({"read"}),
         name="readonly",
     )
@@ -189,7 +189,7 @@ def test_set_climate_tool_calls_service() -> None:
 
     ctx = ApiKeyContext(
         key_id=uuid4(),
-        house_id="house1",
+        house_ids=frozenset({"house1"}),
         scopes=frozenset({"read", "write"}),
         name="rw",
     )

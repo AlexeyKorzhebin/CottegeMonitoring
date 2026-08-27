@@ -115,7 +115,9 @@ async def get_house_status() -> str:
     ctx = _require_ctx()
     if err := _require_scope(ctx, "read"):
         return err
-    return await _with_session(agent_actions.get_house_status, ctx.house_id, tool="get_house_status")
+    return await _with_session(
+        agent_actions.get_house_status, ctx.default_house_id(), tool="get_house_status"
+    )
 
 
 @mcp.tool(description="Find objects by name/query and kind: light, temp, climate, sensor, energy, heating, appliance, all.")
@@ -125,7 +127,7 @@ async def discover(query: str = "", kind: str = "all") -> str:
         return err
     return await _with_session(
         agent_actions.discover,
-        ctx.house_id,
+        ctx.default_house_id(),
         query=query or None,
         kind=kind,
         tool="discover",
@@ -144,7 +146,7 @@ async def get_temperature(query: str = "") -> str:
         return err
     return await _with_session(
         agent_actions.get_temperatures,
-        ctx.house_id,
+        ctx.default_house_id(),
         query=query or None,
         tool="get_temperature",
     )
@@ -157,7 +159,7 @@ async def get_sensors(query: str = "", kind: str = "sensor") -> str:
         return err
     return await _with_session(
         agent_actions.get_sensors,
-        ctx.house_id,
+        ctx.default_house_id(),
         query=query or None,
         kind=kind,
         tool="get_sensors",
@@ -170,7 +172,10 @@ async def list_lights(query: str = "") -> str:
     if err := _require_scope(ctx, "read"):
         return err
     return await _with_session(
-        agent_actions.list_lights, ctx.house_id, query=query or None, tool="list_lights"
+        agent_actions.list_lights,
+        ctx.default_house_id(),
+        query=query or None,
+        tool="list_lights",
     )
 
 
@@ -182,7 +187,7 @@ async def set_light(query: str, on: bool) -> str:
     await agent_actions.check_write_rate_limit(ctx)
     return await _with_session(
         agent_actions.set_light,
-        ctx.house_id,
+        ctx.default_house_id(),
         query=query,
         on=on,
         tool="set_light",
@@ -203,7 +208,7 @@ async def set_lights(query: str, on: bool, skip_unchanged: bool = True) -> str:
     await agent_actions.check_write_rate_limit(ctx)
     return await _with_session(
         agent_actions.set_lights,
-        ctx.house_id,
+        ctx.default_house_id(),
         query=query,
         on=on,
         skip_unchanged=skip_unchanged,
@@ -230,7 +235,7 @@ async def set_commands(
     await agent_actions.check_write_rate_limit(ctx)
     return await _with_session(
         agent_actions.set_commands,
-        ctx.house_id,
+        ctx.default_house_id(),
         items=items,
         comment=comment or None,
         skip_unchanged=skip_unchanged,
@@ -249,7 +254,10 @@ async def get_climate(query: str = "") -> str:
     if err := _require_scope(ctx, "read"):
         return err
     return await _with_session(
-        agent_actions.get_climate, ctx.house_id, query=query or None, tool="get_climate"
+        agent_actions.get_climate,
+        ctx.default_house_id(),
+        query=query or None,
+        tool="get_climate",
     )
 
 
@@ -270,7 +278,7 @@ async def set_climate(
     await agent_actions.check_write_rate_limit(ctx)
     return await _with_session(
         agent_actions.set_climate_setpoint,
-        ctx.house_id,
+        ctx.default_house_id(),
         query=query,
         setpoint_c=setpoint_c,
         force_relay=force_relay,
@@ -288,7 +296,9 @@ async def get_energy_status() -> str:
     ctx = _require_ctx()
     if err := _require_scope(ctx, "read"):
         return err
-    return await _with_session(agent_actions.get_energy_status, ctx.house_id, tool="get_energy_status")
+    return await _with_session(
+        agent_actions.get_energy_status, ctx.default_house_id(), tool="get_energy_status"
+    )
 
 
 @mcp.tool(
@@ -302,7 +312,9 @@ async def get_heating_diagnostics() -> str:
     if err := _require_scope(ctx, "read"):
         return err
     return await _with_session(
-        agent_actions.get_heating_diagnostics, ctx.house_id, tool="get_heating_diagnostics"
+        agent_actions.get_heating_diagnostics,
+        ctx.default_house_id(),
+        tool="get_heating_diagnostics",
     )
 
 
@@ -316,7 +328,9 @@ async def get_kettle() -> str:
     ctx = _require_ctx()
     if err := _require_scope(ctx, "read"):
         return err
-    return await _with_session(agent_actions.get_kettle, ctx.house_id, tool="get_kettle")
+    return await _with_session(
+        agent_actions.get_kettle, ctx.default_house_id(), tool="get_kettle"
+    )
 
 
 @mcp.tool(
@@ -330,7 +344,9 @@ async def set_kettle(on: bool) -> str:
     if err := _require_scope(ctx, "write"):
         return err
     await agent_actions.check_write_rate_limit(ctx)
-    return await _with_session(agent_actions.set_kettle, ctx.house_id, on=on, tool="set_kettle")
+    return await _with_session(
+        agent_actions.set_kettle, ctx.default_house_id(), on=on, tool="set_kettle"
+    )
 
 
 @mcp.tool(description="Poll command status by request_id after set_light/set_climate/set_kettle.")
@@ -339,7 +355,10 @@ async def get_command_status(request_id: str) -> str:
     if err := _require_scope(ctx, "read"):
         return err
     return await _with_session(
-        agent_actions.get_command_status, ctx.house_id, request_id, tool="get_command_status"
+        agent_actions.get_command_status,
+        ctx.default_house_id(),
+        request_id,
+        tool="get_command_status",
     )
 
 

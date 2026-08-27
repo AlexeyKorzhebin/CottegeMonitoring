@@ -696,6 +696,26 @@ Live 2026-08-15: control всех 2floor = false; status ON: `1/2/12` Настя
 
 ---
 
+## R-018: Principal grants — `house_ids` + `authorize` (2026-08-27)
+
+### Контекст
+
+`ApiKeyContext` держал один `house_id: str`. Nord Ops требует гранты на несколько домов в контексте, без junction-таблицы в этой итерации.
+
+### Решение
+
+- Контекст: `house_ids: frozenset[str]`; `default_house_id() -> str | None` (ровно один грант → id, иначе `None`).
+- БД без изменений: `api_keys.house_id` одна колонка; при аутентификации `house_ids=frozenset({row.house_id})`.
+- `authorize(ctx, house_id, permission)` — единственная проверка «дом ∈ house_ids» и scope; 403 с прежними формулировками.
+- Middleware `/api/v1/houses/{id}` зовёт `authorize(..., "read")`. Write по-прежнему `require_write_scope` на mutating endpoints.
+- MCP tools пока берут `ctx.default_house_id()` (один дом на ключ). Резолв optional `house_id` — отдельная задача Ops.
+
+### Отклонено
+
+- Таблица `api_key_houses` — не в этой итерации.
+
+---
+
 ## R-015: Grafana — дашборды телеметрии и алерты (2026-07)
 
 ### Контекст
@@ -761,3 +781,4 @@ Stat-плитки (`time_series` + колонка `metric`): Grafana Postgres lo
 | R-015 | Grafana telemetria | PG dashboards + Telegram alerts (load15) | App Alert Engine / only Prometheus |
 | R-016 | OpenClaw native MCP | `mcp.servers.cottage` + `bundle-mcp` (no exec) | mcporter via `exec` / list-commands |
 | R-017 | set_lights skip | skip_unchanged по status `1/2/*`, не control `1/1/*` | force / skip_unchanged=false |
+| R-018 | Principal grants | `house_ids` + `authorize`; DB column unchanged | junction `api_key_houses` |

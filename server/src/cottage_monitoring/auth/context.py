@@ -10,9 +10,14 @@ from uuid import UUID
 @dataclass(frozen=True)
 class ApiKeyContext:
     key_id: UUID
-    house_id: str
-    scopes: frozenset[str]
     name: str
+    scopes: frozenset[str]
+    house_ids: frozenset[str]
+
+    def default_house_id(self) -> str | None:
+        if len(self.house_ids) == 1:
+            return next(iter(self.house_ids))
+        return None
 
 
 api_key_context_var: ContextVar[ApiKeyContext | None] = ContextVar(

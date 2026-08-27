@@ -288,7 +288,7 @@ python3 run_bench.py --e2e --mcp-alias cottage-dry --out results/e2e.json
 
 **RTT** (Round-Trip Time) = `ts_ack − ts_sent` в таблице `commands`. Пример живого теста: ON ~2.5 с, OFF ~0.5 с. Отдельных таймингов «только сеть» / «только grp.write» нет — они внутри `command_ack`.
 
-**API keys:** `cottage-create-api-key` внутри контейнера; временные ключи после теста — `revoked_at=now()`. Бот (OpenClaw) хранит prod/dev ключи в `~/.openclaw/secrets/` на elion (не в git).
+**API keys:** `cottage-create-api-key` внутри контейнера; временные ключи после теста — `revoked_at=now()`. Бот (OpenClaw) хранит prod/dev ключи в `~/.openclaw/secrets/` на elion (не в git). Контекст ключа — `house_ids` (из колонки `api_keys.house_id`); путь `/api/v1/houses/{id}` проверяет `authorize(ctx, id, "read")` (**R-018**).
 
 **OpenClaw cottage MCP (R-016):** native `mcp.servers.cottage` → `http://127.0.0.1:8321/mcp`, tools `cottage__*`; агент `cottage` — `minimal` + `alsoAllow: ["bundle-mcp"]` (без `exec`); `main` — `deny: ["bundle-mcp"]`. mcporter остаётся для benches/`cottage-dry`. См. `skills/cottage-monitoring/references/openclaw-connection.md`.
 

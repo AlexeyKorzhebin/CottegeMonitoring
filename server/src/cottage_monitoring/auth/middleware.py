@@ -4,12 +4,13 @@ from __future__ import annotations
 
 import re
 
+from fastapi import HTTPException
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.requests import Request
 from starlette.responses import JSONResponse, Response
 
-from cottage_monitoring.auth.deps import _extract_raw_key, authenticate_raw_key
 from cottage_monitoring.auth.context import set_command_dry_run
+from cottage_monitoring.auth.deps import _extract_raw_key, authenticate_raw_key, authorize
 from cottage_monitoring.config import settings
 from cottage_monitoring.db.session import async_session_factory
 
@@ -46,8 +47,6 @@ class ApiKeyAuthMiddleware(BaseHTTPMiddleware):
 
         async with async_session_factory() as session:
             try:
-                from fastapi import HTTPException
-
                 ctx = await authenticate_raw_key(raw, session)
             except HTTPException:
                 return JSONResponse(status_code=401, content={"detail": "Invalid API key"})
@@ -55,10 +54,13 @@ class ApiKeyAuthMiddleware(BaseHTTPMiddleware):
         request.state.api_key_context = ctx
 
         match = _HOUSE_PATH.match(path)
-        if match and match.group(1) != ctx.house_id:
-            return JSONResponse(
-                status_code=403,
-                content={"detail": "API key not valid for this house"},
-            )
+        if match:
+            try:
+                authorize(ctx, match.group(1), "read")
+            except HTTPException as exc:
+                return JSONResponse(
+                    status_code=exc.status_code,
+                    content={"detail": exc.detail},
+                )
 
         return await call_next(request)
