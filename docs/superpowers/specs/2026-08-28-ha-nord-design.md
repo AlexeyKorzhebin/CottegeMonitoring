@@ -2,7 +2,7 @@
 
 **Date:** 2026-08-28  
 **Status:** Draft (awaiting review)  
-**Scope:** Выкладка Nord Ops на prod; поля `area`/`floor` в read-Ops; семейная витрина HA (Container, HTTPS, custom component: свет, климат с датчиками, чайник, Areas/Floors).  
+**Scope:** Выкладка Nord Ops на prod; поля `area`/`floor` в read-Ops; Op `set_auto_heating`; семейная витрина HA (свет, климат с датчиками, реле как статус, авто ТП, дом онлайн, чайник, Areas/Floors).  
 **Depends on:** [2026-08-27-nord-ops-design.md](./2026-08-27-nord-ops-design.md) (каталог Ops, REST `POST .../ops/{name}`, ключ на дом).  
 **Related:** `specs/001-server-mqtt-ingestor/quickstart.md`, `specs/001-server-mqtt-ingestor/contracts/api-v1.md`
 
@@ -28,6 +28,7 @@ Home Assistant должен стать витриной для семьи, не 
 | **Пользователь HA** | Логин на `ha.black-castle.ru`. Один человек — один аккаунт. В Nord не проецируется. |
 | **Area** | Комната в HA Area Registry (гостиная, кухня, …). Источник — поле `area` в ответах read-Ops, не таблица в компоненте. |
 | **Floor** | Этаж в HA Floor Registry (`1 этаж`, `2 этаж`, `Улица`). Источник — поле `floor`: `1` \| `2` \| `outside`. |
+| **Дом (area)** | Служебная area HA без этажа: онлайн дома, автоуправление полами. Не комната. |
 
 Говорим: «HA на REST-грани Nord». Не говорим «HA управляет KNX» и не «HA-сервер MCP».
 
@@ -42,7 +43,8 @@ Home Assistant должен стать витриной для семьи, не 
 | Витрина, не мозг | Нет автоматизаций дома в HA; нет KNX; нет MQTT `cm/#` и `ha/#` |
 | Семья на HTTPS | `https://ha.black-castle.ru`, отдельный логин HA на человека |
 | Свет / климат / чайник | Свет: `list_lights` → `set_lights`. Климат: `get_climate` + датчики воздуха/пола/влажности. Чайник: `get_kettle` → `set_kettle` |
-| Датчики в комнате | Воздух, влажность, температура пола — отдельные (или на карточке climate) сущности, те же Ops `get_climate` / `get_temperature` / `get_sensors` |
+| Датчики в комнате | Воздух, влажность, температура пола — сущности; **реле зоны только статус** (не выключатель) |
+| Дом | `get_house_status` → «дом онлайн»; `get_climate.auto_heating_enabled` + новый Op `set_auto_heating` → переключатель авто ТП (GA `1/7/1`) |
 | Комнаты и этажи | HA Areas + Floors из полей `area`/`floor` в read-Ops. Семья видит дом по этажам и комнатам, не плоский список |
 | Актор | Команды с ключа HA пишут `commands.actor_key_id` отдельно от Telegram |
 | Без GA в UI | `unique_id` = дом + kind + стабильное имя. Групповой адрес семья не видит |
@@ -106,7 +108,7 @@ Grafana  → PostgreSQL SELECT only
 
 Порядок выкладки **внутри этой спеки** (не параллельно):
 
-1. Nord Ops на prod (образ, `008`, restart, skill, probe 16 tools).
+1. Nord Ops на prod (образ с `set_auto_heating` и `area`/`floor`, `008`, restart, skill, probe **17** tools).
 2. Поля `area`/`floor` в read-Ops (можно тем же образом, что шаг 1, если ещё не выложено).
 3. Ключ `home-assistant`, smoke `list_lights` + `get_climate`.
 4. HA Container + nginx + DNS + TLS.
@@ -122,8 +124,9 @@ HA не стартуем, пока шаги 1–3 не зелёные.
 
 1. `alembic upgrade head` на prod-БД **до** рестарта (колонка `commands.actor_key_id`). Иначе insert команды падает.
 2. Обновить unit/тег образа, `systemctl restart cottage-monitoring`.
-3. Skill: `openclaw skills install … --agent cottage --force` (или копия в `workspace/skills/cottage-monitoring/`; cottage workspace — симлинк). Канон `AGENTS.md`. `openclaw mcp probe cottage` — 16 tools, есть `list_houses`. Старый чат Telegram: `/new`.
-4. Проверка ключом write: `GET /api/v1/ops` — 16 имён; `POST /api/v1/houses/house/ops/list_lights` с `X-Cottage-Dry-Run` — 2xx.
+3. Skill: `openclaw skills install … --agent cottage --force` (или копия в `workspace/skills/cottage-monitoring/`; cottage workspace — симлинк). Канон `AGENTS.md` с `set_auto_heating`.
+4. `openclaw mcp probe cottage` — **17** tools (`list_houses`, `set_auto_heating`). Старый чат Telegram: `/new`.
+5. Проверка ключом write: `GET /api/v1/ops` — 17 имён; dry-run `list_lights` и `get_climate` — 2xx.
 
 Dev (`monitoring-dev`) в этой волне не делаем семейной витриной.
 
@@ -149,6 +152,7 @@ HA сам умеет **Floors** и **Areas**. Компонент не рисуе
 2. Создаёт/обновляет Floor Registry: `1 этаж`, `2 этаж`, `Улица` (`outside`).
 3. Создаёт/обновляет Area Registry: одно area на комнату, привязка к этажу.
 4. Пишет `area_id` сущностям (свет, climate, датчики, чайник).
+5. Сущности дома (онлайн, авто ТП) кладёт в area **«Дом»**, которую компонент создаёт сам — это не комната из Ops.
 
 Семья открывает стандартный обзор по комнатам/этажам (Overview / Areas). Картинки этажей и ручной Lovelace — не эта спека.
 
@@ -184,29 +188,42 @@ HA сам умеет **Floors** и **Areas**. Компонент не рисуе
 
 Ключ в запросе: заголовок `X-API-Key` или `Authorization: Bearer` (как ресурсный REST Nord). Не MCP.
 
-Poll раз в `scan_interval`: `list_lights`, `get_climate`, `get_temperature`, `get_sensors` (`kind=humidity`), `get_kettle`. Команда — сразу `POST .../ops/{name}`. Оптимистичный UI; истина — следующий poll. `get_command_status` в этой волне не вызываем.
+Poll раз в `scan_interval`: `get_house_status`, `list_lights`, `get_climate`, `get_temperature`, `get_sensors` (`kind=humidity`), `get_kettle`. Команда — сразу `POST .../ops/{name}`. Оптимистичный UI; истина — следующий poll. `get_command_status` в этой волне не вызываем.
 
 Маппинг:
 
 | HA | Read Op | Write Op | Что видит семья |
 |----|---------|----------|-----------------|
+| `binary_sensor` дом онлайн | `get_house_status.online_status` | нет | Area «Дом». `on` только если статус ровно `online`; иначе off (`offline`/`unknown`/`partial`) |
+| `switch` автоуправление полами | `get_climate.auto_heating_enabled` | **`set_auto_heating`** `{on: bool}` | Area «Дом». Выкл = Lua гасит все реле ТП. Не путать с реле комнаты |
 | `light` в area | `list_lights` | `set_lights` (`query` = имя зоны, `skip_unchanged=true`) | Свет комнаты |
-| `climate` в area | `get_climate` | `set_climate` без `force_relay` | Уставка ТП; **текущая температура воздуха** = `zones[].room_temp`; **влажность на карточке** = датчик влажности той же `area` (`current_humidity`) |
-| `sensor` температура пола | `get_climate.zones[].floor_temp` и/или `get_temperature` `source=floor` | нет | Плёнка пола `1/3/*`, не воздух |
-| `sensor` температура воздуха | `get_temperature` `source=air` | нет | Дубль воздуха для графиков; climate уже показывает current |
+| `climate` в area | `get_climate` | `set_climate` без `force_relay` | Уставка ТП; воздух = `room_temp`; влажность карточки = датчик той же `area` |
+| `binary_sensor` нагрев зоны | `get_climate.zones[].relay_on` | **нет** | Только статус реле `1/5/*`. Не `switch`, не `force_relay` |
+| `sensor` температура пола | `zones[].floor_temp` / `get_temperature` `source=floor` | нет | Плёнка `1/3/*`, не воздух |
+| `sensor` температура воздуха | `get_temperature` `source=air` | нет | Для графиков; climate уже показывает current |
 | `sensor` влажность | `get_sensors` `kind=humidity` | нет | Zigbee `%`; улица — area «Улица» |
 | `sensor` улица | `get_temperature` `source=outdoor` | нет | Area «Улица» |
 | `switch` чайник | `get_kettle` | `set_kettle` | Кухня, если `area` есть |
 
-Климат в этом доме — **тёплый пол**, не HVAC. В HA: `hvac_mode` фактически heat, без cool/fan. Реле пола на карточке не крутим (`force_relay` нет). `relay_on` можно показать атрибутом climate «нагрев сейчас», не выключателем.
+Климат — **тёплый пол**, не HVAC: `hvac_mode` heat, без cool/fan. Реле комнаты **не** выключатель.
 
-`unique_id`: `{house_id}:{kind}:{stable_name}`. `ga` в карточку и в атрибуты UI не кладём.
+Новый Op (каталог станет 17 имён; MCP и skill подхватывают из реестра):
+
+| name | permission | house_scoped | handler |
+|------|------------|--------------|---------|
+| `set_auto_heating` | write | да | новый `agent_actions.set_auto_heating` → GA `1/7/1`, без GA в теле HA |
+
+Read авто уже есть в `get_climate` (`auto_heating_enabled`). Отдельный `get_auto_heating` не заводим. В `SKILL.md` / каноне AGENTS: «авто полы / автоуправление ТП» → `set_auto_heating` / смотреть `get_climate`; Telegram по-прежнему спрашивает перед выключением. HA — явный switch, без подтверждения в UI (клик и есть подтверждение).
+
+`get_house_status.last_seen` можно атрибутом binary_sensor, не отдельной карточкой.
+
+`unique_id`: `{house_id}:{kind}:{stable_name}`. `ga` в карточку не кладём.
 
 Ключ HA свой: лимит write/мин не делит корзину с Telegram.
 
 `X-Cottage-Dry-Run` — только тесты компонента.
 
-Не регистрируем: `get_energy_status`, `discover`, `set_commands`, `set_light`, `get_heating_diagnostics`, батареи Zigbee (можно follow-up).
+Не регистрируем: `get_energy_status`, `discover`, `set_commands`, `set_light`, `get_heating_diagnostics`, батареи Zigbee (follow-up).
 
 ---
 
@@ -243,16 +260,19 @@ Poll раз в `scan_interval`: `list_lights`, `get_climate`, `get_temperature`,
 4. Climate зоны: `current_temperature` = `room_temp`, `current_humidity` с датчика той же `area`; рядом sensor пола = `floor_temp`.
 5. `get_sensors kind=humidity` → sensor влажности в той же area, не «плоский» список без комнаты.
 6. Чайник → `set_kettle`.
-7. Имена Ops ⊆ `cottage-ops catalog`.
-8. 401 → unavailable.
-9. На elion: dry-run `list_lights` / `get_climate`; poll HA — те же комнаты, что зоны света и ТП.
+7. Реле зоны — `binary_sensor`, вызов `set_climate` с `force_relay` из HA отсутствует.
+8. Switch авто ТП → `POST .../ops/set_auto_heating` `{on: true/false}`; read с `get_climate.auto_heating_enabled`.
+9. `get_house_status` → binary_sensor онлайн; `partial`/`unknown` = off.
+10. Имена Ops ⊆ `cottage-ops catalog` (17 имён).
+11. 401 → unavailable.
+12. На elion: dry-run `list_lights` / `get_climate`; poll HA — комнаты плюс area «Дом».
 
 ---
 
 ## 14. Success criteria
 
-1. На prod работает образ с Ops: probe 16 tools, `008` накатана.
-2. Семья на `https://ha.black-castle.ru` видит **этажи и комнаты**; в комнате — свет, уставка ТП, воздух, влажность, температура пола; включает свет и ставит уставку.
+1. На prod работает образ с Ops: probe **17** tools, `008` накатана, есть `set_auto_heating`.
+2. Семья на `https://ha.black-castle.ru` видит **этажи и комнаты**; в комнате — свет, уставка ТП, воздух, влажность, температура пола, **статус реле (не рубильник)**; в «Дом» — онлайн и автоуправление полами; включает свет и ставит уставку.
 3. Та же зона гасится из Telegram тем же handler `set_lights`.
 4. Grafana по-прежнему только SELECT.
 5. В HA нет интеграции KNX/MQTT на `cm/#` и нет домашних автоматизаций.
@@ -262,11 +282,11 @@ Poll раз в `scan_interval`: `list_lights`, `get_climate`, `get_temperature`,
 ## 15. Implementation order (для плана)
 
 1. Выкладка Nord Ops на elion (образ, 008, skill).
-2. Поля `area`/`floor` в read-Ops (+ тесты резолвера/ответов).
+2. Поля `area`/`floor` в read-Ops; Op `set_auto_heating` + skill/AGENTS (17 tools).
 3. Ключ `home-assistant` + контрактные тесты компонента против fake Nord (включая Areas и датчики).
 4. Код интеграции `ha/custom_components/cottage_monitoring/` (TDD).
 5. systemd + nginx + DNS/TLS + volume.
-6. Onboarding HA, пользователи семьи, smoke: комната с климатом показывает воздух/влажность/пол.
+6. Onboarding HA, пользователи семьи, smoke: комната (климат + датчики + статус реле); area «Дом» (онлайн + авто ТП).
 7. Operational notes в `quickstart.md` (R-xxx).
 
 ---
@@ -281,6 +301,8 @@ Poll раз в `scan_interval`: `list_lights`, `get_climate`, `get_temperature`,
 | Член семьи ставит автоматизацию в HA | Роль без админа; пустой `automations.yaml`; в skill/доке — запрет |
 | Write rate-limit при «выключить весь этаж» | Один `set_lights` на зону, не N `set_light`; свой ключ HA |
 | Zigbee имена на английском | Маппинг `area` только в Nord, одним словарём с резолвером |
+| Случайно выключить авто ТП | Явное имя «Автоуправление полами»; выкл гасит реле скриптом LM. Реле комнат — не switch |
+| Реле зоны принять за рубильник | Только `binary_sensor`; `force_relay` из HA запрещён |
 | Гостиная 1 / гостиная 2 (две уставки ТП) | Два climate в одном area «гостиная», имена зон различаются; не два area |
 
 ---
