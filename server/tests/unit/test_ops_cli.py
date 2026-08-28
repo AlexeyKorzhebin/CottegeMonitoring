@@ -45,6 +45,16 @@ def test_catalog_cli_names_match_registry(capsys) -> None:
     assert printed == expected
 
 
+def test_skill_and_agents_mention_auto_heating_and_kettle_setpoint() -> None:
+    skill = SKILL_MD.read_text(encoding="utf-8")
+    agents = AGENTS_CANON.read_text(encoding="utf-8")
+    for text in (skill, agents):
+        assert "set_auto_heating" in text
+        assert "setpoint_c" in text
+    conn = REPO_ROOT / "skills/cottage-monitoring/references/openclaw-connection.md"
+    assert "17" in conn.read_text(encoding="utf-8")
+
+
 def test_catalog_cli_json_names_match_registry(capsys) -> None:
     from cottage_monitoring.cli.ops_catalog import main
 

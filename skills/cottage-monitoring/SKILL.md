@@ -50,9 +50,11 @@ Store `COTTAGE_API_KEY` in env — never commit it.
 | «Выключи свет на 1 этаже» / зона / улица | `set_lights` — **один batch**, не цикл `set_light`. Skip смотрит status (`1/2/*`), не control |
 | «Отопление / тёплые полы» read | `get_climate` + `get_heating_diagnostics` |
 | «Поставь 22 градуса» (ТП) | `set_climate` — **setpoint only** |
+| «Авто полы / автоуправление отоплением» | `set_auto_heating` (`on`) — **спроси** перед выкл |
 | «Сколько жрём электричества» | `get_energy_status` |
 | «Статус чайника» / teapot | `get_kettle` |
 | «Включи/выключи чайник» | `set_kettle` |
+| «Нагрей чайник до 80» | `set_kettle(setpoint_c=80)` — не cmd bool |
 | Нестандартное устройство по имени | см. **Routing ladder** ниже |
 | После команды | `get_command_status` |
 
@@ -69,6 +71,8 @@ Store `COTTAGE_API_KEY` in env — never commit it.
    - зона/этаж/улица света → `set_lights`
    - одна лампа / торшер / подсветка по имени → `set_light`
    - чайник / teapot / Redmond → `set_kettle` / `get_kettle` (**не** `set_lights`, **не** поиск среди ламп)
+   - чайник до N °C → `set_kettle` с `setpoint_c`
+   - авто полы / автоуправление отоплением → `set_auto_heating`
    - уставка ТП → `set_climate`
    - отчёт / энергия / климат read → соответствующие `get_*`
 3. **Имя устройства без зоны** (торшер, подсветка стола, розетка «X») → сразу `set_light` / `discover` с этим query.
@@ -82,7 +86,7 @@ Store `COTTAGE_API_KEY` in env — never commit it.
 
 From `manage_warm_floor.lua`:
 
-1. **`1/7/1`** — auto balancing algorithm ON/OFF. Do **not** toggle without explicit user request.
+1. **`1/7/1`** — auto balancing algorithm ON/OFF. Toggle only via `set_auto_heating` after explicit confirm; do not write `1/7/1` through `set_commands` unless user named the GA.
 2. **`set_climate`** writes **setpoint** (`1/6/*`) only. It does **not** turn on floor relays — algorithm manages `1/4/*`.
 3. **`force_relay`** on `set_climate` is **debug-only** — warn the user.
 4. Room comfort temp → Zigbee air sensors (`33/1/*`, tag `temperature`).

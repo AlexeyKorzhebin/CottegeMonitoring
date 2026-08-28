@@ -29,7 +29,7 @@ Ops:
 
 ```bash
 # as openclaw, with user systemd dbus
-openclaw mcp probe cottage          # expect 16 house tools, including list_houses
+openclaw mcp probe cottage          # expect 17 house tools, including list_houses and set_auto_heating
 openclaw mcp doctor cottage
 openclaw mcp reload                 # after config change
 # gateway already has COTTAGE_API_KEY via EnvironmentFile cottage-env

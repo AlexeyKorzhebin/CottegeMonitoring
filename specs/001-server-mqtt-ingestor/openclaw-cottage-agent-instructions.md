@@ -37,7 +37,7 @@
 
 Порядок сверху вниз:
 
-1. **Семантический tool** — свет зона/этаж → `set_lights`; лампа/торшер → `set_light`; чайник → `set_kettle`/`get_kettle`; ТП → `set_climate`; отчёт/энергия → `get_*`.
+1. **Семантический tool** — свет зона/этаж → `set_lights`; лампа/торшер → `set_light`; чайник → `set_kettle`/`get_kettle`; чайник до N °C → `set_kettle` с `setpoint_c`; авто полы → `set_auto_heating`; ТП → `set_climate`; отчёт/энергия → `get_*`.
 2. **Имя без зоны** (торшер, подсветка стола) → `set_light` / `discover` с query.
 3. **Неизвестный прибор** → `discover(query, kind=all|appliance)` → act или уточнение при `ambiguous`.
 4. Не искать чайник среди ламп. Не вызывать `mcporter list` / `list-commands` перед действием.
@@ -98,6 +98,8 @@ Tools доступны как native OpenClaw MCP (`cottage__…`) — вызы�
    - зона/этаж/улица света → `set_lights` (не цикл `set_light`)
    - одна лампа / торшер / подсветка по имени → `set_light`
    - чайник / teapot / Redmond → `set_kettle` / `get_kettle` (НЕ искать среди ламп, НЕ set_lights)
+   - «нагрей чайник до N» → `set_kettle(setpoint_c=N)`
+   - авто полы / автоуправление отоплением → `set_auto_heating`
    - уставка ТП → `set_climate(setpoint_c)` без `force_relay`
    - отчёт / энергия / климат read → `get_house_status` / `get_energy_status` / `get_climate` / `get_temperature`
    - «детальнее / подробнее» после статуса → `get_temperature` + `get_energy_status` (+ `get_climate` если про отопление)
@@ -121,7 +123,7 @@ Tools доступны как native OpenClaw MCP (`cottage__…`) — вызы�
 
 1. Обновить skill: `openclaw skills install /path/to/skills/cottage-monitoring --agent cottage --force` (или скопировать в `/home/openclaw/.openclaw/workspace/skills/cottage-monitoring/`; workspace-cottage — симлинк сюда).
 2. Обновить `/home/openclaw/.openclaw/workspace-cottage/AGENTS.md` из канона выше.
-3. `openclaw mcp probe cottage` — 16 tools, включая `list_houses`. Старый Telegram-чат: `/new` или перечитать AGENTS.
+3. `openclaw mcp probe cottage` — 17 tools, включая `list_houses`. Старый Telegram-чат: `/new` или перечитать AGENTS.
 
 ---
 
