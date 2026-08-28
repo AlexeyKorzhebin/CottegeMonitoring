@@ -90,6 +90,10 @@ class SetClimateParams(OpParams):
     force_relay: bool | None = None
 
 
+class SetAutoHeatingParams(OpParams):
+    on: bool
+
+
 class SetKettleParams(OpParams):
     on: bool
 

@@ -155,6 +155,14 @@ def _catalog() -> tuple[OpSpec, ...]:
             params_model=params.SetClimateParams,
         ),
         _op(
+            "set_auto_heating",
+            "write",
+            "Toggle underfloor auto-heating algorithm on GA 1/7/1. Turning off lets LM Lua "
+            "drop all floor relays. Distinct from per-zone relay status.",
+            _handler(agent_actions, "set_auto_heating"),
+            params_model=params.SetAutoHeatingParams,
+        ),
+        _op(
             "get_energy_status",
             "read",
             "Electricity: total power, per-phase voltage/current/power, frequency, "

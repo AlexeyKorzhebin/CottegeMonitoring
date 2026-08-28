@@ -25,6 +25,7 @@ SPEC_CATALOG: dict[str, tuple[str, bool]] = {
     "set_commands": ("write", True),
     "get_climate": ("read", True),
     "set_climate": ("write", True),
+    "set_auto_heating": ("write", True),
     "get_energy_status": ("read", True),
     "get_heating_diagnostics": ("read", True),
     "get_kettle": ("read", True),
@@ -111,6 +112,8 @@ def test_mcp_tool_schema_keeps_existing_arguments() -> None:
     }
     assert set(tools["set_lights"].inputSchema["required"]) == {"query", "on"}
     assert set(tools["get_energy_status"].inputSchema["properties"]) == {"house_id"}
+    assert set(tools["set_auto_heating"].inputSchema["properties"]) == {"on", "house_id"}
+    assert set(tools["set_auto_heating"].inputSchema["required"]) == {"on"}
 
 
 # --- REST face --------------------------------------------------------------

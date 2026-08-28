@@ -659,6 +659,17 @@ async def get_climate(
     }
 
 
+async def set_auto_heating(
+    session: AsyncSession,
+    house_id: str,
+    *,
+    on: bool,
+) -> dict[str, Any]:
+    return await _resolve_device_and_send(
+        session, house_id, AUTO_HEATING_GA, on, comment="mcp set_auto_heating"
+    )
+
+
 async def set_climate_setpoint(
     session: AsyncSession,
     house_id: str,
