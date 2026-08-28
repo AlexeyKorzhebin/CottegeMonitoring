@@ -10,7 +10,7 @@
 
 ## 1. Problem
 
-Nord Ops в `main`: один каталог, MCP для Telegram, REST для остальных. На elion этого образа ещё нет (миграция `008` на prod не накатана). Семейного облачного GUI нет: Grafana — наблюдатель SQL, Mosaic — LAN, Telegram — агент.
+Nord Ops в `main`: один каталог, MCP для Telegram, REST для остальных. На prod elion работает `cottage-monitoring:0.3.0`; alembic `008` накатана (2026-08-28, до рестарта). Семейного облачного GUI пока нет — нужна A-запись `ha.black-castle.ru`: Grafana — наблюдатель SQL, Mosaic — LAN, Telegram — агент. Слайдер уставки чайника в HA не включаем, пока на LogicMachine нет writable `ble_teapot_RK-M173S_setpoint`.
 
 Home Assistant должен стать витриной для семьи, не мозгом дома. Мозг остаётся LogicMachine. Все внешние клиенты (Telegram, HA, кто угодно дальше) ходят в Nord одним каталогом Ops. HA не получает KNX, не получает MQTT `cm/#`, не дублирует автоматизации.
 
