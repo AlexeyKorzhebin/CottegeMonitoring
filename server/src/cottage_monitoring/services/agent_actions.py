@@ -31,8 +31,15 @@ from cottage_monitoring.services.object_resolver import (
     _is_zone_query,
     resolve_objects,
 )
+from cottage_monitoring.services.placement import placement
 
 logger = structlog.get_logger(__name__)
+
+
+def _with_placement(item: dict, *, name: str, tags: list[str] | str) -> dict:
+    item.update(placement(name=name, tags=tags))
+    return item
+
 
 def _as_on(value: Any) -> bool | None:
     """Coerce current_state JSON into on/off. None if unknown."""
@@ -272,13 +279,17 @@ async def get_temperatures(
         )
         for obj in resolved.matches:
             items.append(
-                {
-                    "name": obj.name,
-                    "ga": obj.ga,
-                    "source": source,
-                    "value": states.get(obj.ga),
-                    "units": "°C" if source != "outdoor" else None,
-                }
+                _with_placement(
+                    {
+                        "name": obj.name,
+                        "ga": obj.ga,
+                        "source": source,
+                        "value": states.get(obj.ga),
+                        "units": "°C" if source != "outdoor" else None,
+                    },
+                    name=obj.name,
+                    tags=obj.tags,
+                )
             )
 
     if not query and not items:
@@ -289,12 +300,16 @@ async def get_temperatures(
             resolved = await resolve_objects(session, house_id, kind=DiscoverKind.TEMP, role=role)
             for obj in resolved.matches:
                 items.append(
-                    {
-                        "name": obj.name,
-                        "ga": obj.ga,
-                        "source": source,
-                        "value": states.get(obj.ga),
-                    }
+                    _with_placement(
+                        {
+                            "name": obj.name,
+                            "ga": obj.ga,
+                            "source": source,
+                            "value": states.get(obj.ga),
+                        },
+                        name=obj.name,
+                        tags=obj.tags,
+                    )
                 )
 
     return {"items": items, "total": len(items)}
@@ -308,15 +323,22 @@ async def get_sensors(
     kind: str | None = None,
 ) -> dict[str, Any]:
     states = await _get_state_map(session, house_id)
-    dk = DiscoverKind(kind) if kind else DiscoverKind.SENSOR
+    try:
+        dk = DiscoverKind(kind) if kind else DiscoverKind.SENSOR
+    except ValueError:
+        dk = DiscoverKind.SENSOR
     result = await resolve_objects(session, house_id, query=query, kind=dk)
     items = [
-        {
-            "name": m.name,
-            "ga": m.ga,
-            "role": m.role.value,
-            "value": states.get(m.ga),
-        }
+        _with_placement(
+            {
+                "name": m.name,
+                "ga": m.ga,
+                "role": m.role.value,
+                "value": states.get(m.ga),
+            },
+            name=m.name,
+            tags=m.tags,
+        )
         for m in result.matches
     ]
     return {"status": result.status, "items": items, "total": len(items)}
@@ -332,7 +354,8 @@ async def list_lights(session: AsyncSession, house_id: str, *, query: str | None
     items = []
     for c in controls.matches:
         val = status_by_base.get(c.name, states.get(c.ga))
-        items.append({"name": c.name, "ga": c.ga, "value": val, "on": _as_on(val)})
+        row = {"name": c.name, "ga": c.ga, "value": val, "on": _as_on(val)}
+        items.append(_with_placement(row, name=c.name, tags=c.tags))
     return {"items": items, "total": len(items)}
 
 
@@ -608,16 +631,17 @@ async def get_climate(
         floor = await resolve_objects(session, house_id, query=room_query, role=ObjectRole.FLOOR_TEMP)
         room = await resolve_objects(session, house_id, query=room_query, role=ObjectRole.ROOM_TEMP)
         relay = await resolve_objects(session, house_id, query=room_query, role=ObjectRole.HEAT_RELAY_STATUS)
-        zones.append(
-            {
-                "room": room_query,
-                "setpoint_ga": sp.ga,
-                "setpoint": states.get(sp.ga),
-                "floor_temp": states.get(floor.matches[0].ga) if floor.matches else None,
-                "room_temp": states.get(room.matches[0].ga) if room.matches else None,
-                "relay_on": states.get(relay.matches[0].ga) if relay.matches else None,
-            }
-        )
+        place = placement(name=sp.name, tags=sp.tags)
+        zone = {
+            "room": room_query,
+            "setpoint_ga": sp.ga,
+            "setpoint": states.get(sp.ga),
+            "floor_temp": states.get(floor.matches[0].ga) if floor.matches else None,
+            "room_temp": states.get(room.matches[0].ga) if room.matches else None,
+            "relay_on": states.get(relay.matches[0].ga) if relay.matches else None,
+        }
+        zone.update(place)
+        zones.append(zone)
 
     return {
         "auto_heating_enabled": auto,
@@ -782,6 +806,10 @@ async def get_kettle(session: AsyncSession, house_id: str) -> dict[str, Any]:
                 break
     appliances = _group_appliances(result.matches, states)
     if len(appliances) == 1:
+        first = result.matches[0] if result.matches else None
+        if first is not None:
+            appliances[0].update(placement(name=first.name, tags=first.tags))
+            appliances[0].update(placement(name=appliances[0]["name"], tags=first.tags))
         return {"status": "ok", "appliance": appliances[0]}
     if len(appliances) > 1:
         return {"status": "ambiguous", "appliances": appliances}
