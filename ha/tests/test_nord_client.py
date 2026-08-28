@@ -47,3 +47,16 @@ def test_401_raises_nord_error() -> None:
     with pytest.raises(NordError) as ei:
         asyncio.run(_run())
     assert ei.value.status == 401
+
+
+def test_404_raises_nord_error() -> None:
+    client = NordClient(
+        "http://x/api/v1", "key", "house", transport=Fake(404, {"detail": "missing"})
+    )
+
+    async def _run() -> None:
+        await client.call_op("set_kettle", {"setpoint_c": 80})
+
+    with pytest.raises(NordError) as ei:
+        asyncio.run(_run())
+    assert ei.value.status == 404

@@ -20,11 +20,7 @@ class NordClient:
     async def call_op(self, name: str, body: dict | None = None) -> dict:
         url = f"{self.base_url}/houses/{self.house_id}/ops/{name}"
         status, payload = await self._transport("POST", url, self._headers(), body or {})
-        if status in (401, 403):
-            raise NordError(status, str(payload))
-        if status == 429:
-            raise NordError(status, str(payload))
-        if status >= 500 or status == 0:
+        if status >= 400 or status == 0:
             raise NordError(status, str(payload))
         if not isinstance(payload, dict):
             raise NordError(status, str(payload))

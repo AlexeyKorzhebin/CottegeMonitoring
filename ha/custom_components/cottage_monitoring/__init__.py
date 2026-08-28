@@ -48,6 +48,8 @@ else:
         )
         await coordinator.async_refresh()
         hass.data[DOMAIN] = {"coordinator": coordinator, "config": conf}
+        if coordinator.data is None:
+            return True
         for platform in PLATFORMS:
             hass.async_create_task(
                 discovery.async_load_platform(hass, platform, DOMAIN, {}, config)
