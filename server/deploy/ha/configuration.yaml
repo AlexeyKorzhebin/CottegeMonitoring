@@ -1,0 +1,16 @@
+default_config:
+
+http:
+  server_host: 127.0.0.1
+  server_port: 8123
+  use_x_forwarded_for: true
+  trusted_proxies:
+    - 127.0.0.1
+
+automation: !include automations.yaml
+
+cottage_monitoring:
+  base_url: http://127.0.0.1:8321/api/v1
+  api_key: !secret nord_ha_api_key
+  house_id: house
+  scan_interval: 30

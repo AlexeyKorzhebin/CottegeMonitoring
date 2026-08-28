@@ -1,0 +1,19 @@
+[Unit]
+Description=Home Assistant Container (family UI on Nord)
+After=network.target docker.service cottage-monitoring.service
+Requires=docker.service
+
+[Service]
+Type=simple
+Restart=always
+RestartSec=5
+ExecStartPre=-/usr/bin/docker stop home-assistant
+ExecStartPre=-/usr/bin/docker rm home-assistant
+ExecStart=/usr/bin/docker run --name home-assistant \
+  --network host \
+  -v /var/lib/homeassistant:/config \
+  ghcr.io/home-assistant/home-assistant:stable
+ExecStop=/usr/bin/docker stop home-assistant
+
+[Install]
+WantedBy=multi-user.target
