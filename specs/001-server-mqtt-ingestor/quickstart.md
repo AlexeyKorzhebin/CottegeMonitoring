@@ -201,7 +201,14 @@ ssh elion '/opt/cottage-monitoring/wait_http_health.sh http://127.0.0.1:8321/hea
 
 Сеть: **bridge** + `host.docker.internal:host-gateway` (не `--network=host`).
 
-Текущий pin: **`cottage-monitoring:0.3.3`** (`server/deploy/IMAGE_PIN.yaml`).
+Текущий pin: **`cottage-monitoring:0.3.4`** (`server/deploy/IMAGE_PIN.yaml`).
+
+### Сделано в 0.3.4 (код на ветке; live elion — energy Task 5)
+
+- `get_sensors kind=battery` (`ROOM_BATTERY`); HA poll также зовёт `get_energy_status`.
+- Coordinator: **8** read-вызовов — `get_house_status`, `list_lights`, `get_climate`, `get_temperature`, `get_sensors` humidity, `get_sensors` battery, `get_energy_status`, `get_kettle`. Каталог по-прежнему **17** имён.
+- HA energy snapshot: allowlist 6 GA (ЖКХ `32/1/59`); `unique_id` `house:energy:meter`.
+- Lovelace «Графики»: Grafana UID `cottage-energy` / `cottage-batteries` (iframe + markdown-ссылка, если cookie не проходит).
 
 ### Сделано в 0.3.2 + live elion
 
@@ -218,6 +225,7 @@ ssh elion '/opt/cottage-monitoring/wait_http_health.sh http://127.0.0.1:8321/hea
 |-------|--------|
 | Каталог Ops | **17** имён (`set_auto_heating`; `set_kettle` то же имя) |
 | `area` / `floor` | на `list_lights`, `get_climate.zones`, `get_temperature`, `get_sensors` |
+| `get_sensors` kind | special-case `humidity` и `battery` → SENSOR + `ROOM_HUMIDITY` / `ROOM_BATTERY`; не `DiscoverKind("battery")` |
 | `set_auto_heating` | write GA `1/7/1` |
 | `set_kettle` / `get_kettle` setpoint | `on` и/или `setpoint_c` (40–100); °C только в объект `*setpoint*`, никогда в cmd `33/1/39` |
 | Alembic 008 на prod | **накатана 2026-08-28** до restart 0.3.0 (`007` → `008`) |
@@ -578,9 +586,11 @@ Grafana на elion — OSS. Для агента: MCP `user-grafana` →
 
 | Что | Путь |
 |-----|------|
-| systemd | `server/deploy/home-assistant.service` (`--network host`, volume `/var/lib/homeassistant`) |
+| systemd | `server/deploy/home-assistant.service` (`--network host`, volume `/var/lib/homeassistant`; entrypoint биндит go2rtc WebRTC на `127.0.0.1:18555`) |
 | nginx | `server/deploy/nginx/home-assistant.conf` (`ha.black-castle.ru` на `127.0.0.1:8443`; публичный 443 — stream `ssl_preread`, как grafana) |
-| Канон HA YAML | `server/deploy/ha/configuration.yaml` (без `http:` — listen/proxy в UI Network: `127.0.0.1:8123`) |
+| Канон HA YAML | `server/deploy/ha/configuration.yaml` (без `http:` — listen/proxy в UI Network: `127.0.0.1:8123`; Lovelace YAML только `cottage-graphs`) |
+| Lovelace «Графики» | `server/deploy/ha/dashboards/graphs.yaml` (iframe UID `cottage-energy` / `cottage-batteries`) |
+| Energy grid template | `server/deploy/ha/energy-grid.example.json` (`unique_id` `house:energy:meter`) |
 | Пустые automation | `server/deploy/ha/automations.yaml` (`[]`) |
 | Шаблон секрета | `server/deploy/ha/secrets.yaml.example` |
 | Component sync | `./server/deploy/ha-sync-component.sh` (tar в volume, не git clone) |

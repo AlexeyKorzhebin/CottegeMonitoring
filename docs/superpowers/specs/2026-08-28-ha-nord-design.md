@@ -229,7 +229,7 @@ Read авто уже есть в `get_climate` (`auto_heating_enabled`). Отд�
 
 `X-Cottage-Dry-Run` — только тесты компонента.
 
-Не регистрируем: `get_energy_status`, `discover`, `set_commands`, `set_light`, `get_heating_diagnostics`, батареи Zigbee (follow-up).
+HA сейчас poll'ит `get_energy_status` и `get_sensors` kind=battery (код на этой ветке; live elion — energy Task 5). По-прежнему не регистрируем: `discover`, `set_commands`, `set_light`, `get_heating_diagnostics`. Энергия / батареи / графики Grafana: [2026-08-28-ha-energy-grafana-design.md](./2026-08-28-ha-energy-grafana-design.md) (эту спеку здесь не помечать Implemented).
 
 ---
 

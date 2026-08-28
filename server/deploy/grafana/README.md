@@ -23,6 +23,8 @@ URLs (behind nginx):
 - https://elion.black-castle.ru/grafana/d/cottage-batteries/
 - https://elion.black-castle.ru/grafana/d/cottage-lm-load/
 
+HA Lovelace «Графики» (`ha.black-castle.ru`) встраивает Electricity и Batteries iframe'ом: для этого в `[security]` Grafana нужен `allow_embedding = true` (`grafana-embedding.ini.snippet`). Cookie Grafana не шарится между поддоменами `ha.` и `elion.`, поэтому рамка может остаться пустой — в Lovelace остаются markdown-ссылки (нужен логин Grafana). Анонимный Grafana **не** включать.
+
 ## Selected metrics (from house inventory)
 
 Kept the curated / high-signal set; dropped raw meter internals and unused stubs.

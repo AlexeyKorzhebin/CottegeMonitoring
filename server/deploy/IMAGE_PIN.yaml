@@ -1,8 +1,8 @@
-version: "0.3.3"
+version: "0.3.4"
 git_ref: "main"
-image_tag: "cottage-monitoring:0.3.3"
+image_tag: "cottage-monitoring:0.3.4"
 image_digest: ""
 overlay_retired: true
-replaces_overlay: "cottage-monitoring:0.3.2"
+replaces_overlay: "cottage-monitoring:0.3.3"
 notes: |
-  v0.3.3: set_lights skip only if status AND control already match (stale status no longer swallows OFF).
+  v0.3.4: get_sensors kind=battery (ROOM_BATTERY). HA energy tiles use existing get_energy_status unchanged.

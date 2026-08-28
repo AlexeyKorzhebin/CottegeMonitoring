@@ -1,7 +1,7 @@
 # HA Energy, Batteries, Grafana — Design Spec
 
 **Date:** 2026-08-28  
-**Status:** Draft (awaiting review)  
+**Status:** In progress  
 **Scope:** Шесть энергетических сенсоров в семейной витрине HA + штатный Energy; батареи Zigbee в комнатах; вкладка Lovelace с графиками Grafana.  
 **Depends on:** [2026-08-28-ha-nord-design.md](./2026-08-28-ha-nord-design.md) (витрина HA, poll Ops, Areas/Floors).  
 **Related:** [2026-08-27-nord-ops-design.md](./2026-08-27-nord-ops-design.md), `get_energy_status` / `get_sensors` в каталоге Ops, Grafana `cottage-energy` / `cottage-batteries`.
