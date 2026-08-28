@@ -6,6 +6,24 @@ from typing import Any
 
 from .const import FLOOR_LABELS, HOUSE_AREA_NAME
 
+ENERGY_HA_BY_GA: dict[str, str] = {
+    "32/1/35": "power",
+    "32/1/7": "frequency",
+    "32/1/59": "meter",
+    "32/1/57": "hour",
+    "32/1/58": "daily",
+    "32/1/38": "pf",
+}
+
+ENERGY_DISPLAY_NAME: dict[str, str] = {
+    "power": "Сейчас",
+    "frequency": "Частота",
+    "meter": "Счётчик",
+    "hour": "За час",
+    "daily": "За сутки",
+    "pf": "PF",
+}
+
 
 def slug(name: str) -> str:
     """Lowercase; whitespace runs become a single ``_``. Hyphens are kept (``свет_-_кухня``)."""
@@ -100,9 +118,29 @@ def _zone_index(surface: str) -> str | None:
     return m.group(1) if m else None
 
 
+def sensor_ha_profile(kind: str) -> dict[str, str | None]:
+    profiles = {
+        "power": {"device_class": "power", "unit": "W", "state_class": "measurement"},
+        "frequency": {"device_class": "frequency", "unit": "Hz", "state_class": "measurement"},
+        "meter": {"device_class": "energy", "unit": "kWh", "state_class": "total_increasing"},
+        "hour": {"device_class": "energy", "unit": "kWh", "state_class": "total"},
+        "daily": {"device_class": "energy", "unit": "kWh", "state_class": "total"},
+        "pf": {"device_class": "power_factor", "unit": None, "state_class": "measurement"},
+        "battery": {"device_class": "battery", "unit": "%", "state_class": "measurement"},
+        "humidity": {"device_class": "humidity", "unit": "%", "state_class": "measurement"},
+        "air": {"device_class": "temperature", "unit": "°C", "state_class": "measurement"},
+        "floor": {"device_class": "temperature", "unit": "°C", "state_class": "measurement"},
+    }
+    return profiles.get(kind, {"device_class": "temperature", "unit": "°C", "state_class": "measurement"})
+
+
 def sensor_display_name(*, name: str, kind: str) -> str:
     """Short labels for HA cards. Room lives on the area/device, not the entity."""
     raw = (name or "").strip()
+    if kind == "battery":
+        return "Батарея"
+    if kind in ENERGY_DISPLAY_NAME:
+        return ENERGY_DISPLAY_NAME[kind]
     if kind == "humidity":
         return "Влажность"
     if kind == "air":
@@ -208,7 +246,7 @@ class ClimateZone:
 @dataclass(frozen=True)
 class SensorItem:
     name: str
-    kind: str  # air | floor | humidity | outdoor
+    kind: str  # air | floor | humidity | outdoor | battery | power | frequency | meter | hour | daily | pf
     value: object
     area: str | None
     floor: str | None
@@ -275,6 +313,35 @@ class HouseSnapshot:
                 )
             )
             humidity_by_area.setdefault(item.get("area"), item.get("value"))
+
+        battery_op = ops.get("get_sensors_battery") or {}
+        energy_op = ops.get("get_energy_status") or {}
+        for item in battery_op.get("items") or []:
+            sensors.append(
+                SensorItem(
+                    name=item["name"],
+                    kind="battery",
+                    value=item.get("value"),
+                    area=item.get("area"),
+                    floor=item.get("floor"),
+                    unique_id=_unique_id(house_id, "sensor_battery", item["name"]),
+                )
+            )
+        for item in energy_op.get("items") or []:
+            ga = item.get("ga")
+            key = ENERGY_HA_BY_GA.get(ga)
+            if not key:
+                continue
+            sensors.append(
+                SensorItem(
+                    name=ENERGY_DISPLAY_NAME[key],
+                    kind=key,
+                    value=item.get("value"),
+                    area=None,
+                    floor=None,
+                    unique_id=_unique_id(house_id, "energy", key),
+                )
+            )
 
         lights = tuple(
             LightItem(

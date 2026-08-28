@@ -184,3 +184,96 @@ def test_sensor_display_names_are_short() -> None:
         floor="outside",
     ) == "Улица"
 
+
+def test_energy_snapshot_keeps_six_keys_drops_phases() -> None:
+    ops = {
+        "get_house_status": {"online_status": "online"},
+        "list_lights": {"items": []},
+        "get_climate": {"auto_heating_enabled": False, "zones": []},
+        "get_temperature": {"items": []},
+        "get_sensors": {"items": []},
+        "get_sensors_battery": {"items": []},
+        "get_kettle": {},
+        "get_energy_status": {
+            "items": [
+                {"ga": "32/1/35", "name": "Total P", "value": 420, "units": "W"},
+                {"ga": "32/1/36", "name": "Total Q", "value": 10, "units": "var"},
+                {"ga": "32/1/39", "name": "AP energy", "value": 999, "units": "kWh"},
+                {"ga": "32/1/7", "name": "Frequency", "value": 50.02, "units": "Hz"},
+                {"ga": "32/1/59", "name": "consumption Total", "value": 1234.5, "units": "kWh"},
+                {"ga": "32/1/57", "name": "Hour", "value": 1.2, "units": "kWh"},
+                {"ga": "32/1/58", "name": "Daily", "value": 18.0, "units": "kWh"},
+                {"ga": "32/1/38", "name": "PF", "value": 0.97, "units": ""},
+                {"ga": "32/1/1", "name": "Urms L1", "value": 230, "units": "V"},
+            ]
+        },
+    }
+    snap = HouseSnapshot.from_ops("house", ops)
+    energy = {s.kind: s for s in snap.sensors if s.kind in {"power", "frequency", "meter", "hour", "daily", "pf"}}
+    assert set(energy) == {"power", "frequency", "meter", "hour", "daily", "pf"}
+    assert energy["power"].value == 420
+    assert energy["meter"].value == 1234.5
+    assert energy["meter"].unique_id == "house:energy:meter"
+    assert energy["power"].unique_id == "house:energy:power"
+    assert all(s.area is None and s.floor is None for s in energy.values())
+    from cottage_monitoring.snapshot import sensor_display_name
+    assert sensor_display_name(name="ignored", kind="power") == "Сейчас"
+    assert sensor_display_name(name="ignored", kind="frequency") == "Частота"
+    assert sensor_display_name(name="ignored", kind="meter") == "Счётчик"
+    assert sensor_display_name(name="ignored", kind="hour") == "За час"
+    assert sensor_display_name(name="ignored", kind="daily") == "За сутки"
+    assert sensor_display_name(name="ignored", kind="pf") == "PF"
+
+
+def test_energy_missing_ga_skips_only_that_key() -> None:
+    ops = {
+        "get_house_status": {"online_status": "online"},
+        "list_lights": {"items": []},
+        "get_climate": {"auto_heating_enabled": False, "zones": []},
+        "get_temperature": {"items": []},
+        "get_sensors": {"items": []},
+        "get_kettle": {},
+        "get_energy_status": {"items": [{"ga": "32/1/35", "name": "Total P", "value": 1}]},
+    }
+    snap = HouseSnapshot.from_ops("house", ops)
+    kinds = {s.kind for s in snap.sensors}
+    assert "power" in kinds
+    assert "meter" not in kinds
+
+
+def test_battery_sensors_and_display_name() -> None:
+    ops = {
+        "get_house_status": {"online_status": "online"},
+        "list_lights": {"items": []},
+        "get_climate": {"auto_heating_enabled": False, "zones": []},
+        "get_temperature": {"items": []},
+        "get_sensors": {
+            "items": [
+                {"name": "zb_sensor_fl1_living_room_humidity", "value": 44, "area": "гостиная", "floor": "1"},
+            ]
+        },
+        "get_sensors_battery": {
+            "items": [
+                {"name": "zb_sensor_fl1_bedroom_battery", "value": 91, "area": "спальня", "floor": "1"},
+            ]
+        },
+        "get_kettle": {},
+    }
+    snap = HouseSnapshot.from_ops("house", ops)
+    bats = [s for s in snap.sensors if s.kind == "battery"]
+    hums = [s for s in snap.sensors if s.kind == "humidity"]
+    assert len(bats) == 1
+    assert bats[0].area == "спальня"
+    assert bats[0].unique_id == "house:sensor_battery:zb_sensor_fl1_bedroom_battery"
+    assert len(hums) == 1
+    from cottage_monitoring.snapshot import sensor_display_name, sensor_ha_profile
+    assert sensor_display_name(name="zb_sensor_fl1_bedroom_battery", kind="battery") == "Батарея"
+    assert sensor_ha_profile("meter")["state_class"] == "total_increasing"
+    assert sensor_ha_profile("hour")["state_class"] == "total"
+    assert sensor_ha_profile("daily")["state_class"] == "total"
+    assert sensor_ha_profile("battery") == {
+        "device_class": "battery",
+        "unit": "%",
+        "state_class": "measurement",
+    }
+
