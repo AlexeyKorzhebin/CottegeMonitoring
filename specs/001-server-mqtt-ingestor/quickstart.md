@@ -203,12 +203,13 @@ ssh elion '/opt/cottage-monitoring/wait_http_health.sh http://127.0.0.1:8321/hea
 
 Текущий pin: **`cottage-monitoring:0.3.4`** (`server/deploy/IMAGE_PIN.yaml`).
 
-### Сделано в 0.3.4 (код на ветке; live elion — energy Task 5)
+### Сделано в 0.3.4 + live elion (2026-08-28)
 
-- `get_sensors kind=battery` (`ROOM_BATTERY`); HA poll также зовёт `get_energy_status`.
-- Coordinator: **8** read-вызовов — `get_house_status`, `list_lights`, `get_climate`, `get_temperature`, `get_sensors` humidity, `get_sensors` battery, `get_energy_status`, `get_kettle`. Каталог по-прежнему **17** имён.
-- HA energy snapshot: allowlist 6 GA (ЖКХ `32/1/59`); `unique_id` `house:energy:meter`.
-- Lovelace «Графики»: Grafana UID `cottage-energy` / `cottage-batteries` (iframe + markdown-ссылка, если cookie не проходит).
+- Live pin **`cottage-monitoring:0.3.4`**. `get_sensors kind=battery` → 12 items; `GET /ops` = **17**; `get_energy_status` полный (фазы / `32/1/39` на месте).
+- Coordinator: **8** read-вызовов — `get_house_status`, `list_lights`, `get_climate`, `get_temperature`, `get_sensors` humidity, `get_sensors` battery, `get_energy_status`, `get_kettle`.
+- HA energy: 6 `unique_id` `house:energy:*` в area Дом (`dom`). Счётчик ЖКХ → entity_id **`sensor.schetchik`** (Счётчик); мощность → `sensor.seichas` (Сейчас). Energy grid consumption = `sensor.schetchik` (без тарифа).
+- Батареи: 12× `house:sensor_battery:*` в комнатах.
+- Lovelace «Графики» (`dashboards/graphs.yaml`): iframe + markdown-ссылки на `cottage-energy` / `cottage-batteries`. Grafana `allow_embedding=true`; anonymous auth выключен. Cookie между `ha.` и `elion.` может опустошить iframe — рабочие fallback-ссылки в той же карточке.
 
 ### Сделано в 0.3.2 + live elion
 

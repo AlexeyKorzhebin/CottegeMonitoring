@@ -843,7 +843,7 @@ Nord Ops требует аудит «кто отправил команду». �
 
 Порядок выкладки: живой Nord 0.3.0 (alembic 008 **до** restart, probe 17) → ключ + smoke REST → HA. Пока GET `/ops` не отдаёт 17 имён и `list_lights` без `area`/`floor` — контейнер HA не стартовать.
 
-**Live 2026-08-28:** Nord `cottage-monitoring:0.3.3` на elion. `pymorphy3` уже в образе. HA `https://ha.black-castle.ru`. HTTP YAML (`server_host`/`trusted_proxies`) импортирован в UI; блок `http:` из `configuration.yaml` убран. Overview favorites: `binary_sensor.dom_onlain`, `switch.avtoupravlenie_polami` (`frontend.system_data` key `home`, `hide_suggested_entities`). Чайник: вкл/выкл + текущая T; слайдер уставки и HA People отложены оператором. Спека HA-Nord: **Implemented**. go2rtc из `default_config` хардкодит `webrtc.listen: ":18555/tcp"`; на host-network это публичный bind. Entrypoint `go2rtc-localhost-entrypoint.sh` меняет на `127.0.0.1:18555` до `/init`. Остаток: YAML-платформы без config entry (warning 2027.8); recorder погоды когда-то писал °C на ветер/влажность.
+**Live 2026-08-28:** Nord `cottage-monitoring:0.3.4` на elion (после energy/batteries wave). `pymorphy3` уже в образе. HA `https://ha.black-castle.ru`. HTTP YAML (`server_host`/`trusted_proxies`) импортирован в UI; блок `http:` из `configuration.yaml` убран. Overview favorites: `binary_sensor.dom_onlain`, `switch.avtoupravlenie_polami` (`frontend.system_data` key `home`, `hide_suggested_entities`). Чайник: вкл/выкл + текущая T; слайдер уставки и HA People отложены оператором. Спека HA-Nord: **Implemented**. go2rtc из `default_config` хардкодит `webrtc.listen: ":18555/tcp"`; на host-network это публичный bind. Entrypoint `go2rtc-localhost-entrypoint.sh` меняет на `127.0.0.1:18555` до `/init`. Остаток: YAML-платформы без config entry (warning 2027.8); recorder погоды когда-то писал °C на ветер/влажность.
 
 ### R-026: control/status не перепутаны; HA не должен poll'ить сразу после write (2026-08-28)
 
@@ -865,7 +865,9 @@ HA coordinator добавляет два read: `get_energy_status` и `get_senso
 
 Шесть чисел в HA — allowlist GA в snapshot компонента, не сужение Nord `ENERGY_SUMMARY_GAS` (Telegram и Grafana SQL по-прежнему видят фазы, Q/S, `32/1/39`). Счётчик ЖКХ в HA — `32/1/59` (consumption Total), не `32/1/39`. Hour/daily: `state_class=total`; meter (`unique_id` `house:energy:meter`): `state_class=total_increasing`. Шаблон Energy: `server/deploy/ha/energy-grid.example.json`.
 
-Lovelace YAML «Графики» (`cottage-graphs`) встраивает Grafana UID `cottage-energy` и `cottage-batteries`. На elion — только `allow_embedding = true` (`grafana-embedding.ini.snippet`). Если iframe пустой (cookie не шарится между `ha.` и `elion.`) — markdown-ссылка с логином. Анонимный Grafana **запрещён**. Live-проверка iframe vs ссылка и подстановка `entity_id` — Task 5.
+Lovelace YAML «Графики» (`cottage-graphs`) встраивает Grafana UID `cottage-energy` и `cottage-batteries`. На elion — только `allow_embedding = true` (`grafana-embedding.ini.snippet`). Если iframe пустой (cookie не шарится между `ha.` и `elion.`) — markdown-ссылка с логином. Анонимный Grafana **запрещён**.
+
+**Live 2026-08-28 (Task 5):** Nord `0.3.4`; `GET /ops` = 17; battery dry-run 12; `get_energy_status` с `32/1/39`. HA entity_id Счётчик = **`sensor.schetchik`**, Сейчас = `sensor.seichas`; Energy grid `stat_energy_from=sensor.schetchik`. Шесть `house:energy:*` + 12 `house:sensor_battery:*`. Grafana embedding включён; iframe в Lovelace есть, но cookie cross-subdomain `ha.`→`elion.` может оставить рамку пустой — **рабочий путь для семьи: markdown-ссылки** в той же view. Спека energy/Grafana: **Implemented**.
 
 ---
 
