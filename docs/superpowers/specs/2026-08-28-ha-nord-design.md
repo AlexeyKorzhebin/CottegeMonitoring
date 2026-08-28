@@ -2,7 +2,7 @@
 
 **Date:** 2026-08-28  
 **Status:** Draft (awaiting review)  
-**Scope:** Выкладка Nord Ops на prod; поля `area`/`floor` в read-Ops; Op `set_auto_heating`; семейная витрина HA (свет, климат с датчиками, реле как статус, авто ТП, дом онлайн, чайник, Areas/Floors).  
+**Scope:** Выкладка Nord Ops на prod; поля `area`/`floor`; `set_auto_heating`; чайник как `water_heater` (текущая T + уставка); семейная витрина HA.  
 **Depends on:** [2026-08-27-nord-ops-design.md](./2026-08-27-nord-ops-design.md) (каталог Ops, REST `POST .../ops/{name}`, ключ на дом).  
 **Related:** `specs/001-server-mqtt-ingestor/quickstart.md`, `specs/001-server-mqtt-ingestor/contracts/api-v1.md`
 
@@ -42,7 +42,7 @@ Home Assistant должен стать витриной для семьи, не 
 | Единый контур | Данные и команды HA только через `GET /api/v1/ops` и `POST /api/v1/houses/{house_id}/ops/{name}` |
 | Витрина, не мозг | Нет автоматизаций дома в HA; нет KNX; нет MQTT `cm/#` и `ha/#` |
 | Семья на HTTPS | `https://ha.black-castle.ru`, отдельный логин HA на человека |
-| Свет / климат / чайник | Свет: `list_lights` → `set_lights`. Климат: `get_climate` + датчики воздуха/пола/влажности. Чайник: `get_kettle` → `set_kettle` |
+| Свет / климат / чайник | Свет: `list_lights`. Климат: ТП + датчики. Чайник: `water_heater` — вкл/выкл, **текущая T**, **уставка** через расширенный `set_kettle` |
 | Датчики в комнате | Воздух, влажность, температура пола — сущности; **реле зоны только статус** (не выключатель) |
 | Дом | `get_house_status` → «дом онлайн»; `get_climate.auto_heating_enabled` + новый Op `set_auto_heating` → переключатель авто ТП (GA `1/7/1`) |
 | Комнаты и этажи | HA Areas + Floors из полей `area`/`floor` в read-Ops. Семья видит дом по этажам и комнатам, не плоский список |
@@ -203,17 +203,23 @@ Poll раз в `scan_interval`: `get_house_status`, `list_lights`, `get_climate`
 | `sensor` температура воздуха | `get_temperature` `source=air` | нет | Для графиков; climate уже показывает current |
 | `sensor` влажность | `get_sensors` `kind=humidity` | нет | Zigbee `%`; улица — area «Улица» |
 | `sensor` улица | `get_temperature` `source=outdoor` | нет | Area «Улица» |
-| `switch` чайник | `get_kettle` | `set_kettle` | Кухня, если `area` есть |
+| `water_heater` чайник | `get_kettle` | `set_kettle` | Кухня. Текущая T = `appliance.temp`. Уставка = `appliance.setpoint_c`. On/off = `appliance.on` (state `33/1/38`, не cmd). Отдельный `switch` не дублируем |
 
 Климат — **тёплый пол**, не HVAC: `hvac_mode` heat, без cool/fan. Реле комнаты **не** выключатель.
 
-Новый Op (каталог станет 17 имён; MCP и skill подхватывают из реестра):
+Новые/расширенные Ops:
 
-| name | permission | house_scoped | handler |
-|------|------------|--------------|---------|
-| `set_auto_heating` | write | да | новый `agent_actions.set_auto_heating` → GA `1/7/1`, без GA в теле HA |
+| name | permission | house_scoped | Что меняем |
+|------|------------|--------------|------------|
+| `set_auto_heating` | write | да | **новый** `agent_actions.set_auto_heating` → GA `1/7/1` |
+| `set_kettle` | write | да | **расширить** params: `on: bool \| None`, `setpoint_c: float \| None` (хотя бы одно). `on=false` — выкл. `on=true` без уставки — кипятить (как сейчас, cmd bool). `setpoint_c` 40–100 — нагрев/поддержание, без GA в теле HA |
+| `get_kettle` | read | да | JSON уже содержит `appliance.temp`. Добавить `setpoint_c`, если есть объект уставки |
 
-Read авто уже есть в `get_climate` (`auto_heating_enabled`). Отдельный `get_auto_heating` не заводим. В `SKILL.md` / каноне AGENTS: «авто полы / автоуправление ТП» → `set_auto_heating` / смотреть `get_climate`; Telegram по-прежнему спрашивает перед выключением. HA — явный switch, без подтверждения в UI (клик и есть подтверждение).
+Каталог: 17 имён (`set_auto_heating`; `set_kettle` не новое имя). MCP schema `set_kettle` меняется — drift/skill: «нагрей чайник до 80» → `set_kettle(setpoint_c=80)`.
+
+**Дыра на LM.** Live-инвентарь 2026-07-15: только `33/1/37` temp, `33/1/38` state, `33/1/39` cmd (bool). Объекта уставки нет. Текущую температуру HA показывает сразу. Слайдер уставки **не** рисуем, пока на LogicMachine нет writable setpoint (BLE/KNX, имя/теги вроде `*_setpoint` / `heat_temp`), который подхватит `get_kettle`. Добавить этот объект на LM — задача **этой** спеки, не follow-up. Не писать уставку в cmd bool.
+
+Read авто уже есть в `get_climate` (`auto_heating_enabled`). Отдельный `get_auto_heating` не заводим. В `SKILL.md` / каноне AGENTS: «авто полы» → `set_auto_heating`; чайник до N °C → `set_kettle(setpoint_c)`. Telegram по-прежнему спрашивает перед выключением авто ТП. HA — явный switch/слайдер.
 
 `get_house_status.last_seen` можно атрибутом binary_sensor, не отдельной карточкой.
 
@@ -259,7 +265,7 @@ Read авто уже есть в `get_climate` (`auto_heating_enabled`). Отд�
 3. `set_temperature` зоны → `set_climate` без `force_relay`.
 4. Climate зоны: `current_temperature` = `room_temp`, `current_humidity` с датчика той же `area`; рядом sensor пола = `floor_temp`.
 5. `get_sensors kind=humidity` → sensor влажности в той же area, не «плоский» список без комнаты.
-6. Чайник → `set_kettle`.
+6. Чайник: `water_heater` current = `temp`; `set_operation` on/off → `set_kettle(on=…)`; `set_temperature` → `set_kettle(setpoint_c=…)` (не отдельный switch).
 7. Реле зоны — `binary_sensor`, вызов `set_climate` с `force_relay` из HA отсутствует.
 8. Switch авто ТП → `POST .../ops/set_auto_heating` `{on: true/false}`; read с `get_climate.auto_heating_enabled`.
 9. `get_house_status` → binary_sensor онлайн; `partial`/`unknown` = off.
@@ -272,7 +278,7 @@ Read авто уже есть в `get_climate` (`auto_heating_enabled`). Отд�
 ## 14. Success criteria
 
 1. На prod работает образ с Ops: probe **17** tools, `008` накатана, есть `set_auto_heating`.
-2. Семья на `https://ha.black-castle.ru` видит **этажи и комнаты**; в комнате — свет, уставка ТП, воздух, влажность, температура пола, **статус реле (не рубильник)**; в «Дом» — онлайн и автоуправление полами; включает свет и ставит уставку.
+2. Семья на `https://ha.black-castle.ru` видит **этажи и комнаты**; в комнате — свет, уставка ТП, воздух, влажность, температура пола, **статус реле (не рубильник)**; на кухне — чайник с текущей и целевой T; в «Дом» — онлайн и автоуправление полами.
 3. Та же зона гасится из Telegram тем же handler `set_lights`.
 4. Grafana по-прежнему только SELECT.
 5. В HA нет интеграции KNX/MQTT на `cm/#` и нет домашних автоматизаций.
@@ -282,7 +288,7 @@ Read авто уже есть в `get_climate` (`auto_heating_enabled`). Отд�
 ## 15. Implementation order (для плана)
 
 1. Выкладка Nord Ops на elion (образ, 008, skill).
-2. Поля `area`/`floor` в read-Ops; Op `set_auto_heating` + skill/AGENTS (17 tools).
+2. Поля `area`/`floor` в read-Ops; Op `set_auto_heating`; расширить `get_kettle`/`set_kettle` (уставка). Live: если на LM нет setpoint-объекта чайника — завести его, иначе слайдер не включать.
 3. Ключ `home-assistant` + контрактные тесты компонента против fake Nord (включая Areas и датчики).
 4. Код интеграции `ha/custom_components/cottage_monitoring/` (TDD).
 5. systemd + nginx + DNS/TLS + volume.
@@ -303,6 +309,7 @@ Read авто уже есть в `get_climate` (`auto_heating_enabled`). Отд�
 | Zigbee имена на английском | Маппинг `area` только в Nord, одним словарём с резолвером |
 | Случайно выключить авто ТП | Явное имя «Автоуправление полами»; выкл гасит реле скриптом LM. Реле комнат — не switch |
 | Реле зоны принять за рубильник | Только `binary_sensor`; `force_relay` из HA запрещён |
+| Слайдер чайника без GA уставки | Сначала объект на LM; HA не пишет °C в cmd bool |
 | Гостиная 1 / гостиная 2 (две уставки ТП) | Два climate в одном area «гостиная», имена зон различаются; не два area |
 
 ---
