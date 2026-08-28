@@ -659,6 +659,7 @@ OpenClaw `main` на `gpt-5.6-sol` даёт ощущение ответа ~1 м�
 3. Agent `cottage`: `tools.profile=minimal`, `alsoAllow: ["bundle-mcp"]` — **без** `exec`.
 4. Agent `main`: `tools.deny: ["bundle-mcp"]` — house tools не светятся в общем чате.
 5. mcporter остаётся для benches / `cottage-dry` / shell debug.
+6. `TOOLS.md` в workspace-cottage **не** учить `mcporter call` как путь агента. Канон: `openclaw-cottage-tools.md`. Live 2026-08-29: файл переписан под `cottage__*`; issue #4.
 
 ### Verify (2026-08-10)
 
@@ -669,6 +670,7 @@ OpenClaw `main` на `gpt-5.6-sol` даёт ощущение ответа ~1 м�
 
 - `skills/cottage-monitoring/references/openclaw-connection.md`
 - `specs/001-server-mqtt-ingestor/openclaw-cottage-agent-instructions.md`
+- `specs/001-server-mqtt-ingestor/openclaw-cottage-tools.md`
 
 ---
 
