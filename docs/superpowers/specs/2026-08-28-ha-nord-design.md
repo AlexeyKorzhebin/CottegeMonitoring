@@ -135,7 +135,7 @@ Dev (`monitoring-dev`) в этой волне не делаем семейной
 ## 8. HA Container и nginx
 
 - Образ: официальный `ghcr.io/home-assistant/home-assistant:stable` (pull на elion допустим: это не наш код).
-- systemd по образцу `cottage-monitoring.service`: имя контейнера `home-assistant`, `--network host`, volume `/var/lib/homeassistant:/config`.
+- systemd по образцу `cottage-monitoring.service`: имя контейнера `home-assistant`, `--network host`, volume `/var/lib/homeassistant:/config`. Entrypoint `go2rtc-localhost-entrypoint.sh`: HA-managed go2rtc иначе слушает `*:18555` (WebRTC).
 - HTTP-сервер: Settings → System → Network (HA 2026.8+ импортировал YAML и игнорирует блок `http:`). Канон: listen `127.0.0.1:8123`, Trust X-Forwarded-For, trusted proxy `127.0.0.1`. Не возвращать `http:` в `configuration.yaml`.
 - DNS: A `ha.black-castle.ru` → elion. TLS тот же контур, что у `monitoring.black-castle.ru` (certbot).
 - nginx: отдельный `server` на `ha.black-castle.ru`, `proxy_pass http://127.0.0.1:8123`, **WebSocket** (`Upgrade`, `Connection`, `proxy_read_timeout` не короткий). `/mcp` Nord не открывать на этом сервере.
@@ -316,9 +316,7 @@ Read авто уже есть в `get_climate` (`auto_heating_enabled`). Отд�
 
 ## 17. Follow-up (не эта спека)
 
-- Grafana-виджет в Lovelace.
-- Энергия как сущности HA.
-- Батареи Zigbee как sensor в той же area.
+- Энергия, батареи, Grafana в Lovelace — [2026-08-28-ha-energy-grafana-design.md](./2026-08-28-ha-energy-grafana-design.md).
 - Ручной Lovelace / картинки этажей.
 - Push/события вместо poll (только если 30 с мало).
 - MQTT `ha/#` — только если REST-компонент не выдержит.
