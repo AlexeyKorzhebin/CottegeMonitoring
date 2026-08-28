@@ -6,8 +6,8 @@ from homeassistant.components.binary_sensor import (
 )
 
 from .const import DOMAIN, HOUSE_AREA_NAME
-from .entity import CottageEntity
-from .snapshot import ClimateZone, slug
+from .entity import CottageEntity, area_name_for
+from .snapshot import ClimateZone, heat_display_name, place_device_name, slug
 
 
 async def async_setup_platform(hass, config, async_add_entities, discovery_info=None):
@@ -26,7 +26,7 @@ class CottageHouseOnline(CottageEntity, BinarySensorEntity):
         super().__init__(
             coordinator,
             unique_id=f"{coordinator.data.house_id}:house_online:{slug(HOUSE_AREA_NAME)}",
-            name="Дом онлайн",
+            name="Онлайн",
             area_name=HOUSE_AREA_NAME,
         )
 
@@ -41,11 +41,18 @@ class CottageHouseOnline(CottageEntity, BinarySensorEntity):
 
 class CottageZoneHeat(CottageEntity, BinarySensorEntity):
     def __init__(self, coordinator, zone: ClimateZone) -> None:
+        floors = coordinator.data.floors_by_area()
         super().__init__(
             coordinator,
             unique_id=f"{coordinator.data.house_id}:relay:{slug(zone.room)}",
-            name=f"Нагрев {zone.room}",
-            area_name=zone.area,
+            name=heat_display_name(zone.room),
+            area_name=area_name_for(zone.area, zone.floor, floors),
+        )
+        self._device_name = place_device_name(
+            raw_name=zone.room,
+            area=zone.area,
+            floor=zone.floor,
+            floors_by_area=floors,
         )
         self._room = zone.room
 

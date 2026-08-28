@@ -108,6 +108,48 @@ def test_resolve_ambiguous_with_explicit_light_role(monkeypatch) -> None:
     assert len(result.matches) == 2
 
 
+def test_exact_knx_light_name_wins_over_prefix(monkeypatch) -> None:
+    import asyncio
+
+    from cottage_monitoring.services import object_resolver
+
+    bedroom = _obj("1/1/11", "Свет - спальня", "1floor,control,light")
+    tima = _obj("1/1/13", "Свет - спальня Тима", "2floor,control,light")
+    nastya = _obj("1/1/12", "Свет - спальня Насти", "2floor,control,light")
+    office = _obj("1/1/14", "Свет - кабинет", "2floor,control,light")
+    fighter = _obj("1/1/10", "Свет - кабинет - тайфайтер", "2floor,control,light")
+
+    async def fake_load(_session, _house_id: str) -> list[Object]:
+        return [bedroom, tima, nastya, office, fighter]
+
+    monkeypatch.setattr(object_resolver, "load_active_objects", fake_load)
+
+    bedroom_r = asyncio.run(
+        resolve_objects(
+            None,  # type: ignore[arg-type]
+            "h1",
+            query="Свет - спальня",
+            kind="light",
+            role=ObjectRole.LIGHT_CONTROL,
+        )
+    )
+    assert bedroom_r.status == "ok"
+    assert [m.name for m in bedroom_r.matches] == ["Свет - спальня"]
+
+    office_r = asyncio.run(
+        resolve_objects(
+            None,  # type: ignore[arg-type]
+            "h1",
+            query="Свет - кабинет",
+            kind="light",
+            role=ObjectRole.LIGHT_CONTROL,
+        )
+    )
+    assert office_r.status == "ok"
+    assert [m.name for m in office_r.matches] == ["Свет - кабинет"]
+
+
+
 @pytest.mark.integration
 @pytest.mark.asyncio
 async def test_resolve_kitchen_light_unique(db_session) -> None:

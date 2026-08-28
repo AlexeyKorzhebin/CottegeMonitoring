@@ -26,7 +26,15 @@ _ZB_ROOM: dict[str, str] = {
     "bath": "ванная",
     "tambour": "тамбур",
     "nastya": "Настина комната",
+    "nastya_bedroom": "Настина комната",
     "tim": "Тимнина комната",
+    "tima_bedroom": "Тимнина комната",
+    "tim_bedroom": "Тимнина комната",
+}
+
+# LM heating script: fl2_bedroom is the guest-room air sensor, not «спальня».
+_ZB_ROOM_FLOOR: dict[tuple[str, str], str] = {
+    ("2", "bedroom"): "гостевая",
 }
 
 _KNX_PREFIXES = (
@@ -43,6 +51,9 @@ _NAME_HINTS: tuple[tuple[str, str], ...] = (
     ("тимнина", "Тимнина комната"),
     ("настин", "Настина комната"),
     ("спальня насти", "Настина комната"),
+    ("спальня тимы", "Тимнина комната"),
+    ("спальня тима", "Тимнина комната"),
+    ("тимина", "Тимнина комната"),
     ("гостиная", "гостиная"),
     ("гостев", "гостевая"),
     ("кухн", "кухня"),
@@ -105,6 +116,9 @@ def area_from_name(name: str, tags: list[str] | str = "") -> str | None:
     zb = _ZB_NAME_RE.search(raw)
     if zb:
         room_key = zb.group("room").lower()
+        fl = zb.group("fl")
+        if (fl, room_key) in _ZB_ROOM_FLOOR:
+            return _ZB_ROOM_FLOOR[(fl, room_key)]
         if room_key in _ZB_ROOM:
             return _ZB_ROOM[room_key]
     surface = _strip_knx_prefix(raw)

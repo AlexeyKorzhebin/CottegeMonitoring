@@ -17,10 +17,15 @@ def test_area_from_knx_light_name() -> None:
     assert area_from_name("Свет - гостиная - торшер") == "гостиная"
     assert area_from_name("Свет - крыльцо", "control,light,outside") == "крыльцо"
     assert area_from_name("Свет - спальня Насти") == "Настина комната"
+    assert area_from_name("Свет - спальня Тима") == "Тимнина комната"
+    assert area_from_name("Свет - спальня Тимы") == "Тимнина комната"
+    assert area_from_name("Свет - спальня") == "спальня"
     assert area_from_name("Уставка ТП - гостиная 1") == "гостиная"
     assert area_from_name("Уставка ТП - гостиная 2") == "гостиная"
     assert area_from_name("Уставка ТП - Настина комната") == "Настина комната"
     assert area_from_name("Уставка ТП - Тимнина комната") == "Тимнина комната"
+    assert area_from_name("Темп - Тимина комната") == "Тимнина комната"
+    assert area_from_name("ТП - Тимина комната") == "Тимнина комната"
     assert area_from_name("Темп - кабинет") == "кабинет"
 
 
@@ -31,6 +36,15 @@ def test_area_from_zigbee_english_name() -> None:
         name="zb_sensor_fl1_living_room_temperature",
         tags="floor1,temperature,zb_sensor",
     ) == {"floor": "1", "area": "гостиная"}
+    assert area_from_name("zb_sensor_fl1_bedroom_temperature") == "спальня"
+    assert area_from_name("zb_sensor_fl2_bedroom_temperature") == "гостевая"
+    assert area_from_name("zb_sensor_fl2_bedroom_humidity") == "гостевая"
+    assert area_from_name("zb_sensor_fl2_tima_bedroom_temperature") == "Тимнина комната"
+    assert area_from_name("zb_sensor_fl2_nastya_bedroom_humidity") == "Настина комната"
+    assert placement(
+        name="zb_sensor_fl2_bedroom_temperature",
+        tags="floor2,temperature,zb_sensor",
+    ) == {"floor": "2", "area": "гостевая"}
 
 
 def test_synonyms_zal_nastya() -> None:

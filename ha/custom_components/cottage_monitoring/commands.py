@@ -2,11 +2,11 @@ from __future__ import annotations
 
 
 def lights_turn_on_body(name: str) -> tuple[str, dict]:
-    return "set_lights", {"query": name, "on": True, "skip_unchanged": True}
+    return "set_lights", {"query": name, "on": True, "skip_unchanged": False}
 
 
 def lights_turn_off_body(name: str) -> tuple[str, dict]:
-    return "set_lights", {"query": name, "on": False, "skip_unchanged": True}
+    return "set_lights", {"query": name, "on": False, "skip_unchanged": False}
 
 
 def climate_set_temp_body(room: str, temp: float) -> tuple[str, dict]:

@@ -18,16 +18,21 @@ class CottageAutoHeatingSwitch(CottageEntity, SwitchEntity):
         super().__init__(
             coordinator,
             unique_id=f"{coordinator.data.house_id}:auto_heating:{slug(HOUSE_AREA_NAME)}",
-            name="Автоуправление полами",
+            name="Автополы",
             area_name=HOUSE_AREA_NAME,
         )
 
+    def _actual_on(self) -> bool | None:
+        return self.coordinator.data.auto_heating_enabled
+
     @property
     def is_on(self) -> bool:
+        if self._pending_on is not None:
+            return self._pending_on
         return self.coordinator.data.auto_heating_enabled
 
     async def async_turn_on(self, **kwargs) -> None:
-        await self.async_call_op(auto_heating_body, True)
+        await self.async_call_op(auto_heating_body, True, pending_on=True)
 
     async def async_turn_off(self, **kwargs) -> None:
-        await self.async_call_op(auto_heating_body, False)
+        await self.async_call_op(auto_heating_body, False, pending_on=False)

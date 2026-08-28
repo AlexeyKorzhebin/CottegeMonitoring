@@ -1,8 +1,8 @@
-version: "0.3.0"
+version: "0.3.3"
 git_ref: "main"
-image_tag: "cottage-monitoring:0.3.0"
+image_tag: "cottage-monitoring:0.3.3"
 image_digest: ""
 overlay_retired: true
-replaces_overlay: "cottage-monitoring:0.2.9"
+replaces_overlay: "cottage-monitoring:0.3.2"
 notes: |
-  v0.3.0: HA-facing Ops — area/floor on reads, set_auto_heating, set_kettle setpoint_c.
+  v0.3.3: set_lights skip only if status AND control already match (stale status no longer swallows OFF).

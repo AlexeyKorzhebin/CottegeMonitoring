@@ -1,8 +1,8 @@
 # Home Assistant on Nord — Design Spec
 
 **Date:** 2026-08-28  
-**Status:** Ready for deploy  
-**Scope:** Выкладка Nord Ops на prod; поля `area`/`floor`; `set_auto_heating`; чайник как `water_heater` (текущая T + уставка); семейная витрина HA.  
+**Status:** Implemented  
+**Scope:** Выкладка Nord Ops на prod; поля `area`/`floor`; `set_auto_heating`; чайник как `water_heater` (текущая T + вкл/выкл; слайдер уставки отложен); семейная витрина HA.  
 **Depends on:** [2026-08-27-nord-ops-design.md](./2026-08-27-nord-ops-design.md) (каталог Ops, REST `POST .../ops/{name}`, ключ на дом).  
 **Related:** `specs/001-server-mqtt-ingestor/quickstart.md`, `specs/001-server-mqtt-ingestor/contracts/api-v1.md`
 
@@ -10,7 +10,7 @@
 
 ## 1. Problem
 
-Nord Ops в `main`: один каталог, MCP для Telegram, REST для остальных. На prod elion работает `cottage-monitoring:0.3.0`; alembic `008` накатана (2026-08-28, до рестарта). Семейного облачного GUI пока нет — нужна A-запись `ha.black-castle.ru`: Grafana — наблюдатель SQL, Mosaic — LAN, Telegram — агент. Слайдер уставки чайника в HA не включаем, пока на LogicMachine нет writable `ble_teapot_RK-M173S_setpoint`.
+Nord Ops в `main`: один каталог, MCP для Telegram, REST для остальных. На prod elion работает `cottage-monitoring:0.3.3`; alembic `008` накатана. Семейный GUI: `https://ha.black-castle.ru` (TLS, onboarding владельца пройден). Grafana — наблюдатель SQL, Mosaic — LAN, Telegram — агент. Чайник в HA: вкл/выкл и текущая T. Слайдер уставки не рисуем, пока на LogicMachine нет writable `ble_teapot_RK-M173S_setpoint` (отложено оператором). Аккаунты семьи в HA People — отдельно, не в этом изменении.
 
 Home Assistant должен стать витриной для семьи, не мозгом дома. Мозг остаётся LogicMachine. Все внешние клиенты (Telegram, HA, кто угодно дальше) ходят в Nord одним каталогом Ops. HA не получает KNX, не получает MQTT `cm/#`, не дублирует автоматизации.
 
@@ -136,7 +136,7 @@ Dev (`monitoring-dev`) в этой волне не делаем семейной
 
 - Образ: официальный `ghcr.io/home-assistant/home-assistant:stable` (pull на elion допустим: это не наш код).
 - systemd по образцу `cottage-monitoring.service`: имя контейнера `home-assistant`, `--network host`, volume `/var/lib/homeassistant:/config`.
-- В `configuration.yaml`: `http.server_host: 127.0.0.1`, `http.server_port: 8123`, `http.use_x_forwarded_for: true`, `http.trusted_proxies: [127.0.0.1]`.
+- HTTP-сервер: Settings → System → Network (HA 2026.8+ импортировал YAML и игнорирует блок `http:`). Канон: listen `127.0.0.1:8123`, Trust X-Forwarded-For, trusted proxy `127.0.0.1`. Не возвращать `http:` в `configuration.yaml`.
 - DNS: A `ha.black-castle.ru` → elion. TLS тот же контур, что у `monitoring.black-castle.ru` (certbot).
 - nginx: отдельный `server` на `ha.black-castle.ru`, `proxy_pass http://127.0.0.1:8123`, **WebSocket** (`Upgrade`, `Connection`, `proxy_read_timeout` не короткий). `/mcp` Nord не открывать на этом сервере.
 - Конфиг HA на volume. Custom component из репозитория: `ha/custom_components/cottage_monitoring/`. На elion не `git clone` продукта. Артефакт компонента (tar/директория) кладётся в `/var/lib/homeassistant/custom_components/cottage_monitoring/` скриптом выкладки из этой спеки.
@@ -217,7 +217,7 @@ Poll раз в `scan_interval`: `get_house_status`, `list_lights`, `get_climate`
 
 Каталог: 17 имён (`set_auto_heating`; `set_kettle` не новое имя). MCP schema `set_kettle` меняется — drift/skill: «нагрей чайник до 80» → `set_kettle(setpoint_c=80)`.
 
-**Дыра на LM.** Live-инвентарь 2026-08-28: `get_kettle.appliance.setpoint_c` = `null` (temp=25, on=false). Объекта уставки нет. Текущую температуру HA показывает сразу. Слайдер уставки **не** рисуем, пока на LogicMachine нет writable setpoint (имя `ble_teapot_RK-M173S_setpoint`). Добавить этот объект на LM — задача **этой** спеки, не follow-up. Не писать уставку в cmd bool.
+**Дыра на LM (отложено 2026-08-28).** `get_kettle.appliance.setpoint_c` = `null`. Объекта уставки нет. HA показывает вкл/выкл и текущую температуру; слайдер уставки не рисуем, пока на LogicMachine нет writable setpoint (имя `ble_teapot_RK-M173S_setpoint`). Завести объект на LM — отдельная задача оператора. Не писать уставку в cmd bool.
 
 Read авто уже есть в `get_climate` (`auto_heating_enabled`). Отдельный `get_auto_heating` не заводим. В `SKILL.md` / каноне AGENTS: «авто полы» → `set_auto_heating`; чайник до N °C → `set_kettle(setpoint_c)`. Telegram по-прежнему спрашивает перед выключением авто ТП. HA — явный switch/слайдер.
 
@@ -278,7 +278,7 @@ Read авто уже есть в `get_climate` (`auto_heating_enabled`). Отд�
 ## 14. Success criteria
 
 1. На prod работает образ с Ops: probe **17** tools, `008` накатана, есть `set_auto_heating`.
-2. Семья на `https://ha.black-castle.ru` видит **этажи и комнаты**; в комнате — свет, уставка ТП, воздух, влажность, температура пола, **статус реле (не рубильник)**; на кухне — чайник с текущей и целевой T; в «Дом» — онлайн и автоуправление полами.
+2. Семья на `https://ha.black-castle.ru` видит **этажи и комнаты**; в комнате — свет, уставка ТП, воздух, влажность, температура пола, **статус реле (не рубильник)**; на кухне — чайник с текущей T и вкл/выкл (слайдер уставки отложен до объекта LM); в «Дом» — онлайн и автоуправление полами (на Обзоре в избранном).
 3. Та же зона гасится из Telegram тем же handler `set_lights`.
 4. Grafana по-прежнему только SELECT.
 5. В HA нет интеграции KNX/MQTT на `cm/#` и нет домашних автоматизаций.

@@ -10,8 +10,8 @@ from homeassistant.const import ATTR_TEMPERATURE, UnitOfTemperature
 
 from .commands import climate_set_temp_body
 from .const import DOMAIN
-from .entity import CottageEntity
-from .snapshot import ClimateZone
+from .entity import CottageEntity, area_name_for
+from .snapshot import ClimateZone, climate_display_name, place_device_name
 
 
 async def async_setup_platform(hass, config, async_add_entities, discovery_info=None):
@@ -28,16 +28,26 @@ class CottageClimate(CottageEntity, ClimateEntity):
     _attr_temperature_unit = UnitOfTemperature.CELSIUS
 
     def __init__(self, coordinator, zone: ClimateZone) -> None:
+        floors = coordinator.data.floors_by_area()
         super().__init__(
             coordinator,
             unique_id=zone.unique_id,
-            name=zone.room,
-            area_name=zone.area,
+            name=climate_display_name(zone.room),
+            area_name=area_name_for(zone.area, zone.floor, floors),
+        )
+        self._device_name = place_device_name(
+            raw_name=zone.room,
+            area=zone.area,
+            floor=zone.floor,
+            floors_by_area=floors,
         )
         self._room = zone.room
 
     def _zone(self) -> ClimateZone:
         return next(z for z in self.coordinator.data.climates if z.room == self._room)
+
+    def _actual_setpoint(self) -> float | None:
+        return self._zone().setpoint
 
     @property
     def hvac_mode(self) -> HVACMode:
@@ -49,6 +59,8 @@ class CottageClimate(CottageEntity, ClimateEntity):
 
     @property
     def target_temperature(self) -> float | None:
+        if self._pending_setpoint is not None:
+            return self._pending_setpoint
         return self._zone().setpoint
 
     @property
@@ -66,4 +78,6 @@ class CottageClimate(CottageEntity, ClimateEntity):
         temp = kwargs.get(ATTR_TEMPERATURE)
         if temp is None:
             return
-        await self.async_call_op(climate_set_temp_body, self._room, float(temp))
+        await self.async_call_op(
+            climate_set_temp_body, self._room, float(temp), pending_setpoint=float(temp)
+        )

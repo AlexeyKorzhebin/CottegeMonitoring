@@ -836,14 +836,22 @@ Nord Ops требует аудит «кто отправил команду». �
 ### Решение
 
 - Официальный **Container** `ghcr.io/home-assistant/home-assistant:stable` (не HA OS, без Supervisor/аддонов). systemd: `server/deploy/home-assistant.service`, `--network host`, volume `/var/lib/homeassistant:/config`.
-- `http.server_host: 127.0.0.1`, порт **8123**. Снаружи только nginx `ha.black-castle.ru` + TLS + WebSocket (`server/deploy/nginx/home-assistant.conf`). Проверка: `ss -lntp | grep 8123` → **127.0.0.1:8123**, не `0.0.0.0`.
+- Listen `127.0.0.1:8123` (HA 2026.8+: Settings → System → Network; YAML `http:` после миграции игнорируется — не держать в `configuration.yaml`). Снаружи nginx `ha.black-castle.ru` + TLS + WebSocket. На elion публичный **443** — `stream ssl_preread` → `127.0.0.1:8443` (как grafana/elion); vhost HA слушает **8443**, не `0.0.0.0:443`. ACME: `certbot certonly --webroot`, не `certbot --nginx`. Проверка: `ss -lntp | grep 8123` → **127.0.0.1:8123**, не `0.0.0.0`.
 - Custom component из `ha/custom_components/cottage_monitoring/` → volume скриптом `server/deploy/ha-sync-component.sh` (tar, не `git clone` продукта). Poll 30 с: `get_house_status`, `list_lights`, `get_climate`, `get_temperature`, `get_sensors` (humidity), `get_kettle`. Команды — `POST /api/v1/houses/{id}/ops/{name}`.
 - Ключ Nord: `cottage-create-api-key --house house --name home-assistant --scopes read,write`. Секрет в `/var/lib/homeassistant/secrets.yaml` (`nord_ha_api_key`), не в git. Семья — встроенные users HA (логин на человека); в Nord все клики — один `actor_key_id`. `/mcp` на `ha.black-castle.ru` не открывать.
 - Нет интеграций KNX/MQTT, нет подписки на `cm/#` / `ha/#`, `automations.yaml` пустой. Grafana по-прежнему SELECT-only.
 
 Порядок выкладки: живой Nord 0.3.0 (alembic 008 **до** restart, probe 17) → ключ + smoke REST → HA. Пока GET `/ops` не отдаёт 17 имён и `list_lights` без `area`/`floor` — контейнер HA не стартовать.
 
-**Live 2026-08-28:** Nord `cottage-monitoring:0.3.0` на elion, 008 накатана, probe 17, ключ `home-assistant` создан. HA **не** стартован: A-запись `ha.black-castle.ru` отсутствует (`monitoring.black-castle.ru` = `166.1.60.186`). Volume/component/unit/nginx-available стейджнуты. Чайник: `appliance.setpoint_c=null` — слайдер не включать до объекта LM.
+**Live 2026-08-28:** Nord `cottage-monitoring:0.3.3` на elion. `pymorphy3` уже в образе. HA `https://ha.black-castle.ru`. HTTP YAML (`server_host`/`trusted_proxies`) импортирован в UI; блок `http:` из `configuration.yaml` убран. Overview favorites: `binary_sensor.dom_onlain`, `switch.avtoupravlenie_polami` (`frontend.system_data` key `home`, `hide_suggested_entities`). Чайник: вкл/выкл + текущая T; слайдер уставки и HA People отложены оператором. Спека HA-Nord: **Implemented**. Остаток: YAML-платформы без config entry (warning 2027.8); recorder погоды когда-то писал °C на ветер/влажность.
+
+### R-026: control/status не перепутаны; HA не должен poll'ить сразу после write (2026-08-28)
+
+Live `list_lights`: все `ga` = `1/1/*` (control), `on` с status `1/2/*` по имени (`Свет - … :status`). `set_lights` пишет только control. Реле ТП: write `1/4/*`, read `1/5/*`; чайник: write `33/1/39` cmd, read `33/1/38` state.
+
+Цикл вкл/выкл в HA: после команды компонент сразу делал 6 Ops. Status на шине отстаёт на ~0.5–3 с, poll видит старый off, UI откатывается, повторный клик (для zigbee/BLE — повторная запись True) даёт выключение. Фикс: optimistic state + refresh через 2.5 с.
+
+Пустая area «спальня»: `zb_sensor_fl2_bedroom_*` в LM — датчик **гостевой** (`manage_warm_floor.lua`), не спальни 1 этажа. Placement отдавал `area=спальня` на 2 этаже → HA квалифицировал «спальня (1 этаж)» / «спальня (2 этаж)», канон «спальня» оставался пустым. Также `tima_bedroom` / `nastya_bedroom` и KNX «Тимина» (одна «н»).
 
 ### Отклонено
 

@@ -71,6 +71,10 @@ _SYNONYMS = {
     "наст": "настин",  # pymorphy sometimes yields this for «Насте»
     "настина": "настин",
     "тим": "тимин",
+    "тима": "тимин",
+    "тимы": "тимин",
+    "тимина": "тимин",
+    "тимнина": "тимин",
 }
 
 
@@ -256,6 +260,10 @@ def _significant_lemmas(text: str) -> set[str]:
     }
 
 
+def _norm_query_name(s: str) -> str:
+    return " ".join((s or "").lower().replace("ё", "е").split())
+
+
 def _query_matches(query: str | None, obj: Object) -> bool:
     if not query:
         return True
@@ -359,6 +367,12 @@ async def resolve_objects(
         if role is not None and resolved.role != role:
             continue
         matches.append(resolved)
+
+    if query and matches:
+        qn = _norm_query_name(query)
+        exact = [m for m in matches if _norm_query_name(m.name) == qn]
+        if exact:
+            matches = exact
 
     if not matches:
         return ResolveResult(status="not_found", matches=[])
