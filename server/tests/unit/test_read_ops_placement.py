@@ -4,6 +4,8 @@ from __future__ import annotations
 import asyncio
 from unittest.mock import MagicMock
 
+import pytest
+
 from cottage_monitoring.services import agent_actions
 from cottage_monitoring.services.object_resolver import ObjectRole, ResolvedObject, ResolveResult
 
@@ -110,6 +112,16 @@ def test_get_sensors_humidity_has_placement(monkeypatch) -> None:
     assert out["items"][0]["floor"] == "1"
 
 
+def test_get_sensors_unknown_kind_still_raises(monkeypatch) -> None:
+    async def fake_states(*_a, **_k):
+        return {}
+
+    monkeypatch.setattr(agent_actions, "_get_state_map", fake_states)
+
+    with pytest.raises(ValueError):
+        asyncio.run(agent_actions.get_sensors(MagicMock(), "house", kind="not-a-kind"))
+
+
 def test_get_kettle_forwards_placement_when_classifiable(monkeypatch) -> None:
     from types import SimpleNamespace
 
@@ -133,6 +145,4 @@ def test_get_kettle_forwards_placement_when_classifiable(monkeypatch) -> None:
 
     out = asyncio.run(agent_actions.get_kettle(MagicMock(), "house"))
     appliance = out["appliance"]
-    assert "setpoint_c" in appliance or appliance.get("setpoint_c") is None
-    # teapot English name has no room token — area may be absent
-    assert "area" not in appliance or appliance["area"] in (None, "кухня")
+    assert "area" not in appliance

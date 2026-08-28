@@ -323,11 +323,17 @@ async def get_sensors(
     kind: str | None = None,
 ) -> dict[str, Any]:
     states = await _get_state_map(session, house_id)
-    try:
+    if kind == "humidity":
+        result = await resolve_objects(
+            session,
+            house_id,
+            query=query,
+            kind=DiscoverKind.SENSOR,
+            role=ObjectRole.ROOM_HUMIDITY,
+        )
+    else:
         dk = DiscoverKind(kind) if kind else DiscoverKind.SENSOR
-    except ValueError:
-        dk = DiscoverKind.SENSOR
-    result = await resolve_objects(session, house_id, query=query, kind=dk)
+        result = await resolve_objects(session, house_id, query=query, kind=dk)
     items = [
         _with_placement(
             {
