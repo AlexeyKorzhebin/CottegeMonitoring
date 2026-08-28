@@ -1,7 +1,7 @@
 # Home Assistant on Nord — Design Spec
 
 **Date:** 2026-08-28  
-**Status:** Draft (awaiting review)  
+**Status:** Ready for deploy  
 **Scope:** Выкладка Nord Ops на prod; поля `area`/`floor`; `set_auto_heating`; чайник как `water_heater` (текущая T + уставка); семейная витрина HA.  
 **Depends on:** [2026-08-27-nord-ops-design.md](./2026-08-27-nord-ops-design.md) (каталог Ops, REST `POST .../ops/{name}`, ключ на дом).  
 **Related:** `specs/001-server-mqtt-ingestor/quickstart.md`, `specs/001-server-mqtt-ingestor/contracts/api-v1.md`
@@ -120,7 +120,7 @@ HA не стартуем, пока шаги 1–3 не зелёные.
 
 ## 7. Выкладка Nord Ops (шаг 1)
 
-Как в `specs/001-server-mqtt-ingestor/quickstart.md`: код на elion не клонировать и не rsync. Сборка образа локально (`linux/amd64`), `docker save` → `docker load`. Тег systemd сейчас `cottage-monitoring:0.2.9` — новый тег после сборки `main` с Ops.
+Как в `specs/001-server-mqtt-ingestor/quickstart.md`: код на elion не клонировать и не rsync. Сборка образа локально (`linux/amd64`), `docker save` → `docker load`. Тег systemd: **`cottage-monitoring:0.3.0`**.
 
 1. `alembic upgrade head` на prod-БД **до** рестарта (колонка `commands.actor_key_id`). Иначе insert команды падает.
 2. Обновить unit/тег образа, `systemctl restart cottage-monitoring`.
@@ -217,7 +217,7 @@ Poll раз в `scan_interval`: `get_house_status`, `list_lights`, `get_climate`
 
 Каталог: 17 имён (`set_auto_heating`; `set_kettle` не новое имя). MCP schema `set_kettle` меняется — drift/skill: «нагрей чайник до 80» → `set_kettle(setpoint_c=80)`.
 
-**Дыра на LM.** Live-инвентарь 2026-07-15: только `33/1/37` temp, `33/1/38` state, `33/1/39` cmd (bool). Объекта уставки нет. Текущую температуру HA показывает сразу. Слайдер уставки **не** рисуем, пока на LogicMachine нет writable setpoint (BLE/KNX, имя/теги вроде `*_setpoint` / `heat_temp`), который подхватит `get_kettle`. Добавить этот объект на LM — задача **этой** спеки, не follow-up. Не писать уставку в cmd bool.
+**Дыра на LM.** Live-инвентарь 2026-08-28: `get_kettle.appliance.setpoint_c` = `null` (temp=25, on=false). Объекта уставки нет. Текущую температуру HA показывает сразу. Слайдер уставки **не** рисуем, пока на LogicMachine нет writable setpoint (имя `ble_teapot_RK-M173S_setpoint`). Добавить этот объект на LM — задача **этой** спеки, не follow-up. Не писать уставку в cmd bool.
 
 Read авто уже есть в `get_climate` (`auto_heating_enabled`). Отдельный `get_auto_heating` не заводим. В `SKILL.md` / каноне AGENTS: «авто полы» → `set_auto_heating`; чайник до N °C → `set_kettle(setpoint_c)`. Telegram по-прежнему спрашивает перед выключением авто ТП. HA — явный switch/слайдер.
 

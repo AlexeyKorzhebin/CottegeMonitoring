@@ -798,24 +798,58 @@ Nord Ops требует аудит «кто отправил команду». �
 
 ---
 
-## R-024: `set_kettle` setpoint_c (2026-08-28)
+## R-024: Placement + `set_auto_heating` + kettle setpoint (2026-08-28)
 
 ### Контекст
 
-Чайник Redmond RK-M173S умеет нагрев до N °C, но Nord писал только bool в cmd `33/1/39`. Число в cmd ломает BLE. Нужна отдельная уставка.
+Семейная витрина HA (R-025) должна рисовать этажи/комнаты и чайник без парсинга имён в компоненте. Telegram и HA ходят в один каталог Ops. На момент 0.2.9 каталог был 16 имён; авто ТП читалось из `get_climate`, писать `1/7/1` мог только `set_commands`. Чайник Redmond RK-M173S умеет нагрев до N °C, но Nord писал только bool в cmd `33/1/39`. Число в cmd ломает BLE.
 
 ### Решение
 
-- `SetKettleParams`: `on` и/или `setpoint_c` (40–100 включительно). Каталог не расширяется новым Op name.
+**Placement.** Поля `area` / `floor` на уже существующих read-Ops (лишние ключи JSON; MCP/Telegram не ломаются). Канон в `services/placement.py`: `floor` ∈ {`1`,`2`,`outside`} из тегов `1floor`/`floor1`, `2floor`/`floor2`, `outside`; `area` — русская комната как в KNX-именах (`кухня`, `гостиная`, `Настина комната`, …). Синонимы резолвера (`зал`→гостиная, `Настя`→Настина). Zigbee `zb_sensor_fl1_living_room_*` мапится **в Nord**, не в HA. Где поля: `list_lights.items[]`, `get_climate.zones[]`, `get_temperature.items[]`, `get_sensors.items[]`; `get_kettle` ставит `area` только если резолвер классифицировал (иначе ключ не ставим). Новых имён Ops нет.
+
+**`set_auto_heating`.** Новый write-Op → GA `1/7/1` (`on: bool`). Выкл = Lua гасит все реле ТП. Не путать с реле зоны (`1/5/*`). Read по-прежнему `get_climate.auto_heating_enabled`; отдельный `get_auto_heating` не заводим. Каталог: **17** имён.
+
+**Чайник setpoint.** `SetKettleParams`: `on` и/или `setpoint_c` (40–100 включительно). Каталог не расширяется новым Op name.
+
 - `set_kettle(setpoint_c=…)` пишет объект с `setpoint` в имени или тегах. **Никогда** не пишет °C в `33/1/39`.
 - Нет объекта уставки → HTTP 404 `Kettle setpoint object not found`. `get_kettle` всегда отдаёт ключ `appliance.setpoint_c` (`None`, пока объекта нет).
 - Классификация setpoint в `_group_appliances` **до** ветки temp.
 - Cmd-матчи в `set_kettle` пропускают объекты setpoint (имя/тег), чтобы уставка с тегами `control`+`zigbee_send` не считалась cmd. Если `on` и `setpoint_c` заданы вместе и cmd ambiguous/404 **после** успешной записи уставки — ответ всё равно содержит ключ `setpoint` (результат не теряется).
 
+**Объект на LM (эта волна, не follow-up).** Live-инвентарь: только `33/1/37` temp, `33/1/38` state, `33/1/39` cmd (bool). Объекта уставки нет. Завести на LogicMachine: имя `ble_teapot_RK-M173S_setpoint`, теги `ble,teapot,setpoint`, datatype float °C, writable; resident не должен слать число в `33/1/39`. Пока объекта нет — `appliance.setpoint_c` = `None`, HA `water_heater` без слайдера уставки (только on/off + текущая T).
+
 ### Отклонено
 
-- Новый Op `set_kettle_setpoint`.
-- Запись температуры в cmd GA.
+- Новый Op `set_kettle_setpoint` / `get_auto_heating`.
+- Запись температуры в cmd GA `33/1/39`.
+- Таблица комнат в YAML HA-компонента; маппинг Zigbee-имён в HA.
+
+---
+
+## R-025: HA Container на REST-грани (2026-08-28)
+
+### Контекст
+
+Семье нужен облачный GUI по этажам и комнатам. Grafana — SELECT-наблюдатель; Telegram — агент. HA не должен стать мозгом дома и не должен видеть KNX / MQTT `cm/#`.
+
+### Решение
+
+- Официальный **Container** `ghcr.io/home-assistant/home-assistant:stable` (не HA OS, без Supervisor/аддонов). systemd: `server/deploy/home-assistant.service`, `--network host`, volume `/var/lib/homeassistant:/config`.
+- `http.server_host: 127.0.0.1`, порт **8123**. Снаружи только nginx `ha.black-castle.ru` + TLS + WebSocket (`server/deploy/nginx/home-assistant.conf`). Проверка: `ss -lntp | grep 8123` → **127.0.0.1:8123**, не `0.0.0.0`.
+- Custom component из `ha/custom_components/cottage_monitoring/` → volume скриптом `server/deploy/ha-sync-component.sh` (tar, не `git clone` продукта). Poll 30 с: `get_house_status`, `list_lights`, `get_climate`, `get_temperature`, `get_sensors` (humidity), `get_kettle`. Команды — `POST /api/v1/houses/{id}/ops/{name}`.
+- Ключ Nord: `cottage-create-api-key --house house --name home-assistant --scopes read,write`. Секрет в `/var/lib/homeassistant/secrets.yaml` (`nord_ha_api_key`), не в git. Семья — встроенные users HA (логин на человека); в Nord все клики — один `actor_key_id`. `/mcp` на `ha.black-castle.ru` не открывать.
+- Нет интеграций KNX/MQTT, нет подписки на `cm/#` / `ha/#`, `automations.yaml` пустой. Grafana по-прежнему SELECT-only.
+
+Порядок выкладки: живой Nord 0.3.0 (alembic 008 **до** restart, probe 17) → ключ + smoke REST → HA. Пока GET `/ops` не отдаёт 17 имён и `list_lights` без `area`/`floor` — контейнер HA не стартовать.
+
+**Live 2026-08-28:** Nord `cottage-monitoring:0.3.0` на elion, 008 накатана, probe 17, ключ `home-assistant` создан. HA **не** стартован: A-запись `ha.black-castle.ru` отсутствует (`monitoring.black-castle.ru` = `166.1.60.186`). Volume/component/unit/nginx-available стейджнуты. Чайник: `appliance.setpoint_c=null` — слайдер не включать до объекта LM.
+
+### Отклонено
+
+- YAML REST sensors/кнопки; MQTT Discovery; HA OS / Supervisor.
+- Bridge + `host.docker.internal:8321` как основной путь HA→Nord (Nord слушает `-p 127.0.0.1:8321`).
+- Users / OAuth в Nord; публичная витрина на `monitoring-dev`.
 
 ---
 
@@ -889,5 +923,6 @@ Stat-плитки (`time_series` + колонка `metric`): Grafana Postgres lo
 | R-020 | Ops registry + dispatch | `OpSpec`/`OpsRegistry`, resolve house (>1 грант → 400), write rate-limit в диспетчере | params-валидация в диспетчере / выбор первого дома |
 | R-021 | Каталог Ops → две грани | `catalog.load_catalog()` в lifespan; MCP tools генерируются из реестра; REST `GET /ops` + `POST .../ops/{name}` | ручные `@mcp.tool` рядом с реестром / регистрация по импорту |
 | R-022 | Command actor | `commands.actor_key_id` nullable FK `api_keys.id`; пишет только `send_command` из ctx | колонка в диспетчере / обязательный FK |
-| R-023 | Skill + catalog CLI | SKILL/AGENTS: `list_houses`+`house_id`; `cottage-ops catalog` = реестр; probe 16 tools | схемы Ops в промпте / REST POST в skill / CLI агенту |
-| R-024 | Kettle setpoint | `set_kettle` on и/или setpoint_c 40–100; °C не в cmd 33/1/39 | новый Op / запись °C в cmd |
+| R-023 | Skill + catalog CLI | SKILL/AGENTS: `list_houses`+`house_id`; `cottage-ops catalog` = реестр; probe 16 tools (на момент заметки; с 0.3.0 — 17, R-024) | схемы Ops в промпте / REST POST в skill / CLI агенту |
+| R-024 | Placement + авто ТП + kettle | `area`/`floor` на read-Ops; `set_auto_heating`→`1/7/1`; каталог 17; `set_kettle` on и/или setpoint_c 40–100, °C не в cmd; LM объект `ble_teapot_RK-M173S_setpoint` | новый Op setpoint / °C в cmd / маппинг комнат в HA |
+| R-025 | HA Container | офиц. Container, host net, loopback 8123, nginx `ha.black-castle.ru`+WS, ключ `home-assistant`, component tar; нет KNX/MQTT/automation | YAML REST / MQTT discovery / HA OS |

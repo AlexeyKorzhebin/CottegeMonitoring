@@ -181,16 +181,39 @@ sudo docker run --rm --network=host \
 
 ```bash
 # Локально (из server/)
-docker build --platform linux/amd64 -t cottage-monitoring:0.2.5 -f deploy/Dockerfile .
-docker save cottage-monitoring:0.2.5 | ssh elion 'sudo docker load'
+docker build --platform linux/amd64 -t cottage-monitoring:0.3.0 -f deploy/Dockerfile .
+docker save cottage-monitoring:0.3.0 | ssh elion 'sudo docker load'
 # Один раз на elion: sudo bash deploy/elion-bind-docker0.sh
 # Env: host.docker.internal; systemd: bridge + -p 127.0.0.1:8321:8321
+
+# Alembic 008 (commands.actor_key_id) на PROD — ДО рестарта.
+# Иначе insert команды падает. Старый контейнер 0.2.9 продолжает работать.
+# Env указывает на host.docker.internal — не --network=host (имя не резолвится).
+ssh elion 'sudo docker run --rm --add-host=host.docker.internal:host-gateway \
+  --env-file /etc/cottage-monitoring/cottage-monitoring.prod.env \
+  cottage-monitoring:0.3.0 alembic upgrade head'
+
+# Unit pin: scp/tee server/deploy/cottage-monitoring.service → /etc/systemd/system/
+# (не git clone продукта). Затем:
 ssh elion 'sudo systemctl daemon-reload && sudo systemctl restart cottage-monitoring'
+ssh elion '/opt/cottage-monitoring/wait_http_health.sh http://127.0.0.1:8321/health 30'
 ```
 
 Сеть: **bridge** + `host.docker.internal:host-gateway` (не `--network=host`).
 
-Текущий pin: **`cottage-monitoring:0.2.9`** (`server/deploy/IMAGE_PIN.yaml`).
+Текущий pin: **`cottage-monitoring:0.3.0`** (`server/deploy/IMAGE_PIN.yaml`).
+
+### Сделано в 0.3.0 (HA-facing Ops)
+
+| Пункт | Статус |
+|-------|--------|
+| Каталог Ops | **17** имён (`set_auto_heating`; `set_kettle` то же имя) |
+| `area` / `floor` | на `list_lights`, `get_climate.zones`, `get_temperature`, `get_sensors` |
+| `set_auto_heating` | write GA `1/7/1` |
+| `set_kettle` / `get_kettle` setpoint | `on` и/или `setpoint_c` (40–100); °C только в объект `*setpoint*`, никогда в cmd `33/1/39` |
+| Alembic 008 на prod | **накатана 2026-08-28** до restart 0.3.0 (`007` → `008`) |
+| LM teapot setpoint | объекта `ble_teapot_RK-M173S_setpoint` на LM **нет** — `get_kettle.appliance.setpoint_c=null`; HA слайдер уставки выключен |
+| HA Container | файлы стейджнуты (`/var/lib/homeassistant`, unit, nginx available, component tar). **Не стартован:** нет A-записи `ha.black-castle.ru` (нужен человек). Smoke Nord зелёный |
 
 ### Сделано в 0.2.9 + live elion
 
@@ -198,7 +221,6 @@ ssh elion 'sudo systemctl daemon-reload && sudo systemctl restart cottage-monito
 |-------|--------|
 | `set_commands` skip_unchanged | status sibling (`:status` / `_state`), не control GA |
 | `get_kettle.on` | state `33/1/38`, не cmd `33/1/39` |
-| `set_kettle` / `get_kettle` setpoint | `on` и/или `setpoint_c` (40–100); °C только в объект `*setpoint*`, никогда в cmd `33/1/39`. `appliance.setpoint_c` = `None`, пока объекта нет на LM |
 
 ### Сделано в 0.2.8 + live elion
 
@@ -293,7 +315,7 @@ python3 run_bench.py --e2e --mcp-alias cottage-dry --out results/e2e.json
 
 **Ops (R-020):** каталог операций — `server/src/cottage_monitoring/ops/`: `spec.OpSpec` (имя = MCP tool = сегмент URL), `registry.registry`, `dispatch.dispatch(ctx, spec, *, house_id, params, session)`. Диспетчер сам проверяет scope, резолвит дом (один грант — аргумент можно опустить, два и больше без аргумента — 400 `house_id required`, чужой дом — 403) и вызывает write rate-limit. Без контекста ключа: `AUTH_REQUIRED=true` → 401, `false` → открыто, как на ресурсном REST.
 
-**Каталог и две грани (R-021):** 16 операций из `ops/catalog.py`, параметры — модели `ops/params.py` (`extra="forbid"`; `house_id` не поле). `load_catalog()` вызывается в lifespan `main.py` — он же строит MCP tools из реестра (ручных `@mcp.tool` больше нет). Грани:
+**Каталог и две грани (R-021, R-024):** **17** операций из `ops/catalog.py` (16 + `set_auto_heating`), параметры — модели `ops/params.py` (`extra="forbid"`; `house_id` не поле). `load_catalog()` вызывается в lifespan `main.py` — он же строит MCP tools из реестра (ручных `@mcp.tool` больше нет). Грани:
 
 | Грань | Вызов |
 |-------|-------|
@@ -303,21 +325,25 @@ python3 run_bench.py --e2e --mcp-alias cottage-dry --out results/e2e.json
 
 Расхождение имён ловит `server/tests/unit/test_ops_drift.py` (реестр == MCP tools == `GET /ops` для write-ключа).
 
-**Актор команды (R-022):** `send_command` пишет `commands.actor_key_id = ctx.key_id`, когда `get_current_api_key_context()` не пуст (MCP/REST с ключом). Без ctx — NULL. Миграция `008_command_actor_key` на prod ещё не накатывалась (только `cottage_monitoring_dev` для тестов).
+**Актор команды (R-022):** `send_command` пишет `commands.actor_key_id = ctx.key_id`, когда `get_current_api_key_context()` не пуст (MCP/REST с ключом). Без ctx — NULL. Миграция `008_command_actor_key` на prod **накатана 2026-08-28** (до restart образа 0.3.0).
 
 **OpenClaw cottage MCP (R-016):** native `mcp.servers.cottage` → `http://127.0.0.1:8321/mcp`, tools `cottage__*`; агент `cottage` — `minimal` + `alsoAllow: ["bundle-mcp"]` (без `exec`); `main` — `deny: ["bundle-mcp"]`. mcporter остаётся для benches/`cottage-dry`. См. `skills/cottage-monitoring/references/openclaw-connection.md`.
 
-**Skill + catalog CLI (R-023):** Telegram и оператор смотрят в один каталог (16 Ops). Skill/`AGENTS.md` — routing + `list_houses`/`house_id`, не JSON-схемы. После образа с Nord Ops, на elion:
+**Skill + catalog CLI (R-023, R-024):** Telegram и оператор смотрят в один каталог (**17** Ops). Skill/`AGENTS.md` — routing + `list_houses`/`house_id` + `set_auto_heating` / чайник `setpoint_c`, не JSON-схемы. После образа 0.3.0, на elion:
 
 1. `openclaw skills install /path/to/skills/cottage-monitoring --agent cottage --force` (или скопировать в `/home/openclaw/.openclaw/workspace/skills/cottage-monitoring/`; workspace-cottage — симлинк сюда).
 2. Обновить `/home/openclaw/.openclaw/workspace-cottage/AGENTS.md` из канона в `specs/001-server-mqtt-ingestor/openclaw-cottage-agent-instructions.md`.
-3. `openclaw mcp probe cottage` — 16 tools, включая `list_houses`. Старый Telegram-чат: `/new` или перечитать AGENTS.
+3. `openclaw mcp probe cottage` — **17** tools, включая `list_houses` и `set_auto_heating`. Старый Telegram-чат: `/new` или перечитать AGENTS.
 
 Сверка без MCP-сессии (оператор, не агент cottage): `cottage-ops catalog` / `cottage-ops catalog --json` — `load_catalog()`, те же имена, что реестр. В образе: `--entrypoint cottage-ops`.
 
 **`set_lights` skip (R-017, 2026-08-15):** `skip_unchanged` смотрит status `1/2/*` (факт с выключателя), не control `1/1/*`. Иначе зональный OFF гасит только группы, чей control ещё `true` (типично холл после бота), а комнаты со стены пропускает. То же для `set_commands` (sibling `:status`/`_state`) и `get_kettle.on` (state `33/1/38`, не cmd).
 
-**Чайник setpoint (2026-08-28):** `set_kettle` принимает `on` и/или `setpoint_c` (40–100). Число °C пишется только в объект `*setpoint*` (имя/тег), никогда в cmd `33/1/39`. Объект уставки не считается cmd. Если cmd ambiguous/404 после успешной записи уставки, ответ сохраняет ключ `setpoint`. `get_kettle` отдаёт `appliance.setpoint_c` (`None`, пока объекта нет на LM).
+**Чайник setpoint (R-024, 2026-08-28):** `set_kettle` принимает `on` и/или `setpoint_c` (40–100). Число °C пишется только в объект `*setpoint*` (имя/тег), никогда в cmd `33/1/39`. Объект уставки не считается cmd. Если cmd ambiguous/404 после успешной записи уставки, ответ сохраняет ключ `setpoint`. `get_kettle` отдаёт `appliance.setpoint_c` (`None`, пока объекта нет на LM). Объект `ble_teapot_RK-M173S_setpoint` на LM **ещё не заведён** — HA слайдер уставки не включать, пока `setpoint_c` не перестанет быть `null`.
+
+**`set_auto_heating` (R-024):** write GA `1/7/1`. Telegram спрашивает перед выкл; HA — явный switch в area «Дом».
+
+**Placement (R-024):** `area` / `floor` на read-Ops. HA Areas/Floors только рисуют эти поля; словарь комнат живёт в Nord `placement.py`.
 
 ### MCP model bench (Caila × cottage tools)
 
@@ -530,3 +556,49 @@ Grafana на elion — OSS. Для агента: MCP `user-grafana` →
   («not sorted by time» → **No data**); `cs.ts` старше окна дашборда тоже режет точки.
 - Auto-refresh дашборда: **30s** (Overview/Energy/Climate/Lights), **1m** (Batteries, LM Load).
 - Loadavg пишется LM в `34/1/6..8` и попадает в prod `events` (~раз в минуту для load1).
+
+---
+
+## Home Assistant (elion) — витрина семьи на REST-грани Nord
+
+Решение: **R-025**. HA — UI, не мозг. Данные и команды только через `GET /api/v1/ops` и `POST /api/v1/houses/{house_id}/ops/{name}`. Grafana остаётся SELECT. В HA нет KNX, MQTT `cm/#` / `ha/#`, домашних automation.
+
+**Не стартовать HA**, пока Nord 0.3.0 не зелёный: health, GET `/ops` = **17** имён включая `set_auto_heating`, `list_lights.items[]` с `area`/`floor`.
+
+### Артефакты
+
+| Что | Путь |
+|-----|------|
+| systemd | `server/deploy/home-assistant.service` (`--network host`, volume `/var/lib/homeassistant`) |
+| nginx | `server/deploy/nginx/home-assistant.conf` (`ha.black-castle.ru`, TLS + WebSocket) |
+| Канон HA YAML | `server/deploy/ha/configuration.yaml` (`http.server_host: 127.0.0.1:8123`) |
+| Пустые automation | `server/deploy/ha/automations.yaml` (`[]`) |
+| Шаблон секрета | `server/deploy/ha/secrets.yaml.example` |
+| Component sync | `./server/deploy/ha-sync-component.sh` (tar в volume, не git clone) |
+
+### Выкладка (после smoke Nord)
+
+```bash
+# DNS: A ha.black-castle.ru = тот же IP, что monitoring.black-castle.ru
+# dig +short ha.black-castle.ru  ==  dig +short monitoring.black-castle.ru
+
+# Ключ (секрет один раз → secrets.yaml, не в git)
+ssh elion 'sudo docker run --rm --add-host=host.docker.internal:host-gateway \
+  --env-file /etc/cottage-monitoring/cottage-monitoring.prod.env \
+  --entrypoint cottage-create-api-key cottage-monitoring:0.3.0 \
+  --house house --name home-assistant --scopes read,write'
+
+# Volume + YAML
+ssh elion 'sudo mkdir -p /var/lib/homeassistant'
+# configuration.yaml, automations.yaml, secrets.yaml (nord_ha_api_key) на volume
+./server/deploy/ha-sync-component.sh
+
+# nginx + certbot
+# sudo cp nginx/home-assistant.conf …; sudo certbot --nginx -d ha.black-castle.ru
+ssh elion 'sudo systemctl enable --now home-assistant'
+ssh elion 'ss -lntp | grep 8123'   # только 127.0.0.1:8123, не 0.0.0.0
+```
+
+Onboarding владельца на `https://ha.black-castle.ru`; Settings → People — логин на человека; обычные без админа. Семья в Nord не проецируется: все клики — один `actor_key_id` ключа `home-assistant`.
+
+Чайник: текущая T сразу; слайдер уставки только если `get_kettle.appliance.setpoint_c` не `null` (объект LM `ble_teapot_RK-M173S_setpoint` ещё отсутствует).
