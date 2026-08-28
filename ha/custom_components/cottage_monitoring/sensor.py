@@ -7,6 +7,9 @@ from homeassistant.components.sensor import (
 )
 from homeassistant.const import (
     PERCENTAGE,
+    UnitOfEnergy,
+    UnitOfFrequency,
+    UnitOfPower,
     UnitOfPressure,
     UnitOfSpeed,
     UnitOfTemperature,
@@ -14,7 +17,7 @@ from homeassistant.const import (
 
 from .const import DOMAIN
 from .entity import CottageEntity, area_name_for
-from .snapshot import SensorItem, place_device_name, sensor_display_name
+from .snapshot import SensorItem, place_device_name, sensor_display_name, sensor_ha_profile
 
 
 async def async_setup_platform(hass, config, async_add_entities, discovery_info=None):
@@ -45,7 +48,7 @@ class CottageSensor(CottageEntity, SensorEntity):
         self._apply_device_class(item.kind, label)
 
     def _apply_device_class(self, kind: str, label: str) -> None:
-        if kind == "humidity" or (kind == "outdoor" and label == "Влажность"):
+        if kind == "outdoor" and label == "Влажность":
             self._attr_device_class = SensorDeviceClass.HUMIDITY
             self._attr_native_unit_of_measurement = PERCENTAGE
             self._attr_state_class = SensorStateClass.MEASUREMENT
@@ -65,9 +68,25 @@ class CottageSensor(CottageEntity, SensorEntity):
             self._attr_native_unit_of_measurement = None
             self._attr_state_class = None
             return
-        self._attr_device_class = SensorDeviceClass.TEMPERATURE
-        self._attr_native_unit_of_measurement = UnitOfTemperature.CELSIUS
-        self._attr_state_class = SensorStateClass.MEASUREMENT
+        profile = sensor_ha_profile(kind)
+        dc = profile["device_class"]
+        self._attr_device_class = SensorDeviceClass(dc) if dc else None
+        unit = profile["unit"]
+        unit_map = {
+            "W": UnitOfPower.WATT,
+            "Hz": UnitOfFrequency.HERTZ,
+            "kWh": UnitOfEnergy.KILO_WATT_HOUR,
+            "%": PERCENTAGE,
+            "°C": UnitOfTemperature.CELSIUS,
+        }
+        self._attr_native_unit_of_measurement = unit_map.get(unit) if unit else None
+        sc = profile["state_class"]
+        sc_map = {
+            "measurement": SensorStateClass.MEASUREMENT,
+            "total": SensorStateClass.TOTAL,
+            "total_increasing": SensorStateClass.TOTAL_INCREASING,
+        }
+        self._attr_state_class = sc_map.get(sc)
 
     def _match(self) -> SensorItem:
         return next(s for s in self.coordinator.data.sensors if s.name == self._item_name)
