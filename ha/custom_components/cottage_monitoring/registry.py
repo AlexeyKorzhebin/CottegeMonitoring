@@ -18,11 +18,12 @@ def sync_floors_areas(hass, snap: HouseSnapshot) -> None:
     home = next((a for a in areas.async_list_areas() if a.name == HOUSE_AREA_NAME), None)
     if home is None:
         areas.async_create(HOUSE_AREA_NAME)
-    pairs = {
-        (item.floor, item.area)
-        for item in (*snap.lights, *snap.climates, *snap.sensors)
-        if item.area
-    }
+    pairs: set[tuple[object, str]] = set()
+    for item in (*snap.lights, *snap.climates, *snap.sensors):
+        if item.floor == "outside":
+            pairs.add((item.floor, FLOOR_LABELS["outside"]))
+        elif item.area:
+            pairs.add((item.floor, item.area))
     if snap.kettle and snap.kettle.area:
         pairs.add((snap.kettle.floor, snap.kettle.area))
     for floor_key, area_name in pairs:

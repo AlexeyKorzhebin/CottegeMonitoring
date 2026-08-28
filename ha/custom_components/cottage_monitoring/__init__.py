@@ -25,6 +25,9 @@ else:
         Platform.WATER_HEATER,
     )
 
+    # Смена состава зон/светильников → Settings → reload YAML / restart HA.
+    # async_setup_platform снимает snapshot один раз; новые объекты после reload.
+
     async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
         conf = config.get(DOMAIN)
         if conf is None:
