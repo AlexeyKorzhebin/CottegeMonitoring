@@ -798,6 +798,26 @@ Nord Ops требует аудит «кто отправил команду». �
 
 ---
 
+## R-024: `set_kettle` setpoint_c (2026-08-28)
+
+### Контекст
+
+Чайник Redmond RK-M173S умеет нагрев до N °C, но Nord писал только bool в cmd `33/1/39`. Число в cmd ломает BLE. Нужна отдельная уставка.
+
+### Решение
+
+- `SetKettleParams`: `on` и/или `setpoint_c` (40–100 включительно). Каталог не расширяется новым Op name.
+- `set_kettle(setpoint_c=…)` пишет объект с `setpoint` в имени или тегах. **Никогда** не пишет °C в `33/1/39`.
+- Нет объекта уставки → HTTP 404 `Kettle setpoint object not found`. `get_kettle` всегда отдаёт ключ `appliance.setpoint_c` (`None`, пока объекта нет).
+- Классификация setpoint в `_group_appliances` **до** ветки temp.
+
+### Отклонено
+
+- Новый Op `set_kettle_setpoint`.
+- Запись температуры в cmd GA.
+
+---
+
 ## R-015: Grafana — дашборды телеметрии и алерты (2026-07)
 
 ### Контекст
@@ -869,3 +889,4 @@ Stat-плитки (`time_series` + колонка `metric`): Grafana Postgres lo
 | R-021 | Каталог Ops → две грани | `catalog.load_catalog()` в lifespan; MCP tools генерируются из реестра; REST `GET /ops` + `POST .../ops/{name}` | ручные `@mcp.tool` рядом с реестром / регистрация по импорту |
 | R-022 | Command actor | `commands.actor_key_id` nullable FK `api_keys.id`; пишет только `send_command` из ctx | колонка в диспетчере / обязательный FK |
 | R-023 | Skill + catalog CLI | SKILL/AGENTS: `list_houses`+`house_id`; `cottage-ops catalog` = реестр; probe 16 tools | схемы Ops в промпте / REST POST в skill / CLI агенту |
+| R-024 | Kettle setpoint | `set_kettle` on и/или setpoint_c 40–100; °C не в cmd 33/1/39 | новый Op / запись °C в cmd |

@@ -114,6 +114,11 @@ def test_mcp_tool_schema_keeps_existing_arguments() -> None:
     assert set(tools["get_energy_status"].inputSchema["properties"]) == {"house_id"}
     assert set(tools["set_auto_heating"].inputSchema["properties"]) == {"on", "house_id"}
     assert set(tools["set_auto_heating"].inputSchema["required"]) == {"on"}
+    kettle_props = set(tools["set_kettle"].inputSchema["properties"])
+    assert kettle_props == {"on", "setpoint_c", "house_id"}
+    kettle_req = set(tools["set_kettle"].inputSchema.get("required", []))
+    assert "house_id" not in kettle_req
+    assert kettle_req <= {"on", "setpoint_c"}
 
 
 # --- REST face --------------------------------------------------------------

@@ -13,7 +13,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, Any
 
 from fastapi import HTTPException
-from pydantic import BaseModel, ConfigDict, ValidationError
+from pydantic import BaseModel, ConfigDict, ValidationError, model_validator
 
 if TYPE_CHECKING:
     from cottage_monitoring.ops.spec import OpSpec
@@ -95,7 +95,16 @@ class SetAutoHeatingParams(OpParams):
 
 
 class SetKettleParams(OpParams):
-    on: bool
+    on: bool | None = None
+    setpoint_c: float | None = None
+
+    @model_validator(mode="after")
+    def on_or_setpoint(self) -> SetKettleParams:
+        if self.on is None and self.setpoint_c is None:
+            raise ValueError("either on or setpoint_c is required")
+        if self.setpoint_c is not None and not (40 <= self.setpoint_c <= 100):
+            raise ValueError("setpoint_c must be between 40 and 100")
+        return self
 
 
 class GetCommandStatusParams(OpParams):

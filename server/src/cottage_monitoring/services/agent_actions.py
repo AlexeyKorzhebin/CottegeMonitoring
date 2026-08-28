@@ -173,7 +173,7 @@ async def get_house_status(session: AsyncSession, house_id: str) -> dict[str, An
 
 def _appliance_base_name(name: str) -> str:
     lower = name.lower()
-    for suffix in ("_cmd", "_state", "_status", "_temp", "_temperature"):
+    for suffix in ("_cmd", "_state", "_status", "_temp", "_temperature", "_setpoint"):
         if lower.endswith(suffix):
             return name[: -len(suffix)]
     return name
@@ -191,9 +191,11 @@ def _group_appliances(matches: list, states: dict[str, Any]) -> list[dict[str, A
                 "cmd_ga": None,
                 "state_ga": None,
                 "temp_ga": None,
+                "setpoint_ga": None,
                 "on": None,
                 "state": None,
                 "temp": None,
+                "setpoint_c": None,
                 "objects": [],
             },
         )
@@ -201,7 +203,10 @@ def _group_appliances(matches: list, states: dict[str, Any]) -> list[dict[str, A
         n = m.name.lower()
         tags = {t.lower() for t in m.tags}
         val = states.get(m.ga)
-        if "cmd" in n or ("zigbee_send" in tags and ("control" in tags or "ble" in tags)):
+        if "setpoint" in n or "setpoint" in tags:
+            g["setpoint_ga"] = m.ga
+            g["setpoint_c"] = val
+        elif "cmd" in n or ("zigbee_send" in tags and ("control" in tags or "ble" in tags)):
             g["cmd_ga"] = m.ga
             g["_cmd"] = val
         elif "temp" in n or "temp" in tags:
@@ -777,38 +782,76 @@ async def set_kettle(
     session: AsyncSession,
     house_id: str,
     *,
-    on: bool,
+    on: bool | None = None,
+    setpoint_c: float | None = None,
 ) -> dict[str, Any]:
-    """Control BLE teapot — write to cmd GA (33/1/39: ble, control, zigbee_send)."""
+    """Control BLE teapot — cmd and/or setpoint. Never write °C to cmd 33/1/39."""
+    matches: list = []
     for query in ("teapot", "ble_teapot", "чайник", "kettle"):
         result = await resolve_objects(
             session, house_id, query=query, kind=DiscoverKind.APPLIANCE
         )
+        if result.matches:
+            matches = list(result.matches)
+            break
+
+    out: dict[str, Any] = {}
+
+    if setpoint_c is not None:
+        setpoints = [
+            m
+            for m in matches
+            if "setpoint" in m.name.lower()
+            or "setpoint" in {t.lower() for t in m.tags}
+        ]
+        if len(setpoints) != 1:
+            raise HTTPException(
+                status_code=404, detail="Kettle setpoint object not found"
+            )
+        out["setpoint"] = await _resolve_device_and_send(
+            session,
+            house_id,
+            setpoints[0].ga,
+            setpoint_c,
+            comment="mcp set_kettle setpoint",
+        )
+
+    if on is not None:
         cmds = [
             m
-            for m in result.matches
+            for m in matches
             if "cmd" in m.name.lower()
             or ("control" in m.tags and "zigbee_send" in m.tags)
         ]
         if len(cmds) == 1:
-            return await _resolve_device_and_send(
+            cmd_result = await _resolve_device_and_send(
                 session, house_id, cmds[0].ga, on, comment="mcp set_kettle"
             )
+            if not out:
+                return cmd_result
+            out["cmd"] = cmd_result
+            return out
         if len(cmds) > 1:
             return {
                 "status": "ambiguous",
                 "candidates": [{"name": m.name, "ga": m.ga} for m in cmds],
             }
 
-    obj_result = await session.execute(
-        select(Object).where(Object.house_id == house_id, Object.ga == "33/1/39")
-    )
-    obj = obj_result.scalar_one_or_none()
-    if obj:
-        return await _resolve_device_and_send(
-            session, house_id, "33/1/39", on, comment="mcp set_kettle"
+        obj_result = await session.execute(
+            select(Object).where(Object.house_id == house_id, Object.ga == "33/1/39")
         )
-    raise HTTPException(status_code=404, detail="Kettle control object not found")
+        obj = obj_result.scalar_one_or_none()
+        if obj:
+            cmd_result = await _resolve_device_and_send(
+                session, house_id, "33/1/39", on, comment="mcp set_kettle"
+            )
+            if not out:
+                return cmd_result
+            out["cmd"] = cmd_result
+            return out
+        raise HTTPException(status_code=404, detail="Kettle control object not found")
+
+    return out
 
 
 async def get_kettle(session: AsyncSession, house_id: str) -> dict[str, Any]:

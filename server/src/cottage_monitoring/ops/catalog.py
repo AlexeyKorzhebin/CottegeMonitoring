@@ -179,15 +179,16 @@ def _catalog() -> tuple[OpSpec, ...]:
         _op(
             "get_kettle",
             "read",
-            "Read BLE teapot status: on/state/temp as one appliance summary "
+            "Read BLE teapot status: appliance.temp is current water temperature, "
+            "appliance.setpoint_c is the target when a setpoint object exists "
             "(cmd 33/1/39, state 33/1/38, temp 33/1/37).",
             _handler(agent_actions, "get_kettle"),
         ),
         _op(
             "set_kettle",
             "write",
-            "Control BLE teapot Redmond RK-M173S. Writes cmd GA 33/1/39 "
-            "(tags: ble,control,zigbee_send). Prefer get_kettle before/after.",
+            "Control BLE teapot Redmond RK-M173S. on and/or setpoint_c (40–100). "
+            "Never write °C to cmd 33/1/39. Prefer get_kettle before/after.",
             _handler(agent_actions, "set_kettle"),
             params_model=params.SetKettleParams,
         ),

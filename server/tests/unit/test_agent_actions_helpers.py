@@ -52,6 +52,44 @@ def test_group_appliances_teapot_summary() -> None:
     assert g["on"] is True
     assert g["temp"] == 54
     assert g["state"] is True
+    assert g.get("setpoint_c") is None
+
+
+def test_group_appliances_reads_setpoint_not_as_temp() -> None:
+    matches = [
+        SimpleNamespace(
+            ga="33/1/39",
+            name="ble_teapot_RK-M173S_cmd",
+            role=ObjectRole.ZIGBEE_APPLIANCE,
+            tags=["ble", "control", "zigbee_send"],
+        ),
+        SimpleNamespace(
+            ga="33/1/37",
+            name="ble_teapot_RK-M173S_temp",
+            role=ObjectRole.ZIGBEE_APPLIANCE,
+            tags=["ble", "teapot", "temp"],
+        ),
+        SimpleNamespace(
+            ga="33/1/40",
+            name="ble_teapot_RK-M173S_setpoint",
+            role=ObjectRole.ZIGBEE_APPLIANCE,
+            tags=["ble", "teapot", "setpoint"],
+        ),
+        SimpleNamespace(
+            ga="33/1/38",
+            name="ble_teapot_RK-M173S_state",
+            role=ObjectRole.ZIGBEE_APPLIANCE,
+            tags=["ble", "teapot", "status"],
+        ),
+    ]
+    groups = _group_appliances(
+        matches,
+        {"33/1/39": True, "33/1/37": 54, "33/1/40": 80, "33/1/38": True},
+    )
+    assert groups[0]["temp"] == 54
+    assert groups[0]["setpoint_c"] == 80
+    assert groups[0]["setpoint_ga"] == "33/1/40"
+    assert groups[0]["temp_ga"] == "33/1/37"
 
 
 def test_group_appliances_on_prefers_state_not_stale_cmd() -> None:

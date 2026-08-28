@@ -198,6 +198,7 @@ ssh elion 'sudo systemctl daemon-reload && sudo systemctl restart cottage-monito
 |-------|--------|
 | `set_commands` skip_unchanged | status sibling (`:status` / `_state`), не control GA |
 | `get_kettle.on` | state `33/1/38`, не cmd `33/1/39` |
+| `set_kettle` / `get_kettle` setpoint | `on` и/или `setpoint_c` (40–100); °C только в объект `*setpoint*`, никогда в cmd `33/1/39`. `appliance.setpoint_c` = `None`, пока объекта нет на LM |
 
 ### Сделано в 0.2.8 + live elion
 
@@ -315,6 +316,8 @@ python3 run_bench.py --e2e --mcp-alias cottage-dry --out results/e2e.json
 Сверка без MCP-сессии (оператор, не агент cottage): `cottage-ops catalog` / `cottage-ops catalog --json` — `load_catalog()`, те же имена, что реестр. В образе: `--entrypoint cottage-ops`.
 
 **`set_lights` skip (R-017, 2026-08-15):** `skip_unchanged` смотрит status `1/2/*` (факт с выключателя), не control `1/1/*`. Иначе зональный OFF гасит только группы, чей control ещё `true` (типично холл после бота), а комнаты со стены пропускает. То же для `set_commands` (sibling `:status`/`_state`) и `get_kettle.on` (state `33/1/38`, не cmd).
+
+**Чайник setpoint (2026-08-28):** `set_kettle` принимает `on` и/или `setpoint_c` (40–100). Число °C пишется только в объект `*setpoint*` (имя/тег), никогда в cmd `33/1/39`. `get_kettle` отдаёт `appliance.setpoint_c` (`None`, пока объекта нет на LM).
 
 ### MCP model bench (Caila × cottage tools)
 
