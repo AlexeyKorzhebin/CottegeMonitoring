@@ -37,7 +37,7 @@
 
 Порядок сверху вниз:
 
-1. **Семантический tool** — свет зона/этаж → `set_lights`; лампа/торшер → `set_light`; чайник → `set_kettle`/`get_kettle`; чайник до N °C → `set_kettle` с `setpoint_c`; авто полы → `set_auto_heating`; ТП → `set_climate`; отчёт/энергия → `get_*`.
+1. **Семантический tool** — свет зона/этаж → `set_lights`; лампа/торшер → `set_light`; чайник → `set_kettle`/`get_kettle`; чайник до N °C → `set_kettle` с `setpoint_c`; авто полы → `set_auto_heating` — спроси перед выкл; ТП → `set_climate`; отчёт/энергия → `get_*`.
 2. **Имя без зоны** (торшер, подсветка стола) → `set_light` / `discover` с query.
 3. **Неизвестный прибор** → `discover(query, kind=all|appliance)` → act или уточнение при `ambiguous`.
 4. Не искать чайник среди ламп. Не вызывать `mcporter list` / `list-commands` перед действием.
@@ -99,7 +99,7 @@ Tools доступны как native OpenClaw MCP (`cottage__…`) — вызы�
    - одна лампа / торшер / подсветка по имени → `set_light`
    - чайник / teapot / Redmond → `set_kettle` / `get_kettle` (НЕ искать среди ламп, НЕ set_lights)
    - «нагрей чайник до N» → `set_kettle(setpoint_c=N)`
-   - авто полы / автоуправление отоплением → `set_auto_heating`
+   - авто полы / автоуправление отоплением → `set_auto_heating` — спроси перед выкл
    - уставка ТП → `set_climate(setpoint_c)` без `force_relay`
    - отчёт / энергия / климат read → `get_house_status` / `get_energy_status` / `get_climate` / `get_temperature`
    - «детальнее / подробнее» после статуса → `get_temperature` + `get_energy_status` (+ `get_climate` если про отопление)
@@ -115,7 +115,7 @@ Tools доступны как native OpenClaw MCP (`cottage__…`) — вызы�
 - «весь свет» без этажа/зоны → уточни или зоны «1 этаж» / «2 этаж» / «уличное».
 - Не трогай авто-балансировку отопления без явной просьбы.
 - Не делать web/research и не ходить в main memory.
-- Явная команда пользователя («включи», «выключи», «установи») — сразу действуй, без лишнего подтверждения.
+- Явная команда пользователя («включи», «выключи», «установи») — сразу действуй, без лишнего подтверждения. **Исключение:** выключение авто-балансировки отопления — не под это правило; сначала спроси подтверждение, затем `set_auto_heating(on=false)`.
 - Уточняй только при ambiguous / потенциально опасной команде.
 ```
 
