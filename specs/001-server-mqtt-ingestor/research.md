@@ -869,6 +869,8 @@ Lovelace YAML «Графики» (`cottage-graphs`) встраивает Grafana
 
 **Live 2026-08-28 (Task 5):** Nord `0.3.4`; `GET /ops` = 17; battery dry-run 12; `get_energy_status` с `32/1/39`. HA entity_id Счётчик = **`sensor.schetchik`**, Сейчас = `sensor.seichas`; Energy grid `stat_energy_from=sensor.schetchik`. Шесть `house:energy:*` + 12 `house:sensor_battery:*`. Grafana embedding включён; iframe в Lovelace есть, но cookie cross-subdomain `ha.`→`elion.` может оставить рамку пустой — **рабочий путь для семьи: markdown-ссылки** в той же view. Спека energy/Grafana: **Implemented**.
 
+Energy dashboard читает **часовую** `statistics.sum`, не live state. Сенсор заведён вечером 28.08 — без импорта август пустой. Backfill: `server/deploy/ha/import-meter-lts.py` (HA stop; hourly last `32/1/59` из Timescale; `sum = reading - baseline`; seed `statistics_short_term`, иначе recorder ставит новую нулевую точку на текущие ~67833 кВт·ч и график падает). Live: **661** часов, baseline ≈ 67333.8, last_sum ≈ **499.5** кВт·ч за август. Бэкап БД: `home-assistant_v2.db.bak-before-aug-lts`.
+
 ---
 
 ## R-015: Grafana — дашборды телеметрии и алерты (2026-07)

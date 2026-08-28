@@ -2,7 +2,7 @@
 
 **Date:** 2026-08-28  
 **Status:** Implemented  
-**Live (elion 2026-08-28):** Nord `cottage-monitoring:0.3.4`; Счётчик = `sensor.schetchik`; Energy grid настроен; 6 energy + 12 battery entities. Grafana `allow_embedding=true` (без anonymous). Lovelace «Графики»: iframe + markdown-ссылки; cookie `ha.`→`elion.` может опустошить iframe — fallback-ссылки — основной рабочий путь.  
+**Live (elion 2026-08-28):** Nord `cottage-monitoring:0.3.4`; Счётчик = `sensor.schetchik`; Energy grid настроен; 6 energy + 12 battery entities. Grafana `allow_embedding=true` (без anonymous). Lovelace «Графики»: iframe + markdown-ссылки; cookie `ha.`→`elion.` может опустошить iframe — fallback-ссылки — основной рабочий путь. Август в штатном Energy: backfill hourly LTS из Timescale `32/1/59` (`import-meter-lts.py`), ~500 кВт·ч за месяц, не ждать recorder с нуля.  
 **Scope:** Шесть энергетических сенсоров в семейной витрине HA + штатный Energy; батареи Zigbee в комнатах; вкладка Lovelace с графиками Grafana.  
 **Depends on:** [2026-08-28-ha-nord-design.md](./2026-08-28-ha-nord-design.md) (витрина HA, poll Ops, Areas/Floors).  
 **Related:** [2026-08-27-nord-ops-design.md](./2026-08-27-nord-ops-design.md), `get_energy_status` / `get_sensors` в каталоге Ops, Grafana `cottage-energy` / `cottage-batteries`.

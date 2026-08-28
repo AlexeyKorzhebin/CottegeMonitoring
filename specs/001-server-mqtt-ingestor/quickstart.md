@@ -210,6 +210,7 @@ ssh elion '/opt/cottage-monitoring/wait_http_health.sh http://127.0.0.1:8321/hea
 - HA energy: 6 `unique_id` `house:energy:*` в area Дом (`dom`). Счётчик ЖКХ → entity_id **`sensor.schetchik`** (Счётчик); мощность → `sensor.seichas` (Сейчас). Energy grid consumption = `sensor.schetchik` (без тарифа).
 - Батареи: 12× `house:sensor_battery:*` в комнатах.
 - Lovelace «Графики» (`dashboards/graphs.yaml`): iframe + markdown-ссылки на `cottage-energy` / `cottage-batteries`. Grafana `allow_embedding=true`; anonymous auth выключен. Cookie между `ha.` и `elion.` может опустошить iframe — рабочие fallback-ссылки в той же карточке.
+- Energy за август: hourly LTS backfill из Timescale `32/1/59` (`server/deploy/ha/import-meter-lts.py`, HA stop). ~661 часов, ≈500 кВт·ч; без импорта штатный Energy пустой до первой часовой компиляции и без истории 1–27.
 
 ### Сделано в 0.3.2 + live elion
 
@@ -592,6 +593,8 @@ Grafana на elion — OSS. Для агента: MCP `user-grafana` →
 | Канон HA YAML | `server/deploy/ha/configuration.yaml` (без `http:` — listen/proxy в UI Network: `127.0.0.1:8123`; Lovelace YAML только `cottage-graphs`) |
 | Lovelace «Графики» | `server/deploy/ha/dashboards/graphs.yaml` (iframe UID `cottage-energy` / `cottage-batteries`) |
 | Energy grid template | `server/deploy/ha/energy-grid.example.json` (`unique_id` `house:energy:meter`) |
+| Energy LTS backfill | `server/deploy/ha/import-meter-lts.py` (hourly `32/1/59` → recorder; HA stop) |
+| go2rtc localhost | `server/deploy/ha/go2rtc-localhost-entrypoint.sh` (WebRTC `127.0.0.1:18555`) |
 | Пустые automation | `server/deploy/ha/automations.yaml` (`[]`) |
 | Шаблон секрета | `server/deploy/ha/secrets.yaml.example` |
 | Component sync | `./server/deploy/ha-sync-component.sh` (tar в volume, не git clone) |
