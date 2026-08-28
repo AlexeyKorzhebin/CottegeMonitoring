@@ -179,6 +179,10 @@ def _appliance_base_name(name: str) -> str:
     return name
 
 
+def _is_kettle_setpoint(obj) -> bool:
+    return "setpoint" in obj.name.lower() or "setpoint" in {t.lower() for t in obj.tags}
+
+
 def _group_appliances(matches: list, states: dict[str, Any]) -> list[dict[str, Any]]:
     """Collapse cmd/state/temp GAs for one BLE/Zigbee appliance into a single summary."""
     groups: dict[str, dict[str, Any]] = {}
@@ -798,12 +802,7 @@ async def set_kettle(
     out: dict[str, Any] = {}
 
     if setpoint_c is not None:
-        setpoints = [
-            m
-            for m in matches
-            if "setpoint" in m.name.lower()
-            or "setpoint" in {t.lower() for t in m.tags}
-        ]
+        setpoints = [m for m in matches if _is_kettle_setpoint(m)]
         if len(setpoints) != 1:
             raise HTTPException(
                 status_code=404, detail="Kettle setpoint object not found"
@@ -820,8 +819,11 @@ async def set_kettle(
         cmds = [
             m
             for m in matches
-            if "cmd" in m.name.lower()
-            or ("control" in m.tags and "zigbee_send" in m.tags)
+            if not _is_kettle_setpoint(m)
+            and (
+                "cmd" in m.name.lower()
+                or ("control" in m.tags and "zigbee_send" in m.tags)
+            )
         ]
         if len(cmds) == 1:
             cmd_result = await _resolve_device_and_send(
@@ -835,6 +837,7 @@ async def set_kettle(
             return {
                 "status": "ambiguous",
                 "candidates": [{"name": m.name, "ga": m.ga} for m in cmds],
+                **out,
             }
 
         obj_result = await session.execute(
@@ -849,6 +852,11 @@ async def set_kettle(
                 return cmd_result
             out["cmd"] = cmd_result
             return out
+        if out:
+            raise HTTPException(
+                status_code=404,
+                detail={"error": "Kettle control object not found", **out},
+            )
         raise HTTPException(status_code=404, detail="Kettle control object not found")
 
     return out

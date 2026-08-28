@@ -810,6 +810,7 @@ Nord Ops требует аудит «кто отправил команду». �
 - `set_kettle(setpoint_c=…)` пишет объект с `setpoint` в имени или тегах. **Никогда** не пишет °C в `33/1/39`.
 - Нет объекта уставки → HTTP 404 `Kettle setpoint object not found`. `get_kettle` всегда отдаёт ключ `appliance.setpoint_c` (`None`, пока объекта нет).
 - Классификация setpoint в `_group_appliances` **до** ветки temp.
+- Cmd-матчи в `set_kettle` пропускают объекты setpoint (имя/тег), чтобы уставка с тегами `control`+`zigbee_send` не считалась cmd. Если `on` и `setpoint_c` заданы вместе и cmd ambiguous/404 **после** успешной записи уставки — ответ всё равно содержит ключ `setpoint` (результат не теряется).
 
 ### Отклонено
 
