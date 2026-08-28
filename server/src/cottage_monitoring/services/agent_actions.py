@@ -340,6 +340,14 @@ async def get_sensors(
             kind=DiscoverKind.SENSOR,
             role=ObjectRole.ROOM_HUMIDITY,
         )
+    elif kind == "battery":
+        result = await resolve_objects(
+            session,
+            house_id,
+            query=query,
+            kind=DiscoverKind.SENSOR,
+            role=ObjectRole.ROOM_BATTERY,
+        )
     else:
         dk = DiscoverKind(kind) if kind else DiscoverKind.SENSOR
         result = await resolve_objects(session, house_id, query=query, kind=dk)

@@ -99,7 +99,8 @@ def _catalog() -> tuple[OpSpec, ...]:
         _op(
             "get_sensors",
             "read",
-            "Read sensors by kind or query: temp, humidity, meter, climate, etc.",
+            "Read sensors by kind or query. Special kinds: humidity, battery "
+            "(Zigbee room sensors). Other kinds: temp, meter, climate, etc.",
             _handler(agent_actions, "get_sensors", blank_to_none=("query",)),
             params_model=params.GetSensorsParams,
         ),

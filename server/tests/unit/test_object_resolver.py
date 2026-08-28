@@ -32,6 +32,16 @@ def test_classify_room_temp_zb() -> None:
     assert classify_object(o) == ObjectRole.ROOM_TEMP
 
 
+def test_classify_room_battery_zb() -> None:
+    o = _obj("33/1/20", "zb_sensor_fl1_kitchen_battery", "floor1,battery,zb_sensor")
+    assert classify_object(o) == ObjectRole.ROOM_BATTERY
+
+
+def test_classify_battery_not_generic_sensor() -> None:
+    o = _obj("33/1/20", "zb_sensor_fl1_bedroom_battery", "floor1,battery,zb_sensor")
+    assert classify_object(o) != ObjectRole.SENSOR
+
+
 def test_classify_floor_temp() -> None:
     o = _obj("1/3/7", "Темп - кухня", "1floor,heat,temp")
     assert classify_object(o) == ObjectRole.FLOOR_TEMP
