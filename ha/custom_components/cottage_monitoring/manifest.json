@@ -1,0 +1,11 @@
+{
+  "domain": "cottage_monitoring",
+  "name": "Cottage Monitoring",
+  "codeowners": ["@AlexeyKorzhebin"],
+  "config_flow": false,
+  "documentation": "https://github.com/AlexeyKorzhebin/CottegeMonitoring",
+  "iot_class": "local_polling",
+  "issue_tracker": "https://github.com/AlexeyKorzhebin/CottegeMonitoring/issues",
+  "requirements": [],
+  "version": "0.1.0"
+}
