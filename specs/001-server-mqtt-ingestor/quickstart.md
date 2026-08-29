@@ -201,7 +201,25 @@ ssh elion '/opt/cottage-monitoring/wait_http_health.sh http://127.0.0.1:8321/hea
 
 Сеть: **bridge** + `host.docker.internal:host-gateway` (не `--network=host`).
 
-Текущий pin: **`cottage-monitoring:0.3.0`** (`server/deploy/IMAGE_PIN.yaml`).
+Текущий pin: **`cottage-monitoring:0.3.4`** (`server/deploy/IMAGE_PIN.yaml`).
+
+### Сделано в 0.3.4 + live elion (2026-08-28)
+
+- Live pin **`cottage-monitoring:0.3.4`**. `get_sensors kind=battery` → 12 items; `GET /ops` = **17**; `get_energy_status` полный (фазы / `32/1/39` на месте).
+- Coordinator: **8** read-вызовов — `get_house_status`, `list_lights`, `get_climate`, `get_temperature`, `get_sensors` humidity, `get_sensors` battery, `get_energy_status`, `get_kettle`.
+- HA energy: 6 `unique_id` `house:energy:*` в area Дом (`dom`). Счётчик ЖКХ → entity_id **`sensor.schetchik`** (Счётчик); мощность → `sensor.seichas` (Сейчас). Energy grid consumption = `sensor.schetchik` (без тарифа).
+- Батареи: 12× `house:sensor_battery:*` в комнатах.
+- Lovelace «Графики» (`dashboards/graphs.yaml`): iframe + markdown-ссылки на `cottage-energy` / `cottage-batteries`. Grafana `allow_embedding=true`; anonymous auth выключен. Cookie между `ha.` и `elion.` может опустошить iframe — рабочие fallback-ссылки в той же карточке.
+- Energy за август: hourly LTS backfill из Timescale `32/1/59` (`server/deploy/ha/import-meter-lts.py`, HA stop). ~661 часов, ≈500 кВт·ч; без импорта штатный Energy пустой до первой часовой компиляции и без истории 1–27.
+
+### Сделано в 0.3.2 + live elion
+
+| Пункт | Статус |
+|-------|--------|
+| Placement Zigbee | `fl2_bedroom` → гостевая (LM); `tima_bedroom` / `nastya_bedroom`; KNX «Тимина» |
+| `pymorphy3` | уже в образе; падежи в `object_resolver` |
+| HA write | optimistic UI + refresh 2.5 с; `set_lights` из HA без skip_unchanged |
+| `set_lights` skip | только если status **и** control уже в цели (иначе OFF глотается, пока status отстаёт) |
 
 ### Сделано в 0.3.0 (HA-facing Ops)
 
@@ -209,6 +227,7 @@ ssh elion '/opt/cottage-monitoring/wait_http_health.sh http://127.0.0.1:8321/hea
 |-------|--------|
 | Каталог Ops | **17** имён (`set_auto_heating`; `set_kettle` то же имя) |
 | `area` / `floor` | на `list_lights`, `get_climate.zones`, `get_temperature`, `get_sensors` |
+| `get_sensors` kind | special-case `humidity` и `battery` → SENSOR + `ROOM_HUMIDITY` / `ROOM_BATTERY`; не `DiscoverKind("battery")` |
 | `set_auto_heating` | write GA `1/7/1` |
 | `set_kettle` / `get_kettle` setpoint | `on` и/или `setpoint_c` (40–100); °C только в объект `*setpoint*`, никогда в cmd `33/1/39` |
 | Alembic 008 на prod | **накатана 2026-08-28** до restart 0.3.0 (`007` → `008`) |
@@ -569,9 +588,13 @@ Grafana на elion — OSS. Для агента: MCP `user-grafana` →
 
 | Что | Путь |
 |-----|------|
-| systemd | `server/deploy/home-assistant.service` (`--network host`, volume `/var/lib/homeassistant`) |
-| nginx | `server/deploy/nginx/home-assistant.conf` (`ha.black-castle.ru`, TLS + WebSocket) |
-| Канон HA YAML | `server/deploy/ha/configuration.yaml` (`http.server_host: 127.0.0.1:8123`) |
+| systemd | `server/deploy/home-assistant.service` (`--network host`, volume `/var/lib/homeassistant`; entrypoint биндит go2rtc WebRTC на `127.0.0.1:18555`) |
+| nginx | `server/deploy/nginx/home-assistant.conf` (`ha.black-castle.ru` на `127.0.0.1:8443`; публичный 443 — stream `ssl_preread`, как grafana) |
+| Канон HA YAML | `server/deploy/ha/configuration.yaml` (без `http:` — listen/proxy в UI Network: `127.0.0.1:8123`; Lovelace YAML только `cottage-graphs`) |
+| Lovelace «Графики» | `server/deploy/ha/dashboards/graphs.yaml` (iframe UID `cottage-energy` / `cottage-batteries`) |
+| Energy grid template | `server/deploy/ha/energy-grid.example.json` (`unique_id` `house:energy:meter`) |
+| Energy LTS backfill | `server/deploy/ha/import-meter-lts.py` (hourly `32/1/59` → recorder; HA stop) |
+| go2rtc localhost | `server/deploy/ha/go2rtc-localhost-entrypoint.sh` (WebRTC `127.0.0.1:18555`) |
 | Пустые automation | `server/deploy/ha/automations.yaml` (`[]`) |
 | Шаблон секрета | `server/deploy/ha/secrets.yaml.example` |
 | Component sync | `./server/deploy/ha-sync-component.sh` (tar в volume, не git clone) |
@@ -593,12 +616,12 @@ ssh elion 'sudo mkdir -p /var/lib/homeassistant'
 # configuration.yaml, automations.yaml, secrets.yaml (nord_ha_api_key) на volume
 ./server/deploy/ha-sync-component.sh
 
-# nginx + certbot
-# sudo cp nginx/home-assistant.conf …; sudo certbot --nginx -d ha.black-castle.ru
+# nginx + certbot (не --nginx на :443: на elion 443 занимает stream ssl_preread → 8443)
+# sudo cp nginx/home-assistant.conf …; sudo certbot certonly --webroot -w /var/www/html -d ha.black-castle.ru
 ssh elion 'sudo systemctl enable --now home-assistant'
 ssh elion 'ss -lntp | grep 8123'   # только 127.0.0.1:8123, не 0.0.0.0
 ```
 
 Onboarding владельца на `https://ha.black-castle.ru`; Settings → People — логин на человека; обычные без админа. Семья в Nord не проецируется: все клики — один `actor_key_id` ключа `home-assistant`.
 
-Чайник: текущая T сразу; слайдер уставки только если `get_kettle.appliance.setpoint_c` не `null` (объект LM `ble_teapot_RK-M173S_setpoint` ещё отсутствует).
+Чайник: вкл/выкл и текущая T; слайдер уставки только если `get_kettle.appliance.setpoint_c` не `null` (объект LM `ble_teapot_RK-M173S_setpoint` отложен оператором).

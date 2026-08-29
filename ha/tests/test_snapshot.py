@@ -1,4 +1,4 @@
-from cottage_monitoring.snapshot import HouseSnapshot
+from cottage_monitoring.snapshot import HouseSnapshot, area_name_for, leftover_split_area_names
 
 OPS = {
     "get_house_status": {"online_status": "partial", "last_seen": "2026-08-28T00:00:00Z"},
@@ -76,3 +76,204 @@ def test_unique_ids_stable() -> None:
     assert snap.lights[0].unique_id == "house:light:свет_-_кухня"
     assert "ga" not in snap.lights[0].unique_id
     assert "/" not in snap.lights[0].unique_id
+
+
+def test_same_area_on_two_floors_gets_distinct_ha_names() -> None:
+    ops = {
+        "get_house_status": {"online_status": "online"},
+        "list_lights": {
+            "items": [
+                {"name": "Свет - холл 1 этаж", "on": False, "area": "холл", "floor": "1"},
+                {"name": "Свет - холл 2 этаж", "on": False, "area": "холл", "floor": "2"},
+                {"name": "Свет - спальня", "on": False, "area": "спальня", "floor": "1"},
+            ]
+        },
+        "get_climate": {"auto_heating_enabled": False, "zones": []},
+        "get_temperature": {"items": []},
+        "get_sensors": {"items": []},
+        "get_kettle": {},
+    }
+    snap = HouseSnapshot.from_ops("house", ops)
+    floors = snap.floors_by_area()
+    assert area_name_for("холл", "1", floors) == "холл (1 этаж)"
+    assert area_name_for("холл", "2", floors) == "холл (2 этаж)"
+    assert area_name_for("спальня", "1", floors) == "спальня"
+
+
+def test_guest_fl2_bedroom_does_not_split_first_floor_bedroom() -> None:
+
+    ops = {
+        "get_house_status": {"online_status": "online"},
+        "list_lights": {
+            "items": [
+                {"name": "Свет - спальня", "on": False, "area": "спальня", "floor": "1"},
+                {"name": "Свет - гостевая", "on": False, "area": "гостевая", "floor": "2"},
+            ]
+        },
+        "get_climate": {"auto_heating_enabled": False, "zones": []},
+        "get_temperature": {
+            "items": [
+                {
+                    "name": "zb_sensor_fl1_bedroom_temperature",
+                    "source": "air",
+                    "value": 22,
+                    "area": "спальня",
+                    "floor": "1",
+                },
+                {
+                    "name": "zb_sensor_fl2_bedroom_temperature",
+                    "source": "air",
+                    "value": 24,
+                    "area": "гостевая",
+                    "floor": "2",
+                },
+            ]
+        },
+        "get_sensors": {"items": []},
+        "get_kettle": {},
+    }
+    snap = HouseSnapshot.from_ops("house", ops)
+    floors = snap.floors_by_area()
+    assert floors["спальня"] == frozenset({"1"})
+    assert area_name_for("спальня", "1", floors) == "спальня"
+    leftovers = leftover_split_area_names(
+        {"спальня", "спальня (1 этаж)", "спальня (2 этаж)", "холл (1 этаж)"},
+        floors,
+    )
+    assert "спальня (1 этаж)" in leftovers
+    assert "спальня (2 этаж)" in leftovers
+    assert "спальня" not in leftovers
+
+
+def test_sensor_display_names_are_short() -> None:
+    from cottage_monitoring.snapshot import (
+        climate_display_name,
+        heat_display_name,
+        light_display_name,
+        place_device_name,
+        sensor_display_name,
+    )
+
+    assert sensor_display_name(name="zb_sensor_fl1_bedroom_temperature", kind="air") == "Воздух"
+    assert sensor_display_name(name="zb_sensor_fl1_bedroom_humidity", kind="humidity") == "Влажность"
+    assert sensor_display_name(name="Темп - спальня", kind="floor") == "Пол"
+    assert sensor_display_name(name="Темп - гостиная 1", kind="floor") == "Пол 1"
+    assert sensor_display_name(name="Темп - гостиная 2", kind="floor") == "Пол 2"
+    assert sensor_display_name(name="Темп  - холл 1 этаж", kind="floor") == "Пол"
+    assert sensor_display_name(name="Погода - температура", kind="outdoor") == "Температура"
+    assert sensor_display_name(name="Погода - ощущение температуры", kind="outdoor") == "Ощущается"
+    assert sensor_display_name(name="Погода - ветер - направление", kind="outdoor") == "Направление"
+    assert sensor_display_name(name="Погода - ветер - скорость", kind="outdoor") == "Ветер"
+    assert sensor_display_name(name="Погода - описание", kind="outdoor") == "Погода"
+    assert light_display_name("Свет - спальня") == "Свет"
+    assert light_display_name("Свет - гостиная - торшер") == "Торшер"
+    assert light_display_name("Свет - подсветка - кухня") == "Подсветка"
+    assert light_display_name("Свет - кабинет - тайфайтер") == "Тайфайтер"
+    assert climate_display_name("спальня") == "Полы"
+    assert climate_display_name("гостиная 1") == "Полы 1"
+    assert climate_display_name("холл 1 этаж") == "Полы"
+    assert heat_display_name("гостиная 2") == "Нагрев 2"
+    assert place_device_name(
+        raw_name="zb_sensor_fl1_server_room_temperature",
+        area=None,
+        floor="1",
+    ) == "серверная"
+    assert place_device_name(
+        raw_name="Погода - температура",
+        area=None,
+        floor="outside",
+    ) == "Улица"
+
+
+def test_energy_snapshot_keeps_six_keys_drops_phases() -> None:
+    ops = {
+        "get_house_status": {"online_status": "online"},
+        "list_lights": {"items": []},
+        "get_climate": {"auto_heating_enabled": False, "zones": []},
+        "get_temperature": {"items": []},
+        "get_sensors": {"items": []},
+        "get_sensors_battery": {"items": []},
+        "get_kettle": {},
+        "get_energy_status": {
+            "items": [
+                {"ga": "32/1/35", "name": "Total P", "value": 420, "units": "W"},
+                {"ga": "32/1/36", "name": "Total Q", "value": 10, "units": "var"},
+                {"ga": "32/1/39", "name": "AP energy", "value": 999, "units": "kWh"},
+                {"ga": "32/1/7", "name": "Frequency", "value": 50.02, "units": "Hz"},
+                {"ga": "32/1/59", "name": "consumption Total", "value": 1234.5, "units": "kWh"},
+                {"ga": "32/1/57", "name": "Hour", "value": 1.2, "units": "kWh"},
+                {"ga": "32/1/58", "name": "Daily", "value": 18.0, "units": "kWh"},
+                {"ga": "32/1/38", "name": "PF", "value": 0.97, "units": ""},
+                {"ga": "32/1/1", "name": "Urms L1", "value": 230, "units": "V"},
+            ]
+        },
+    }
+    snap = HouseSnapshot.from_ops("house", ops)
+    energy = {s.kind: s for s in snap.sensors if s.kind in {"power", "frequency", "meter", "hour", "daily", "pf"}}
+    assert set(energy) == {"power", "frequency", "meter", "hour", "daily", "pf"}
+    assert energy["power"].value == 420
+    assert energy["meter"].value == 1234.5
+    assert energy["meter"].unique_id == "house:energy:meter"
+    assert energy["power"].unique_id == "house:energy:power"
+    assert all(s.area is None and s.floor is None for s in energy.values())
+    from cottage_monitoring.snapshot import sensor_display_name
+    assert sensor_display_name(name="ignored", kind="power") == "Сейчас"
+    assert sensor_display_name(name="ignored", kind="frequency") == "Частота"
+    assert sensor_display_name(name="ignored", kind="meter") == "Счётчик"
+    assert sensor_display_name(name="ignored", kind="hour") == "За час"
+    assert sensor_display_name(name="ignored", kind="daily") == "За сутки"
+    assert sensor_display_name(name="ignored", kind="pf") == "PF"
+
+
+def test_energy_missing_ga_skips_only_that_key() -> None:
+    ops = {
+        "get_house_status": {"online_status": "online"},
+        "list_lights": {"items": []},
+        "get_climate": {"auto_heating_enabled": False, "zones": []},
+        "get_temperature": {"items": []},
+        "get_sensors": {"items": []},
+        "get_kettle": {},
+        "get_energy_status": {"items": [{"ga": "32/1/35", "name": "Total P", "value": 1}]},
+    }
+    snap = HouseSnapshot.from_ops("house", ops)
+    kinds = {s.kind for s in snap.sensors}
+    assert "power" in kinds
+    assert "meter" not in kinds
+
+
+def test_battery_sensors_and_display_name() -> None:
+    ops = {
+        "get_house_status": {"online_status": "online"},
+        "list_lights": {"items": []},
+        "get_climate": {"auto_heating_enabled": False, "zones": []},
+        "get_temperature": {"items": []},
+        "get_sensors": {
+            "items": [
+                {"name": "zb_sensor_fl1_living_room_humidity", "value": 44, "area": "гостиная", "floor": "1"},
+            ]
+        },
+        "get_sensors_battery": {
+            "items": [
+                {"name": "zb_sensor_fl1_bedroom_battery", "value": 91, "area": "спальня", "floor": "1"},
+            ]
+        },
+        "get_kettle": {},
+    }
+    snap = HouseSnapshot.from_ops("house", ops)
+    bats = [s for s in snap.sensors if s.kind == "battery"]
+    hums = [s for s in snap.sensors if s.kind == "humidity"]
+    assert len(bats) == 1
+    assert bats[0].area == "спальня"
+    assert bats[0].unique_id == "house:sensor_battery:zb_sensor_fl1_bedroom_battery"
+    assert len(hums) == 1
+    from cottage_monitoring.snapshot import sensor_display_name, sensor_ha_profile
+    assert sensor_display_name(name="zb_sensor_fl1_bedroom_battery", kind="battery") == "Батарея"
+    assert sensor_ha_profile("meter")["state_class"] == "total_increasing"
+    assert sensor_ha_profile("hour")["state_class"] == "total"
+    assert sensor_ha_profile("daily")["state_class"] == "total"
+    assert sensor_ha_profile("battery") == {
+        "device_class": "battery",
+        "unit": "%",
+        "state_class": "measurement",
+    }
+

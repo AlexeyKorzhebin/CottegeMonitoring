@@ -43,19 +43,19 @@ def test_climate_body_has_no_force_relay() -> None:
 def test_light_uses_set_lights_not_set_light() -> None:
     name, body = lights_turn_on_body("Свет - кухня")
     assert name == "set_lights"
-    assert body["skip_unchanged"] is True
+    assert body["skip_unchanged"] is False
 
 
 def test_lights_turn_on_body() -> None:
     name, body = lights_turn_on_body("Свет - кухня")
     assert name == "set_lights"
-    assert body == {"query": "Свет - кухня", "on": True, "skip_unchanged": True}
+    assert body == {"query": "Свет - кухня", "on": True, "skip_unchanged": False}
 
 
 def test_lights_turn_off_body() -> None:
     name, body = lights_turn_off_body("Свет - кухня")
     assert name == "set_lights"
-    assert body == {"query": "Свет - кухня", "on": False, "skip_unchanged": True}
+    assert body == {"query": "Свет - кухня", "on": False, "skip_unchanged": False}
 
 
 def test_auto_heating_body() -> None:
@@ -116,7 +116,7 @@ def test_fake_coordinator_call_op_bodies() -> None:
 
     asyncio.run(_run())
     assert coord.client.ops == [
-        ("set_lights", {"query": "Свет - кухня", "on": True, "skip_unchanged": True}),
+        ("set_lights", {"query": "Свет - кухня", "on": True, "skip_unchanged": False}),
         ("set_climate", {"query": "гостиная 1", "setpoint_c": 23.0}),
         ("set_auto_heating", {"on": False}),
         ("set_kettle", {"on": True}),

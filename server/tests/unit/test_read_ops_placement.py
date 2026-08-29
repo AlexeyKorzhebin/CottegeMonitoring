@@ -7,7 +7,12 @@ from unittest.mock import MagicMock
 import pytest
 
 from cottage_monitoring.services import agent_actions
-from cottage_monitoring.services.object_resolver import ObjectRole, ResolvedObject, ResolveResult
+from cottage_monitoring.services.object_resolver import (
+    DiscoverKind,
+    ObjectRole,
+    ResolvedObject,
+    ResolveResult,
+)
 
 
 def _ro(ga: str, name: str, tags: list[str], role: ObjectRole) -> ResolvedObject:
@@ -110,6 +115,35 @@ def test_get_sensors_humidity_has_placement(monkeypatch) -> None:
     out = asyncio.run(agent_actions.get_sensors(MagicMock(), "house", kind="humidity"))
     assert out["items"][0]["area"] == "кухня"
     assert out["items"][0]["floor"] == "1"
+
+
+def test_get_sensors_battery_has_placement(monkeypatch) -> None:
+    bat = _ro(
+        "33/1/20",
+        "zb_sensor_fl1_kitchen_battery",
+        ["floor1", "battery", "zb_sensor"],
+        ObjectRole.ROOM_BATTERY,
+    )
+
+    captured = {}
+
+    async def fake_resolve(*_a, **kwargs):
+        captured.update(kwargs)
+        return ResolveResult(status="ok", matches=[bat])
+
+    async def fake_states(*_a, **_k):
+        return {"33/1/20": 87}
+
+    monkeypatch.setattr(agent_actions, "resolve_objects", fake_resolve)
+    monkeypatch.setattr(agent_actions, "_get_state_map", fake_states)
+
+    out = asyncio.run(agent_actions.get_sensors(MagicMock(), "house", kind="battery"))
+    assert captured["role"] == ObjectRole.ROOM_BATTERY
+    assert captured["kind"] == DiscoverKind.SENSOR
+    assert out["items"][0]["area"] == "кухня"
+    assert out["items"][0]["floor"] == "1"
+    assert out["items"][0]["value"] == 87
+    assert out["items"][0]["role"] == "room_battery"
 
 
 def test_get_sensors_unknown_kind_still_raises(monkeypatch) -> None:

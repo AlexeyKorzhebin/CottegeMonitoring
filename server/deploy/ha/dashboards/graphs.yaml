@@ -1,0 +1,16 @@
+title: Графики
+views:
+  - title: Графики
+    path: graphs
+    cards:
+      - type: markdown
+        content: |
+          Графики строит Grafana (SELECT). Если рамка пустая — откройте ссылку (нужен логин Grafana).
+          - [Electricity](https://elion.black-castle.ru/grafana/d/cottage-energy/)
+          - [Batteries](https://elion.black-castle.ru/grafana/d/cottage-batteries/)
+      - type: iframe
+        url: https://elion.black-castle.ru/grafana/d/cottage-energy/?orgId=1&kiosk
+        aspect_ratio: 75%
+      - type: iframe
+        url: https://elion.black-castle.ru/grafana/d/cottage-batteries/?orgId=1&kiosk
+        aspect_ratio: 55%
