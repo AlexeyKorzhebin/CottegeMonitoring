@@ -119,11 +119,27 @@ Tools доступны как native OpenClaw MCP (`cottage__…`) — вызы�
 - Уточняй только при ambiguous / потенциально опасной команде.
 ```
 
+## Канонический `TOOLS.md` (workspace-cottage)
+
+OpenClaw подмешивает этот файл в bootstrap. Он **не** должен учить CLI. Канон: [`openclaw-cottage-tools.md`](./openclaw-cottage-tools.md).
+
+```markdown
+# TOOLS.md — cottage
+
+Tools дома — native OpenClaw MCP: `cottage__<имя>` (Nord `http://127.0.0.1:8321/mcp`).
+Вызывай их напрямую. Не используй `exec`, `mcporter`, `list`, `list-commands`, CLI.
+
+Схемы аргументов — в MCP `tools/list`, не дублируй.
+
+Операторский шелл / бенчи (не этот агент): mcporter alias `cottage-dry` и header `X-Cottage-Dry-Run`. См. skill `cottage-monitoring` → `references/openclaw-connection.md`.
+```
+
 После образа с Nord Ops (на elion, не единственный путь — не только rsync):
 
 1. Обновить skill: `openclaw skills install /path/to/skills/cottage-monitoring --agent cottage --force` (или скопировать в `/home/openclaw/.openclaw/workspace/skills/cottage-monitoring/`; workspace-cottage — симлинк сюда).
 2. Обновить `/home/openclaw/.openclaw/workspace-cottage/AGENTS.md` из канона выше.
-3. `openclaw mcp probe cottage` — 17 tools, включая `list_houses`. Старый Telegram-чат: `/new` или перечитать AGENTS.
+3. Обновить `/home/openclaw/.openclaw/workspace-cottage/TOOLS.md` из `openclaw-cottage-tools.md` (native MCP; не mcporter call).
+4. `openclaw mcp probe cottage` — 17 tools, включая `list_houses`. Старый Telegram-чат: `/new` или перечитать AGENTS.
 
 ---
 
@@ -163,7 +179,7 @@ Tools доступны как native OpenClaw MCP (`cottage__…`) — вызы�
    COTTAGE_API_KEY уже в gateway EnvironmentFile cottage-env.
 
 4) workspace-cottage: skill + AGENTS.md из спеки openclaw-cottage-agent-instructions.md
-   (канон выше). НЕ копировать MEMORY/SOUL/HEARTBEAT из main.
+   и TOOLS.md из openclaw-cottage-tools.md (native MCP). НЕ копировать MEMORY/SOUL/HEARTBEAT из main.
 
 5) Telegram topic «Усадьба» → agentId cottage. main остаётся на sol.
 

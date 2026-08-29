@@ -53,6 +53,8 @@ cottage-ops catalog --json
 # same names as the Ops registry / MCP tools/list
 ```
 
+Live `TOOLS.md` агента `cottage` (`workspace-cottage/TOOLS.md`) — native MCP only. Канон: `specs/001-server-mqtt-ingestor/openclaw-cottage-tools.md`. mcporter в этом файле не путь агента. `mcporter generate-cli` / CLI-снимок — тоже не путь агента (R-028).
+
 ## Legacy mcporter (benches / shell debug)
 
 - mcporter alias: `cottage` → prod `http://127.0.0.1:8321/mcp`

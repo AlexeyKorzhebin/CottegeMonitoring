@@ -300,7 +300,7 @@ MCP-грань без skill — сломанный Telegram: агент не з�
 | `/home/openclaw/.openclaw/workspace-cottage/AGENTS.md` | Bootstrap агента. **Файл есть**, совпадает с каноном в `openclaw-cottage-agent-instructions.md`. Routing ladder; запрет `exec`/`mcporter`. Сюда же — `list_houses` / `house_id`. |
 | `/home/openclaw/.openclaw/workspace/skills/cottage-monitoring/` | Единственная копия skill (`SKILL.md` + `references/`). `skills.entries.cottage-monitoring.enabled=true`. |
 | `/home/openclaw/.openclaw/workspace-cottage/skills/cottage-monitoring` | **Симлинк** на `workspace/skills/cottage-monitoring`. Копировать skill во второй раз не нужно. |
-| `/home/openclaw/.openclaw/workspace-cottage/TOOLS.md` | Живой артефакт. Сейчас учит mcporter — **противоречит** `AGENTS.md`. Не чинить в этой спеке; follow-up: GitHub issue (см. §20). При выкладке Nord **не** делать mcporter снова основным путём агента. |
+| `/home/openclaw/.openclaw/workspace-cottage/TOOLS.md` | Bootstrap tools. Канон `openclaw-cottage-tools.md` — native MCP (`cottage__*`), не `mcporter call`. Follow-up #4: [2026-08-29-openclaw-tools-md-design.md](./2026-08-29-openclaw-tools-md-design.md). |
 | `SOUL.md` / `IDENTITY.md` / `USER.md` / `HEARTBEAT.md` | Короткие; к контракту Ops не относятся. Не трогать без нужды. |
 | `/home/openclaw/.openclaw/agents/cottage/` | Только sessions. `agentDir` из json (`.../agent`) на диске **нет**. |
 
@@ -336,14 +336,15 @@ MCP-грань без skill — сломанный Telegram: агент не з�
 
 1. Skill → `/home/openclaw/.openclaw/workspace/skills/cottage-monitoring/` (симлинк из cottage workspace). Предпочтительно `openclaw skills install <repo>/skills/cottage-monitoring --agent cottage --force`, если CLI в PATH.
 2. Обновить `/home/openclaw/.openclaw/workspace-cottage/AGENTS.md` из канона в `openclaw-cottage-agent-instructions.md`.
-3. `openclaw mcp probe cottage` — 16 tools. Текущий Telegram-чат: `/new` или перечитать AGENTS.
+3. Обновить `TOOLS.md` из `openclaw-cottage-tools.md`.
+4. `openclaw mcp probe cottage` — 17 tools. Текущий Telegram-чат: `/new` или перечитать AGENTS.
 
 Skill и AGENTS.md держать короткими (routing, не JSON-схемы). Схемы уже в MCP `tools/list`. Сверка каталога для оператора: `cottage-ops catalog` (тот же реестр Ops).
 
-Разбор `TOOLS.md` vs `AGENTS.md` — не этот заход, см. §20.
+`TOOLS.md` — native MCP, канон `openclaw-cottage-tools.md` (issue #4, 2026-08-29).
 
 ## 20. Follow-up (не эта спека)
 
-- **OpenClaw `TOOLS.md` учит mcporter, `AGENTS.md` это запрещает.** https://github.com/AlexeyKorzhebin/CottegeMonitoring/issues/4
-- **MCP не stateless 2026-07-28.** Сейчас FastMCP 1.x + `session_manager`, пин `mcp>=1.0,<2`. SDK 2.x (`MCPServer`) говорит новую ревизию и старых клиентов, но ломает наш import. https://github.com/AlexeyKorzhebin/CottegeMonitoring/issues/5 — не блокирует Nord Ops.
+- **OpenClaw `TOOLS.md` vs `AGENTS.md`:** сделано 2026-08-29 — [2026-08-29-openclaw-tools-md-design.md](./2026-08-29-openclaw-tools-md-design.md), issue #4.
+- **MCP не stateless 2026-07-28.** Оставлено как есть 2026-08-29 (R-028): пин `mcp>=1.0,<2`, FastMCP + `session_manager`. Не апгрейдить, пока OpenClaw на elion не заговорит 2026-07-28 без фолбэка, не появятся реплики Nord или CVE без патча 1.x. https://github.com/AlexeyKorzhebin/CottegeMonitoring/issues/5
 - Деплой Home Assistant на Nord — отдельная спека.

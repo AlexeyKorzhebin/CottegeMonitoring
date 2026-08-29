@@ -13,6 +13,9 @@ SKILL_MD = REPO_ROOT / "skills" / "cottage-monitoring" / "SKILL.md"
 AGENTS_CANON = (
     REPO_ROOT / "specs" / "001-server-mqtt-ingestor" / "openclaw-cottage-agent-instructions.md"
 )
+TOOLS_CANON = (
+    REPO_ROOT / "specs" / "001-server-mqtt-ingestor" / "openclaw-cottage-tools.md"
+)
 PYPROJECT = Path(__file__).resolve().parents[2] / "pyproject.toml"
 
 
@@ -26,6 +29,17 @@ def test_agents_canon_duplicates_house_rules() -> None:
     text = AGENTS_CANON.read_text(encoding="utf-8")
     assert "list_houses" in text
     assert "house_id" in text
+
+
+def test_tools_md_canon_is_native_mcp_not_agent_cli() -> None:
+    text = TOOLS_CANON.read_text(encoding="utf-8")
+    assert "cottage__" in text
+    assert "Не используй" in text
+    assert "exec" in text
+    assert "mcporter" in text
+    assert "list-commands" in text
+    assert "mcporter call cottage.get_house_status" not in text
+    assert "mcporter call cottage.set_lights" not in text
 
 
 def test_pyproject_registers_cottage_ops_entry_point() -> None:
