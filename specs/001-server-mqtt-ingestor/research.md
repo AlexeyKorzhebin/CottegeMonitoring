@@ -876,7 +876,7 @@ Energy dashboard читает **часовую** `statistics.sum`, не live sta
 
 ---
 
-## R-026: MCP SDK 2.x / spec 2026-07-28 — не сейчас (2026-08-29)
+## R-028: MCP SDK 2.x / spec 2026-07-28 — не сейчас (2026-08-29)
 
 ### Контекст
 
@@ -966,4 +966,6 @@ Stat-плитки (`time_series` + колонка `metric`): Grafana Postgres lo
 | R-023 | Skill + catalog CLI | SKILL/AGENTS: `list_houses`+`house_id`; `cottage-ops catalog` = реестр; probe 16 tools (на момент заметки; с 0.3.0 — 17, R-024) | схемы Ops в промпте / REST POST в skill / CLI агенту |
 | R-024 | Placement + авто ТП + kettle | `area`/`floor` на read-Ops; `set_auto_heating`→`1/7/1`; каталог 17; `set_kettle` on и/или setpoint_c 40–100, °C не в cmd; LM объект `ble_teapot_RK-M173S_setpoint` | новый Op setpoint / °C в cmd / маппинг комнат в HA |
 | R-025 | HA Container | офиц. Container, host net, loopback 8123, nginx `ha.black-castle.ru`+WS, ключ `home-assistant`, component tar; нет KNX/MQTT/automation | YAML REST / MQTT discovery / HA OS |
-| R-026 | MCP SDK 2.x | оставить `mcp>=1.0,<2` до боли на клиенте / реплик / CVE; native MCP агента, не generate-cli | апгрейд Nord первым / CLI как путь Telegram |
+| R-026 | HA write vs poll | optimistic + delayed refresh; control/status не путать | poll сразу после write |
+| R-027 | HA energy/batteries | 6 GA в snapshot; battery poll; Grafana iframe+ссылки; LTS backfill | сужать Nord ENERGY_SUMMARY / анонимный Grafana |
+| R-028 | MCP SDK 2.x | оставить `mcp>=1.0,<2` до боли на клиенте / реплик / CVE; native MCP агента, не generate-cli | апгрейд Nord первым / CLI как путь Telegram |
