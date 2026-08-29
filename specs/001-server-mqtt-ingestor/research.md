@@ -660,6 +660,7 @@ OpenClaw `main` на `gpt-5.6-sol` даёт ощущение ответа ~1 м�
 4. Agent `main`: `tools.deny: ["bundle-mcp"]` — house tools не светятся в общем чате.
 5. mcporter остаётся для benches / `cottage-dry` / shell debug.
 6. `TOOLS.md` в workspace-cottage **не** учить `mcporter call` как путь агента. Канон: `openclaw-cottage-tools.md`. Live 2026-08-29: файл переписан под `cottage__*`; issue #4.
+7. `mcporter generate-cli` / CLI-снимок сервера — не путь агента `cottage` (17 tools, `minimal`+`bundle-mcp`). Канон остаётся Nord MCP; mcporter — шелл и бенчи. 2026-08-29.
 
 ### Verify (2026-08-10)
 
@@ -855,6 +856,23 @@ Nord Ops требует аудит «кто отправил команду». �
 
 ---
 
+## R-026: MCP SDK 2.x / spec 2026-07-28 — не сейчас (2026-08-29)
+
+### Контекст
+
+GitHub issue #5: Python SDK 2.x говорит stateless MCP (без `initialize` / `Mcp-Session-Id`). У нас пин `mcp>=1.0,<2` после падения деплоя 0.2.7 (`mcp.server.fastmcp` исчез). Код: FastMCP + `session_manager.run()` в lifespan. Один контейнер Nord на loopback — sticky session не проблема. OpenClaw на elion **2026.7.1-2**, клиент ещё 2025-era; PR OpenClaw на 2026-07-28 открыт и с фолбэком на handshake 2025. v1.x SDK в maintenance (security-фиксы).
+
+### Решение
+
+Оставить `mcp>=1.0,<2`. Не апгрейдить Nord раньше клиента. Триггеры пересмотра: OpenClaw на elion говорит только 2026-07-28 без фолбэка; несколько реплик Nord за балансировщиком; CVE в mcp 1.x без патча на v1.
+
+### Отклонено
+
+- Апгрейд «чтобы соответствовать спеке» без боли на клиенте.
+- CLI-снимок (`generate-cli`) вместо native MCP у агента `cottage`.
+
+---
+
 ## R-015: Grafana — дашборды телеметрии и алерты (2026-07)
 
 ### Контекст
@@ -928,3 +946,4 @@ Stat-плитки (`time_series` + колонка `metric`): Grafana Postgres lo
 | R-023 | Skill + catalog CLI | SKILL/AGENTS: `list_houses`+`house_id`; `cottage-ops catalog` = реестр; probe 16 tools (на момент заметки; с 0.3.0 — 17, R-024) | схемы Ops в промпте / REST POST в skill / CLI агенту |
 | R-024 | Placement + авто ТП + kettle | `area`/`floor` на read-Ops; `set_auto_heating`→`1/7/1`; каталог 17; `set_kettle` on и/или setpoint_c 40–100, °C не в cmd; LM объект `ble_teapot_RK-M173S_setpoint` | новый Op setpoint / °C в cmd / маппинг комнат в HA |
 | R-025 | HA Container | офиц. Container, host net, loopback 8123, nginx `ha.black-castle.ru`+WS, ключ `home-assistant`, component tar; нет KNX/MQTT/automation | YAML REST / MQTT discovery / HA OS |
+| R-026 | MCP SDK 2.x | оставить `mcp>=1.0,<2` до боли на клиенте / реплик / CVE; native MCP агента, не generate-cli | апгрейд Nord первым / CLI как путь Telegram |

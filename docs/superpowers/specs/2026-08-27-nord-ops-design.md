@@ -346,5 +346,5 @@ Skill и AGENTS.md держать короткими (routing, не JSON-схе�
 ## 20. Follow-up (не эта спека)
 
 - **OpenClaw `TOOLS.md` vs `AGENTS.md`:** сделано 2026-08-29 — [2026-08-29-openclaw-tools-md-design.md](./2026-08-29-openclaw-tools-md-design.md), issue #4.
-- **MCP не stateless 2026-07-28.** Сейчас FastMCP 1.x + `session_manager`, пин `mcp>=1.0,<2`. SDK 2.x (`MCPServer`) говорит новую ревизию и старых клиентов, но ломает наш import. https://github.com/AlexeyKorzhebin/CottegeMonitoring/issues/5 — не блокирует Nord Ops.
+- **MCP не stateless 2026-07-28.** Оставлено как есть 2026-08-29 (R-026): пин `mcp>=1.0,<2`, FastMCP + `session_manager`. Не апгрейдить, пока OpenClaw на elion не заговорит 2026-07-28 без фолбэка, не появятся реплики Nord или CVE без патча 1.x. https://github.com/AlexeyKorzhebin/CottegeMonitoring/issues/5
 - Деплой Home Assistant на Nord — отдельная спека.
