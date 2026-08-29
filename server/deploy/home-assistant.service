@@ -12,6 +12,8 @@ ExecStartPre=-/usr/bin/docker rm home-assistant
 ExecStart=/usr/bin/docker run --name home-assistant \
   --network host \
   -v /var/lib/homeassistant:/config \
+  -v /var/lib/homeassistant/go2rtc-localhost-entrypoint.sh:/go2rtc-localhost-entrypoint.sh:ro \
+  --entrypoint /go2rtc-localhost-entrypoint.sh \
   ghcr.io/home-assistant/home-assistant:stable
 ExecStop=/usr/bin/docker stop home-assistant
 

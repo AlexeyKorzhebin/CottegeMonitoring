@@ -806,7 +806,7 @@ Nord Ops требует аудит «кто отправил команду». �
 
 ### Решение
 
-**Placement.** Поля `area` / `floor` на уже существующих read-Ops (лишние ключи JSON; MCP/Telegram не ломаются). Канон в `services/placement.py`: `floor` ∈ {`1`,`2`,`outside`} из тегов `1floor`/`floor1`, `2floor`/`floor2`, `outside`; `area` — русская комната как в KNX-именах (`кухня`, `гостиная`, `Настина комната`, …). Синонимы резолвера (`зал`→гостиная, `Настя`→Настина). Zigbee `zb_sensor_fl1_living_room_*` мапится **в Nord**, не в HA. Где поля: `list_lights.items[]`, `get_climate.zones[]`, `get_temperature.items[]`, `get_sensors.items[]`; `get_kettle` ставит `area` только если резолвер классифицировал (иначе ключ не ставим). Новых имён Ops нет.
+**Placement.** Поля `area` / `floor` на уже существующих read-Ops (лишние ключи JSON; MCP/Telegram не ломаются). Канон в `services/placement.py`: `floor` ∈ {`1`,`2`,`outside`} из тегов `1floor`/`floor1`, `2floor`/`floor2`, `outside`; `area` — русская комната как в KNX-именах (`кухня`, `гостиная`, `Настина комната`, …). Синонимы резолвера (`зал`→гостиная, `Настя`→Настина). Zigbee `zb_sensor_fl1_living_room_*` мапится **в Nord**, не в HA. Где поля: `list_lights.items[]`, `get_climate.zones[]`, `get_temperature.items[]`, `get_sensors.items[]`; `get_kettle` ставит `area` только если резолвер классифицировал (иначе ключ не ставим). Новых имён Ops нет. `get_sensors(kind="humidity"|"battery")` резолвит `DiscoverKind.SENSOR` + `ROOM_HUMIDITY` / `ROOM_BATTERY` (не `DiscoverKind("battery")`); `zb_sensor` + `battery` (или имя `*_battery`) классифицируется как `ROOM_BATTERY` до generic SENSOR.
 
 **`set_auto_heating`.** Новый write-Op → GA `1/7/1` (`on: bool`). Выкл = Lua гасит все реле ТП. Не путать с реле зоны (`1/5/*`). Read по-прежнему `get_climate.auto_heating_enabled`; отдельный `get_auto_heating` не заводим. Каталог: **17** имён.
 
@@ -836,20 +836,40 @@ Nord Ops требует аудит «кто отправил команду». �
 ### Решение
 
 - Официальный **Container** `ghcr.io/home-assistant/home-assistant:stable` (не HA OS, без Supervisor/аддонов). systemd: `server/deploy/home-assistant.service`, `--network host`, volume `/var/lib/homeassistant:/config`.
-- `http.server_host: 127.0.0.1`, порт **8123**. Снаружи только nginx `ha.black-castle.ru` + TLS + WebSocket (`server/deploy/nginx/home-assistant.conf`). Проверка: `ss -lntp | grep 8123` → **127.0.0.1:8123**, не `0.0.0.0`.
-- Custom component из `ha/custom_components/cottage_monitoring/` → volume скриптом `server/deploy/ha-sync-component.sh` (tar, не `git clone` продукта). Poll 30 с: `get_house_status`, `list_lights`, `get_climate`, `get_temperature`, `get_sensors` (humidity), `get_kettle`. Команды — `POST /api/v1/houses/{id}/ops/{name}`.
+- Listen `127.0.0.1:8123` (HA 2026.8+: Settings → System → Network; YAML `http:` после миграции игнорируется — не держать в `configuration.yaml`). Снаружи nginx `ha.black-castle.ru` + TLS + WebSocket. На elion публичный **443** — `stream ssl_preread` → `127.0.0.1:8443` (как grafana/elion); vhost HA слушает **8443**, не `0.0.0.0:443`. ACME: `certbot certonly --webroot`, не `certbot --nginx`. Проверка: `ss -lntp | grep 8123` → **127.0.0.1:8123**, не `0.0.0.0`.
+- Custom component из `ha/custom_components/cottage_monitoring/` → volume скриптом `server/deploy/ha-sync-component.sh` (tar, не `git clone` продукта). Poll 30 с: `get_house_status`, `list_lights`, `get_climate`, `get_temperature`, `get_sensors` (humidity; Nord уже принимает `kind=battery` для Zigbee room batteries), `get_kettle`. Команды — `POST /api/v1/houses/{id}/ops/{name}`.
 - Ключ Nord: `cottage-create-api-key --house house --name home-assistant --scopes read,write`. Секрет в `/var/lib/homeassistant/secrets.yaml` (`nord_ha_api_key`), не в git. Семья — встроенные users HA (логин на человека); в Nord все клики — один `actor_key_id`. `/mcp` на `ha.black-castle.ru` не открывать.
 - Нет интеграций KNX/MQTT, нет подписки на `cm/#` / `ha/#`, `automations.yaml` пустой. Grafana по-прежнему SELECT-only.
 
 Порядок выкладки: живой Nord 0.3.0 (alembic 008 **до** restart, probe 17) → ключ + smoke REST → HA. Пока GET `/ops` не отдаёт 17 имён и `list_lights` без `area`/`floor` — контейнер HA не стартовать.
 
-**Live 2026-08-28:** Nord `cottage-monitoring:0.3.0` на elion, 008 накатана, probe 17, ключ `home-assistant` создан. HA **не** стартован: A-запись `ha.black-castle.ru` отсутствует (`monitoring.black-castle.ru` = `166.1.60.186`). Volume/component/unit/nginx-available стейджнуты. Чайник: `appliance.setpoint_c=null` — слайдер не включать до объекта LM.
+**Live 2026-08-28:** Nord `cottage-monitoring:0.3.4` на elion (после energy/batteries wave). `pymorphy3` уже в образе. HA `https://ha.black-castle.ru`. HTTP YAML (`server_host`/`trusted_proxies`) импортирован в UI; блок `http:` из `configuration.yaml` убран. Overview favorites: `binary_sensor.dom_onlain`, `switch.avtoupravlenie_polami` (`frontend.system_data` key `home`, `hide_suggested_entities`). Чайник: вкл/выкл + текущая T; слайдер уставки и HA People отложены оператором. Спека HA-Nord: **Implemented**. go2rtc из `default_config` хардкодит `webrtc.listen: ":18555/tcp"`; на host-network это публичный bind. Entrypoint `go2rtc-localhost-entrypoint.sh` меняет на `127.0.0.1:18555` до `/init`. Остаток: YAML-платформы без config entry (warning 2027.8); recorder погоды когда-то писал °C на ветер/влажность.
+
+### R-026: control/status не перепутаны; HA не должен poll'ить сразу после write (2026-08-28)
+
+Live `list_lights`: все `ga` = `1/1/*` (control), `on` с status `1/2/*` по имени (`Свет - … :status`). `set_lights` пишет только control. Реле ТП: write `1/4/*`, read `1/5/*`; чайник: write `33/1/39` cmd, read `33/1/38` state.
+
+Цикл вкл/выкл в HA: после команды компонент сразу делал 6 Ops. Status на шине отстаёт на ~0.5–3 с, poll видит старый off, UI откатывается, повторный клик (для zigbee/BLE — повторная запись True) даёт выключение. Фикс: optimistic state + refresh через 2.5 с.
+
+Пустая area «спальня»: `zb_sensor_fl2_bedroom_*` в LM — датчик **гостевой** (`manage_warm_floor.lua`), не спальни 1 этажа. Placement отдавал `area=спальня` на 2 этаже → HA квалифицировал «спальня (1 этаж)» / «спальня (2 этаж)», канон «спальня» оставался пустым. Также `tima_bedroom` / `nastya_bedroom` и KNX «Тимина» (одна «н»).
 
 ### Отклонено
 
 - YAML REST sensors/кнопки; MQTT Discovery; HA OS / Supervisor.
 - Bridge + `host.docker.internal:8321` как основной путь HA→Nord (Nord слушает `-p 127.0.0.1:8321`).
 - Users / OAuth в Nord; публичная витрина на `monitoring-dev`.
+
+### R-027: HA energy snapshot (6 GA), батареи, Grafana iframe (2026-08-28)
+
+HA coordinator добавляет два read: `get_energy_status` и `get_sensors` `kind=battery`. Poll — **8** вызовов: `get_house_status`, `list_lights`, `get_climate`, `get_temperature`, `get_sensors` humidity, `get_sensors` battery, `get_energy_status`, `get_kettle`. Каталог Ops остаётся **17** имён (новых Ops нет).
+
+Шесть чисел в HA — allowlist GA в snapshot компонента, не сужение Nord `ENERGY_SUMMARY_GAS` (Telegram и Grafana SQL по-прежнему видят фазы, Q/S, `32/1/39`). Счётчик ЖКХ в HA — `32/1/59` (consumption Total), не `32/1/39`. Hour/daily: `state_class=total`; meter (`unique_id` `house:energy:meter`): `state_class=total_increasing`. Шаблон Energy: `server/deploy/ha/energy-grid.example.json`.
+
+Lovelace YAML «Графики» (`cottage-graphs`) встраивает Grafana UID `cottage-energy` и `cottage-batteries`. На elion — только `allow_embedding = true` (`grafana-embedding.ini.snippet`). Если iframe пустой (cookie не шарится между `ha.` и `elion.`) — markdown-ссылка с логином. Анонимный Grafana **запрещён**.
+
+**Live 2026-08-28 (Task 5):** Nord `0.3.4`; `GET /ops` = 17; battery dry-run 12; `get_energy_status` с `32/1/39`. HA entity_id Счётчик = **`sensor.schetchik`**, Сейчас = `sensor.seichas`; Energy grid `stat_energy_from=sensor.schetchik`. Шесть `house:energy:*` + 12 `house:sensor_battery:*`. Grafana embedding включён; iframe в Lovelace есть, но cookie cross-subdomain `ha.`→`elion.` может оставить рамку пустой — **рабочий путь для семьи: markdown-ссылки** в той же view. Спека energy/Grafana: **Implemented**.
+
+Energy dashboard читает **часовую** `statistics.sum`, не live state. Сенсор заведён вечером 28.08 — без импорта август пустой. Backfill: `server/deploy/ha/import-meter-lts.py` (HA stop; hourly last `32/1/59` из Timescale; `sum = reading - baseline`; seed `statistics_short_term`, иначе recorder ставит новую нулевую точку на текущие ~67833 кВт·ч и график падает). Live: **661** часов, baseline ≈ 67333.8, last_sum ≈ **499.5** кВт·ч за август. Бэкап БД: `home-assistant_v2.db.bak-before-aug-lts`.
 
 ---
 

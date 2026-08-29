@@ -32,6 +32,16 @@ def test_classify_room_temp_zb() -> None:
     assert classify_object(o) == ObjectRole.ROOM_TEMP
 
 
+def test_classify_room_battery_zb() -> None:
+    o = _obj("33/1/20", "zb_sensor_fl1_kitchen_battery", "floor1,battery,zb_sensor")
+    assert classify_object(o) == ObjectRole.ROOM_BATTERY
+
+
+def test_classify_battery_not_generic_sensor() -> None:
+    o = _obj("33/1/20", "zb_sensor_fl1_bedroom_battery", "floor1,battery,zb_sensor")
+    assert classify_object(o) != ObjectRole.SENSOR
+
+
 def test_classify_floor_temp() -> None:
     o = _obj("1/3/7", "Темп - кухня", "1floor,heat,temp")
     assert classify_object(o) == ObjectRole.FLOOR_TEMP
@@ -106,6 +116,48 @@ def test_resolve_ambiguous_with_explicit_light_role(monkeypatch) -> None:
     )
     assert result.status == "ambiguous"
     assert len(result.matches) == 2
+
+
+def test_exact_knx_light_name_wins_over_prefix(monkeypatch) -> None:
+    import asyncio
+
+    from cottage_monitoring.services import object_resolver
+
+    bedroom = _obj("1/1/11", "Свет - спальня", "1floor,control,light")
+    tima = _obj("1/1/13", "Свет - спальня Тима", "2floor,control,light")
+    nastya = _obj("1/1/12", "Свет - спальня Насти", "2floor,control,light")
+    office = _obj("1/1/14", "Свет - кабинет", "2floor,control,light")
+    fighter = _obj("1/1/10", "Свет - кабинет - тайфайтер", "2floor,control,light")
+
+    async def fake_load(_session, _house_id: str) -> list[Object]:
+        return [bedroom, tima, nastya, office, fighter]
+
+    monkeypatch.setattr(object_resolver, "load_active_objects", fake_load)
+
+    bedroom_r = asyncio.run(
+        resolve_objects(
+            None,  # type: ignore[arg-type]
+            "h1",
+            query="Свет - спальня",
+            kind="light",
+            role=ObjectRole.LIGHT_CONTROL,
+        )
+    )
+    assert bedroom_r.status == "ok"
+    assert [m.name for m in bedroom_r.matches] == ["Свет - спальня"]
+
+    office_r = asyncio.run(
+        resolve_objects(
+            None,  # type: ignore[arg-type]
+            "h1",
+            query="Свет - кабинет",
+            kind="light",
+            role=ObjectRole.LIGHT_CONTROL,
+        )
+    )
+    assert office_r.status == "ok"
+    assert [m.name for m in office_r.matches] == ["Свет - кабинет"]
+
 
 
 @pytest.mark.integration

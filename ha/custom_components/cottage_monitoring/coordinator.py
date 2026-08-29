@@ -49,6 +49,10 @@ class CottageCoordinator(DataUpdateCoordinator[HouseSnapshot]):
                 "get_sensors": await self.client.call_op(
                     "get_sensors", {"kind": "humidity"}
                 ),
+                "get_sensors_battery": await self.client.call_op(
+                    "get_sensors", {"kind": "battery"}
+                ),
+                "get_energy_status": await self.client.call_op("get_energy_status"),
                 "get_kettle": await self.client.call_op("get_kettle"),
             }
         except NordError as exc:

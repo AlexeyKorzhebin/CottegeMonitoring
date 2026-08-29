@@ -340,6 +340,14 @@ async def get_sensors(
             kind=DiscoverKind.SENSOR,
             role=ObjectRole.ROOM_HUMIDITY,
         )
+    elif kind == "battery":
+        result = await resolve_objects(
+            session,
+            house_id,
+            query=query,
+            kind=DiscoverKind.SENSOR,
+            role=ObjectRole.ROOM_BATTERY,
+        )
     else:
         dk = DiscoverKind(kind) if kind else DiscoverKind.SENSOR
         result = await resolve_objects(session, house_id, query=query, kind=dk)
@@ -484,10 +492,15 @@ async def set_lights(
     skipped: list[dict[str, Any]] = []
     to_change: list[tuple[str, str]] = []
     for m in result.matches:
-        current = status_by_base.get(m.name, states.get(m.ga))
-        current_on = _as_on(current)
-        if skip_unchanged and current_on is not None and current_on == on:
-            skipped.append({"name": m.name, "ga": m.ga, "on": current_on})
+        status_val = status_by_base.get(m.name, states.get(m.ga))
+        control_val = states.get(m.ga)
+        status_on = _as_on(status_val)
+        control_on = _as_on(control_val)
+        # Skip only if status AND control already match. After a write, control
+        # updates first; status lags. Skipping OFF because status is still false
+        # would leave the light on (HA click-on then click-off).
+        if skip_unchanged and status_on == on and control_on == on:
+            skipped.append({"name": m.name, "ga": m.ga, "on": status_on})
             continue
         to_change.append((m.ga, m.name))
 

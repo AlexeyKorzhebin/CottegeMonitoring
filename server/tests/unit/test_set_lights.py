@@ -119,6 +119,44 @@ def test_set_lights_skip_uses_status_not_stale_control(monkeypatch) -> None:
     assert {ga for ga, _name in sent[0]["targets"]} == {"1/1/12", "1/1/15"}
 
 
+def test_set_lights_off_not_skipped_when_status_lags_control(monkeypatch) -> None:
+    """After ON, control is true while status is still false — must still send OFF."""
+    from cottage_monitoring.services import agent_actions
+    from cottage_monitoring.services import object_resolver
+
+    bedroom = _obj("1/1/4", "Свет - спальня", "1floor,control,light")
+    bedroom_st = _obj("1/2/4", "Свет - спальня :status", "light,status")
+
+    async def fake_load(_session, _house_id: str) -> list[Object]:
+        return [bedroom, bedroom_st]
+
+    async def fake_states(_session, _house_id: str) -> dict:
+        return {"1/1/4": True, "1/2/4": False}
+
+    sent: list[dict] = []
+
+    async def fake_batch(session, house_id, *, targets, value, comment):
+        sent.append({"targets": targets, "value": value})
+        return {"request_id": "r1", "status": "sent", "item_count": len(targets), "send_ms": 1}
+
+    monkeypatch.setattr(object_resolver, "load_active_objects", fake_load)
+    monkeypatch.setattr(agent_actions, "_get_state_map", fake_states)
+    monkeypatch.setattr(agent_actions, "_send_light_batch", fake_batch)
+
+    result = asyncio.run(
+        agent_actions.set_lights(
+            None,  # type: ignore[arg-type]
+            "h1",
+            query="Свет - спальня",
+            on=False,
+            skip_unchanged=True,
+        )
+    )
+    assert result["skipped"] == []
+    assert result["changed"][0]["ga"] == "1/1/4"
+    assert sent[0]["value"] is False
+
+
 def test_set_lights_ambiguous_non_zone(monkeypatch) -> None:
     from cottage_monitoring.services import agent_actions
     from cottage_monitoring.services import object_resolver
@@ -145,6 +183,43 @@ def test_set_lights_ambiguous_non_zone(monkeypatch) -> None:
     )
     assert result["status"] == "ambiguous"
     assert len(result["candidates"]) == 2
+
+
+def test_set_lights_exact_knx_name_not_prefix(monkeypatch) -> None:
+    from cottage_monitoring.services import agent_actions
+    from cottage_monitoring.services import object_resolver
+
+    bedroom = _obj("1/1/11", "Свет - спальня", "1floor,control,light")
+    tima = _obj("1/1/13", "Свет - спальня Тима", "2floor,control,light")
+
+    async def fake_load(_session, _house_id: str) -> list[Object]:
+        return [bedroom, tima]
+
+    async def fake_states(_session, _house_id: str) -> dict:
+        return {"1/1/11": False, "1/1/13": False}
+
+    sent: list[dict] = []
+
+    async def fake_batch(session, house_id, *, targets, value, comment):
+        sent.append({"targets": targets, "value": value})
+        return {"request_id": "r1", "status": "sent", "item_count": len(targets), "send_ms": 1}
+
+    monkeypatch.setattr(object_resolver, "load_active_objects", fake_load)
+    monkeypatch.setattr(agent_actions, "_get_state_map", fake_states)
+    monkeypatch.setattr(agent_actions, "_send_light_batch", fake_batch)
+
+    result = asyncio.run(
+        agent_actions.set_lights(
+            None,  # type: ignore[arg-type]
+            "h1",
+            query="Свет - спальня",
+            on=True,
+        )
+    )
+    assert result["status"] == "sent"
+    assert result["changed"][0]["ga"] == "1/1/11"
+    assert sent[0]["targets"] == [("1/1/11", "Свет - спальня")]
+
 
 
 def test_set_commands_groups_by_device(monkeypatch) -> None:

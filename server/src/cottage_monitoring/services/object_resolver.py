@@ -71,6 +71,10 @@ _SYNONYMS = {
     "наст": "настин",  # pymorphy sometimes yields this for «Насте»
     "настина": "настин",
     "тим": "тимин",
+    "тима": "тимин",
+    "тимы": "тимин",
+    "тимина": "тимин",
+    "тимнина": "тимин",
 }
 
 
@@ -80,6 +84,7 @@ class ObjectRole(StrEnum):
     FLOOR_TEMP = "floor_temp"
     ROOM_TEMP = "room_temp"
     ROOM_HUMIDITY = "room_humidity"
+    ROOM_BATTERY = "room_battery"
     CLIMATE_SETPOINT = "climate_setpoint"
     HEAT_RELAY_CONTROL = "heat_relay_control"
     HEAT_RELAY_STATUS = "heat_relay_status"
@@ -157,6 +162,8 @@ def classify_object(obj: Object) -> ObjectRole:
         return ObjectRole.ROOM_TEMP
     if "humidity" in tagset and "zb_sensor" in tagset:
         return ObjectRole.ROOM_HUMIDITY
+    if "zb_sensor" in tagset and ("battery" in tagset or name.endswith("_battery")):
+        return ObjectRole.ROOM_BATTERY
     if "weather" in tagset:
         return ObjectRole.WEATHER
     if "meter" in tagset:
@@ -195,6 +202,7 @@ def _roles_for_kind(kind: DiscoverKind | None) -> set[ObjectRole] | None:
         DiscoverKind.SENSOR: {
             ObjectRole.ROOM_TEMP,
             ObjectRole.ROOM_HUMIDITY,
+            ObjectRole.ROOM_BATTERY,
             ObjectRole.FLOOR_TEMP,
             ObjectRole.WEATHER,
             ObjectRole.SENSOR,
@@ -254,6 +262,10 @@ def _significant_lemmas(text: str) -> set[str]:
         for lemma in _normalized_lemmas(text)
         if lemma not in _STOP_LEMMAS and len(lemma) >= 3
     }
+
+
+def _norm_query_name(s: str) -> str:
+    return " ".join((s or "").lower().replace("ё", "е").split())
 
 
 def _query_matches(query: str | None, obj: Object) -> bool:
@@ -359,6 +371,12 @@ async def resolve_objects(
         if role is not None and resolved.role != role:
             continue
         matches.append(resolved)
+
+    if query and matches:
+        qn = _norm_query_name(query)
+        exact = [m for m in matches if _norm_query_name(m.name) == qn]
+        if exact:
+            matches = exact
 
     if not matches:
         return ResolveResult(status="not_found", matches=[])
