@@ -1,13 +1,13 @@
 import uuid
 
+import pytest
+
 from cottage_monitoring.models.object import Object
 from cottage_monitoring.services.object_resolver import (
     ObjectRole,
     classify_object,
     resolve_objects,
 )
-
-import pytest
 
 
 def _obj(ga: str, name: str, tags: str) -> Object:
@@ -50,6 +50,13 @@ def test_classify_floor_temp() -> None:
 def test_classify_setpoint() -> None:
     o = _obj("1/6/7", "Уставка ТП - кухня", "1floor,heat,setpoint,temp")
     assert classify_object(o) == ObjectRole.CLIMATE_SETPOINT
+
+
+def test_ai_srv_temp_is_not_climate_or_heating_diag() -> None:
+    o = _obj("35/1/2", "AI-SRV - температура", "monitoring, gpu, ai-srv")
+    assert classify_object(o) == ObjectRole.OTHER
+    heat = _obj("34/1/6", "Средняя загрузка за 1 мин", "monitoring")
+    assert classify_object(heat) == ObjectRole.HEATING_DIAG
 
 
 def test_query_matches_outdoor_russian_to_outside_tag() -> None:

@@ -1,0 +1,154 @@
+[
+  {
+    "ga": "35/1/1",
+    "name": "AI-SRV - online",
+    "mqtt": "cooler-arduino/alex-neuro/availability",
+    "dpt": "1.001",
+    "kind": "bool",
+    "tags": "monitoring, gpu, ai-srv"
+  },
+  {
+    "ga": "35/1/2",
+    "name": "AI-SRV - температура",
+    "mqtt": "temperature",
+    "dpt": "9.001",
+    "kind": "numeric",
+    "tags": "monitoring, gpu, ai-srv"
+  },
+  {
+    "ga": "35/1/3",
+    "name": "AI-SRV - RPM",
+    "mqtt": "rpm",
+    "dpt": "9",
+    "kind": "numeric",
+    "tags": "monitoring, gpu, ai-srv"
+  },
+  {
+    "ga": "35/1/4",
+    "name": "AI-SRV - PWM",
+    "mqtt": "pwm",
+    "dpt": "9",
+    "kind": "numeric",
+    "tags": "monitoring, gpu, ai-srv"
+  },
+  {
+    "ga": "35/1/5",
+    "name": "AI-SRV - serial",
+    "mqtt": "serial_state",
+    "dpt": "255",
+    "kind": "text",
+    "tags": "monitoring, gpu, ai-srv"
+  },
+  {
+    "ga": "35/1/6",
+    "name": "AI-SRV - защита",
+    "mqtt": "protection_state",
+    "dpt": "255",
+    "kind": "text",
+    "tags": "monitoring, gpu, ai-srv"
+  },
+  {
+    "ga": "35/1/7",
+    "name": "AI-SRV - потеря датчика с",
+    "mqtt": "sensor_loss_elapsed_seconds",
+    "dpt": "9",
+    "kind": "numeric",
+    "tags": "monitoring, gpu, ai-srv"
+  },
+  {
+    "ga": "35/1/8",
+    "name": "AI-SRV - GPU %",
+    "mqtt": "gpu_utilization_percent",
+    "dpt": "9",
+    "kind": "numeric",
+    "tags": "monitoring, gpu, ai-srv"
+  },
+  {
+    "ga": "35/1/9",
+    "name": "AI-SRV - VRAM GiB",
+    "mqtt": "gpu_memory_used_mib",
+    "dpt": "9",
+    "kind": "numeric",
+    "tags": "monitoring, gpu, ai-srv"
+  },
+  {
+    "ga": "35/1/10",
+    "name": "AI-SRV - мощность Вт",
+    "mqtt": "gpu_power_draw_w",
+    "dpt": "9",
+    "kind": "numeric",
+    "tags": "monitoring, gpu, ai-srv"
+  },
+  {
+    "ga": "35/1/11",
+    "name": "AI-SRV - CPU %",
+    "mqtt": "cpu_utilization_percent",
+    "dpt": "9",
+    "kind": "numeric",
+    "tags": "monitoring, gpu, ai-srv"
+  },
+  {
+    "ga": "35/1/12",
+    "name": "AI-SRV - RAM GiB",
+    "mqtt": "ram_used_bytes",
+    "dpt": "9",
+    "kind": "numeric",
+    "tags": "monitoring, gpu, ai-srv"
+  },
+  {
+    "ga": "35/1/13",
+    "name": "AI-SRV - диск %",
+    "mqtt": "disk_used_percent",
+    "dpt": "9",
+    "kind": "numeric",
+    "tags": "monitoring, gpu, ai-srv"
+  },
+  {
+    "ga": "35/1/14",
+    "name": "AI-SRV - boot id",
+    "mqtt": "boot_id",
+    "dpt": "255",
+    "kind": "text",
+    "tags": "monitoring, gpu, ai-srv"
+  },
+  {
+    "ga": "35/1/15",
+    "name": "AI-SRV - авария причина",
+    "mqtt": "last_shutdown_reason.reason",
+    "dpt": "255",
+    "kind": "shutdown_text",
+    "tags": "monitoring, gpu, ai-srv"
+  },
+  {
+    "ga": "35/1/16",
+    "name": "AI-SRV - авария id",
+    "mqtt": "last_shutdown_reason.event_id",
+    "dpt": "255",
+    "kind": "shutdown_text",
+    "tags": "monitoring, gpu, ai-srv"
+  },
+  {
+    "ga": "35/1/17",
+    "name": "AI-SRV - авария статус",
+    "mqtt": "last_shutdown_reason.status",
+    "dpt": "255",
+    "kind": "shutdown_text",
+    "tags": "monitoring, gpu, ai-srv"
+  },
+  {
+    "ga": "35/1/18",
+    "name": "AI-SRV - авария температура",
+    "mqtt": "last_shutdown_reason.last_temperature_c",
+    "dpt": "9.001",
+    "kind": "shutdown_temp",
+    "tags": "monitoring, gpu, ai-srv"
+  },
+  {
+    "ga": "35/1/19",
+    "name": "AI-SRV - авария время",
+    "mqtt": "last_shutdown_reason.timestamp_utc",
+    "dpt": "255",
+    "kind": "shutdown_text",
+    "tags": "monitoring, gpu, ai-srv"
+  }
+]
