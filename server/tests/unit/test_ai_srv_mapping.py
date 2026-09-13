@@ -1,3 +1,5 @@
+from pathlib import Path
+
 from cottage_monitoring.ai_srv_mapping import (
     availability_online,
     bytes_to_gib,
@@ -10,6 +12,8 @@ from cottage_monitoring.ai_srv_mapping import (
     shutdown_text,
     text_or_unknown,
 )
+
+_REPO = Path(__file__).resolve().parents[3]
 
 
 def test_catalog_has_19_objects_and_prefix() -> None:
@@ -61,3 +65,15 @@ def test_availability_and_offline_gas() -> None:
     assert "35/1/15" not in gas
     assert "35/1/2" in gas
     assert "35/1/18" in gas
+
+
+def test_lua_scripts_contain_all_catalog_gas() -> None:
+    create = (_REPO / "cm-client/scripts/create-ai-srv-objects.lua").read_text(encoding="utf-8")
+    listen = (_REPO / "cm-client/scripts/mqtt_listen.lua").read_text(encoding="utf-8")
+    for o in load_catalog():
+        assert o["ga"] in create, o["ga"]
+        assert o["name"] in create, o["name"]
+        assert o["ga"] in listen, o["ga"]
+    assert "cooler-arduino/alex-neuro" in listen
+    assert "cooler-arduino/alex-neuro/availability" in listen
+    assert "mqtt_listen copy" not in listen
