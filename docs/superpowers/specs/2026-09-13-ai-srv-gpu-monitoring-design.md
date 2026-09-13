@@ -2,6 +2,7 @@
 
 **Date:** 2026-09-13  
 **Status:** Approved  
+**Live (2026-09-13):** 19 objects `35/1/1`–`19` created on LM; `mqtt_listen` id=4 updated in scripting DB (topics + GA present); resident 4 **not respawned** — SSH `lm_estate` / `id_ed25519_lm_estate` Permission denied. Grafana `cottage-ai-srv` provisioned on elion. Mapping not live until mqtt_listen restart in LM UI.  
 **Scope:** Logic Machine group objects + `mqtt_listen` mapping + Grafana dashboard for GPU host `alex-NEURO`.  
 **Depends on:** cooler-arduino MQTT contract (`/Users/aleksey.korzhebin/Yandex.Disk.localized/Projects/cooler-arduino/docs/specification.md` §6); cottage-monitoring daemon already publishes all `groupwrite`; Grafana file provisioning.  
 **Related:** `docs/superpowers/specs/2026-07-15-house-objects-inventory.md`, `server/deploy/grafana/README.md`.
