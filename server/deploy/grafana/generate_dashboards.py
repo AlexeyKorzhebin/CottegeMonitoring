@@ -109,6 +109,14 @@ DASH_LINKS = [
         "targetBlank": False,
     },
     {
+        "title": "AI-SRV",
+        "type": "link",
+        "url": "/grafana/d/cottage-ai-srv/",
+        "icon": "monitor",
+        "keepTime": True,
+        "targetBlank": False,
+    },
+    {
         "title": "Все Cottage",
         "type": "dashboards",
         "tags": ["cottage"],
@@ -126,7 +134,8 @@ NAV_MD = (
     "[Climate](/grafana/d/cottage-climate/) · "
     "[Lights](/grafana/d/cottage-lights/) · "
     "[Batteries](/grafana/d/cottage-batteries/) · "
-    "[LM Load](/grafana/d/cottage-lm-load/)"
+    "[LM Load](/grafana/d/cottage-lm-load/) · "
+    "[AI-SRV](/grafana/d/cottage-ai-srv/)"
 )
 
 # Utility meter: consumption Total — kWh with 2 decimals (no SI→MWh scaling).
@@ -603,7 +612,9 @@ SELECT cs.ts AS time, {CS_BOOL} AS value
 FROM current_state cs
 WHERE cs.house_id = 'house' AND {CS_JOIN} = '1/7/1'
 """.strip(),
-            description="GA 1/7/1 — автобалансировка тёплых полов. ON = алгоритм сам включает реле.",
+            description=(
+                "GA 1/7/1 — автобалансировка тёплых полов. ON = алгоритм сам включает реле."
+            ),
         )
     )
     panels.append(
@@ -620,7 +631,9 @@ WHERE cs.house_id = 'house' AND {CS_JOIN} = '32/1/35'
 """.strip(),
             unit="watt",
             decimals=0,
-            description="Total P — активная мощность (сколько реально потребляем прямо сейчас), Вт.",
+            description=(
+                "Total P — активная мощность (сколько реально потребляем прямо сейчас), Вт."
+            ),
         )
     )
     panels.append(
@@ -842,7 +855,8 @@ def energy():
             "32/1/38",
             None,
             2,
-            "Power Factor — коэффициент мощности (P/S). 1.0 = идеально; ниже 0.9 — много реактивной нагрузки.",
+            "Power Factor — коэффициент мощности (P/S). "
+            "1.0 = идеально; ниже 0.9 — много реактивной нагрузки.",
         ),
         (
             "Частота",
@@ -1601,7 +1615,10 @@ WHERE v IS NOT NULL
 GROUP BY day, ga
 ORDER BY day DESC, metric
 """.strip(),
-            description="Ячейки avg/p50/p95/max окрашены: зелёный <1 · жёлтый ≥1 · оранжевый ≥1.5 · красный ≥2.",
+            description=(
+                "Ячейки avg/p50/p95/max окрашены: "
+                "зелёный <1 · жёлтый ≥1 · оранжевый ≥1.5 · красный ≥2."
+            ),
             field_config={
                 "defaults": {},
                 "overrides": _load_num_overrides(["avg", "p50", "p95", "max"]),
@@ -1618,6 +1635,303 @@ ORDER BY day DESC, metric
     )
 
 
+AI_TEMP_THRESHOLDS = {
+    "mode": "absolute",
+    "steps": [
+        {"color": "green", "value": None},
+        {"color": "red", "value": 84},
+    ],
+}
+
+
+def _load_latest_bool_sql(ga: str) -> str:
+    return f"""
+SELECT e.ts AS time, {BOOL01} AS value
+FROM events e
+WHERE e.house_id = 'house' AND e.ga = '{ga}'
+ORDER BY e.ts DESC
+LIMIT 1
+""".strip()
+
+
+def _load_latest_text_sql(ga: str) -> str:
+    return (
+        "SELECT e.ts AS time, e.value #>> '{}' AS value\n"
+        "FROM events e\n"
+        f"WHERE e.house_id = 'house' AND e.ga = '{ga}'\n"
+        "ORDER BY e.ts DESC LIMIT 1"
+    )
+
+
+def _cs_latest_text_sql(ga: str) -> str:
+    return f"""
+SELECT cs.ts AS time, cs.value #>> '{{}}' AS value
+FROM current_state cs
+WHERE cs.house_id = 'house' AND {CS_JOIN} = '{ga}'
+""".strip()
+
+
+def _cs_latest_num_sql(ga: str) -> str:
+    return f"""
+SELECT cs.ts AS time, {CS_NUM} AS value
+FROM current_state cs
+WHERE cs.house_id = 'house' AND {CS_JOIN} = '{ga}'
+""".strip()
+
+
+def _ai_events_ts_sql(series: list[tuple[str, str]]) -> str:
+    avgs = ",\n  ".join(
+        f'avg({NUM}) FILTER (WHERE e.ga = \'{ga}\') AS "{alias}"' for ga, alias in series
+    )
+    gas = ",".join(f"'{ga}'" for ga, _ in series)
+    return f"""
+SELECT
+  $__timeGroupAlias(e.ts, $__interval),
+  {avgs}
+FROM events e
+WHERE e.house_id = 'house'
+  AND e.ga IN ({gas})
+  AND $__timeFilter(e.ts)
+GROUP BY 1 ORDER BY 1
+""".strip()
+
+
+def ai_srv():
+    """GPU host AI-SRV metrics from GA 35/1/1..19."""
+    global _PANEL_ID
+    _PANEL_ID = 0
+    panels = []
+    y = 0
+    panels.append(nav_panel(y))
+    y += 2
+    panels.append(row("Сейчас", y))
+    y += 1
+
+    panels.append(
+        on_off_stat(
+            "Online",
+            0,
+            y,
+            4,
+            4,
+            _load_latest_bool_sql("35/1/1"),
+            description="GA 35/1/1 — MQTT availability GPU-хоста. ON = online.",
+        )
+    )
+    panels.append(
+        stat(
+            "Температура",
+            4,
+            y,
+            4,
+            4,
+            _load_latest_sql("35/1/2"),
+            unit="celsius",
+            decimals=1,
+            description="GA 35/1/2. −1 = нет данных. Порог защиты 84 °C.",
+        )
+    )
+    panels.append(
+        stat(
+            "RPM",
+            8,
+            y,
+            4,
+            4,
+            _load_latest_sql("35/1/3"),
+            decimals=0,
+            description="GA 35/1/3. 0 = вентилятор стоит. −1 = нет данных.",
+        )
+    )
+    panels.append(
+        stat(
+            "PWM",
+            12,
+            y,
+            4,
+            4,
+            _load_latest_sql("35/1/4"),
+            decimals=0,
+            description="GA 35/1/4. Команда 0…255. −1 = нет данных.",
+        )
+    )
+    panels.append(
+        stat(
+            "Serial",
+            16,
+            y,
+            4,
+            4,
+            _load_latest_text_sql("35/1/5"),
+            decimals=0,
+            graph_mode="none",
+            text_mode="value",
+            description="GA 35/1/5 serial_state: connected / error / unknown.",
+        )
+    )
+    panels.append(
+        stat(
+            "Защита",
+            20,
+            y,
+            4,
+            4,
+            _load_latest_text_sql("35/1/6"),
+            decimals=0,
+            graph_mode="none",
+            text_mode="value",
+            description="GA 35/1/6 protection_state: monitoring / sensor_unavailable / alarm.",
+        )
+    )
+    y += 4
+
+    panels.append(row("История", y))
+    y += 1
+    ts_cool = timeseries(
+        "Температура / RPM / PWM",
+        0,
+        y,
+        24,
+        10,
+        _ai_events_ts_sql(
+            [
+                ("35/1/2", "Температура"),
+                ("35/1/3", "RPM"),
+                ("35/1/4", "PWM"),
+            ]
+        ),
+        description=(
+            "−1 не скрываем: это дыра в данных. "
+            "Линия 84 °C — порог температуры GPU (без Telegram-алерта)."
+        ),
+    )
+    ts_cool["fieldConfig"]["overrides"] = [
+        {
+            "matcher": {"id": "byName", "options": "Температура"},
+            "properties": [
+                {"id": "unit", "value": "celsius"},
+                {"id": "thresholds", "value": AI_TEMP_THRESHOLDS},
+                {"id": "custom.thresholdsStyle", "value": {"mode": "line"}},
+            ],
+        },
+        {
+            "matcher": {"id": "byName", "options": "RPM"},
+            "properties": [{"id": "custom.axisPlacement", "value": "right"}],
+        },
+        {
+            "matcher": {"id": "byName", "options": "PWM"},
+            "properties": [{"id": "custom.axisPlacement", "value": "right"}],
+        },
+    ]
+    panels.append(ts_cool)
+    y += 10
+
+    ts_gpu = timeseries(
+        "GPU % / VRAM / мощность",
+        0,
+        y,
+        24,
+        8,
+        _ai_events_ts_sql(
+            [
+                ("35/1/8", "GPU %"),
+                ("35/1/9", "VRAM GiB"),
+                ("35/1/10", "Мощность"),
+            ]
+        ),
+        description="GA 35/1/8…10. −1 = просадка / offline. 0% GPU = idle.",
+    )
+    ts_gpu["fieldConfig"]["overrides"] = [
+        {
+            "matcher": {"id": "byName", "options": "GPU %"},
+            "properties": [{"id": "unit", "value": "percent"}],
+        },
+        {
+            "matcher": {"id": "byName", "options": "VRAM GiB"},
+            "properties": [{"id": "unit", "value": "suffix:GiB"}],
+        },
+        {
+            "matcher": {"id": "byName", "options": "Мощность"},
+            "properties": [
+                {"id": "unit", "value": "watt"},
+                {"id": "custom.axisPlacement", "value": "right"},
+            ],
+        },
+    ]
+    panels.append(ts_gpu)
+    y += 8
+
+    ts_host = timeseries(
+        "CPU / RAM / диск",
+        0,
+        y,
+        24,
+        8,
+        _ai_events_ts_sql(
+            [
+                ("35/1/11", "CPU %"),
+                ("35/1/12", "RAM GiB"),
+                ("35/1/13", "Диск %"),
+            ]
+        ),
+        description="GA 35/1/11…13. −1 = просадка / offline.",
+    )
+    ts_host["fieldConfig"]["overrides"] = [
+        {
+            "matcher": {"id": "byName", "options": "CPU %"},
+            "properties": [{"id": "unit", "value": "percent"}],
+        },
+        {
+            "matcher": {"id": "byName", "options": "RAM GiB"},
+            "properties": [
+                {"id": "unit", "value": "suffix:GiB"},
+                {"id": "custom.axisPlacement", "value": "right"},
+            ],
+        },
+        {
+            "matcher": {"id": "byName", "options": "Диск %"},
+            "properties": [{"id": "unit", "value": "percent"}],
+        },
+    ]
+    panels.append(ts_host)
+    y += 8
+
+    panels.append(row("Авария", y))
+    y += 1
+    text_stat = {"decimals": 0, "graph_mode": "none", "text_mode": "value"}
+    accident = [
+        ("Причина", "35/1/15", _cs_latest_text_sql, text_stat),
+        ("ID", "35/1/16", _cs_latest_text_sql, text_stat),
+        ("Статус", "35/1/17", _cs_latest_text_sql, text_stat),
+        ("Температура", "35/1/18", _cs_latest_num_sql, {"unit": "celsius", "decimals": 1}),
+        ("Время", "35/1/19", _cs_latest_text_sql, text_stat),
+    ]
+    widths = [5, 5, 5, 4, 5]
+    x = 0
+    for (title, ga, sql_fn, extra), w in zip(accident, widths, strict=True):
+        panels.append(
+            stat(
+                title,
+                x,
+                y,
+                w,
+                4,
+                sql_fn(ga),
+                description=f"GA {ga} — last_shutdown из current_state.",
+                **extra,
+            )
+        )
+        x += w
+
+    return dashboard(
+        "Cottage — AI-SRV",
+        "cottage-ai-srv",
+        panels,
+        ["cottage", "gpu", "ai-srv"],
+        refresh="30s",
+    )
+
+
 def main() -> None:
     OUT.mkdir(parents=True, exist_ok=True)
     for name, fn in [
@@ -1627,6 +1941,7 @@ def main() -> None:
         ("cottage_lights.json", lights),
         ("cottage_batteries.json", batteries),
         ("cottage_lm_load.json", lm_load),
+        ("cottage_ai_srv.json", ai_srv),
     ]:
         path = OUT / name
         path.write_text(json.dumps(fn(), ensure_ascii=False, indent=2) + "\n", encoding="utf-8")

@@ -13,6 +13,7 @@ Provisioned dashboards for house telemetry from PostgreSQL/TimescaleDB
 | `cottage-lights` | Lights | Colored ON/OFF tiles + 0/1 history by floor |
 | `cottage-batteries` | Batteries | Zigbee battery % table |
 | `cottage-lm-load` | LM Load | loadavg 1/5/15 мин (GA `34/1/6..8`); суточная статистика |
+| `cottage-ai-srv` | AI-SRV | GPU-хост: online, °C, RPM, PWM, serial, защита; GPU/CPU/RAM/диск; последняя авария (`35/1/1`–`19`) |
 
 URLs (behind nginx):
 
@@ -22,6 +23,7 @@ URLs (behind nginx):
 - https://elion.black-castle.ru/grafana/d/cottage-lights/
 - https://elion.black-castle.ru/grafana/d/cottage-batteries/
 - https://elion.black-castle.ru/grafana/d/cottage-lm-load/
+- https://elion.black-castle.ru/grafana/d/cottage-ai-srv/
 
 HA Lovelace «Графики» (`ha.black-castle.ru`) встраивает Electricity и Batteries iframe'ом: для этого в `[security]` Grafana нужен `allow_embedding = true` (`grafana-embedding.ini.snippet`). Cookie Grafana не шарится между поддоменами `ha.` и `elion.`, поэтому рамка может остаться пустой — в Lovelace остаются markdown-ссылки (нужен логин Grafana). Анонимный Grafana **не** включать.
 
@@ -35,6 +37,7 @@ Kept the curated / high-signal set; dropped raw meter internals and unused stubs
 - **Lights:** status GAs `1/2/*` (instant + history)
 
 - **LM / monitoring:** loadavg `34/1/6` (1м), `34/1/7` (5м), `34/1/8` (15м) — дашборд `cottage-lm-load`, алерт load15 > 2.0
+- **AI-SRV:** GPU-хост `35/1/1`–`35/1/19` — дашборд `cottage-ai-srv` (температура, линия 84 °C; −1 на графиках не прячем)
 
 ## Cursor / MCP access (elion)
 
@@ -86,5 +89,5 @@ Creates contact point `cottage-telegram`, route `team=cottage`, alerts:
 - Instant light tiles: Canvas + PNG at `/usr/share/grafana/public/img/cottage/` (SQL returns absolute HTTPS URL; Grafana `getPublicOrAbsoluteUrl` otherwise prefixes `build/`). Stat cannot embed images.
 - Light history: state-timeline strobes from raw `events` plus last state at `$__timeFrom()` (bar width = on/off duration).
 - Instant heat Stat tiles: `now() AS time` + `ORDER BY time, metric` (Grafana long→wide needs time-sorted rows; otherwise **No data**).
-- Auto-refresh: 30s (Overview/Energy/Climate/Lights), 1m (Batteries, LM Load).
+- Auto-refresh: 30s (Overview/Energy/Climate/Lights/AI-SRV), 1m (Batteries, LM Load).
 - Grafana 12 stores provisioned dashboards in unified storage (may not show in classic `dashboard` sqlite table).

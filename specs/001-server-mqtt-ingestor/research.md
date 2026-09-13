@@ -905,7 +905,7 @@ FR-045 оставлял Grafana-дашборды **метрик приложен
 
 1. **Источник данных:** PostgreSQL datasource UID `cottage-monitoring-pg`, роль `cottage_grafana` (SELECT-only), БД `cottage_monitoring`.
 2. **Дашборды (file provisioning):** генератор `server/deploy/grafana/generate_dashboards.py` → JSON в `/var/lib/grafana/dashboards/cottage`. Папка **Cottage**.
-   - Overview, Electricity, Climate, Lights, Batteries, **LM Load** (`cottage-lm-load`).
+   - Overview, Electricity, Climate, Lights, Batteries, **LM Load** (`cottage-lm-load`), **AI-SRV** (`cottage-ai-srv`, GA `35/1/1`–`19`).
 3. **Деплой:** `./server/deploy/grafana/deploy.sh` (не править JSON вручную на сервере).
 4. **Алерты:** Grafana Alerting → contact point `cottage-telegram`, route `team=cottage`.
    - `cottage-house-stale` — дом offline / stale >15m (critical, for 5m).
@@ -921,7 +921,7 @@ Stat-плитки (`time_series` + колонка `metric`): Grafana Postgres lo
 
 Свет сейчас (2026-08-16, вечер): Stat не умеет PNG. Плитки света — **Canvas**: прямоугольник с `background.image.mode=field`, SQL (format `table`) отдаёт URL `light-on-128.png` / `light-off-128.png`. Иконки: `server/deploy/grafana/icons/` → `/usr/share/grafana/public/img/cottage/` (полный URL, иначе Grafana префиксует `build/`). Список комнат зашит (как история графиков) — Canvas не плодит элементы из строк запроса.
 
-История света: не timeseries 0/1, а **state-timeline** (строб). Сырые `events` + снимок last-state на левой границе окна (`DISTINCT ON ga … ts < $__timeFrom()`), иначе полоса не знает состояние до первого события в диапазоне. Auto-refresh дашбордов Cottage: 30s, кроме Batteries/LM Load (1m).
+История света: не timeseries 0/1, а **state-timeline** (строб). Сырые `events` + снимок last-state на левой границе окна (`DISTINCT ON ga … ts < $__timeFrom()`), иначе полоса не знает состояние до первого события в диапазоне. Auto-refresh дашбордов Cottage: 30s (включая AI-SRV), кроме Batteries/LM Load (1m).
 
 ### Отклонено / не смешивать
 
