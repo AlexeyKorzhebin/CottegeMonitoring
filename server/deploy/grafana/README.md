@@ -37,7 +37,7 @@ Kept the curated / high-signal set; dropped raw meter internals and unused stubs
 - **Lights:** status GAs `1/2/*` (instant + history)
 
 - **LM / monitoring:** loadavg `34/1/6` (1м), `34/1/7` (5м), `34/1/8` (15м) — дашборд `cottage-lm-load`, алерт load15 > 2.0
-- **AI-SRV:** GPU-хост `35/1/1`–`35/1/19` — дашборд `cottage-ai-srv` (температура, линия 84 °C; −1 на графиках не прячем)
+- **AI-SRV:** GPU-хост `35/1/1`–`35/1/19` — дашборд `cottage-ai-srv` (цвета °C/RPM/PWM; −1 на графиках не прячем; защита GPU 84 °C)
 
 ## Cursor / MCP access (elion)
 

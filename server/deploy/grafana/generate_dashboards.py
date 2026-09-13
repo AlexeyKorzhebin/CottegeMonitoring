@@ -1635,11 +1635,39 @@ ORDER BY day DESC, metric
     )
 
 
+# −1 нет данных — красный. Живая шкала: <60 зелёный, 60–75 жёлтый, 75–80 оранжевый, >80 красный.
+# Защита GPU по firmware по-прежнему 84 °C.
 AI_TEMP_THRESHOLDS = {
     "mode": "absolute",
     "steps": [
-        {"color": "green", "value": None},
-        {"color": "red", "value": 84},
+        {"color": "red", "value": None},
+        {"color": "green", "value": 0},
+        {"color": "yellow", "value": 60},
+        {"color": "orange", "value": 75},
+        {"color": "red", "value": 80.1},
+    ],
+}
+
+# RPM/PWM: 0 и простой — зелёный; −1 (нет данных) и верх шкалы — красный.
+# Grafana красит «от порога и выше». 5000 RPM / PWM 255 — уже потолок, красный раньше.
+AI_RPM_THRESHOLDS = {
+    "mode": "absolute",
+    "steps": [
+        {"color": "red", "value": None},
+        {"color": "green", "value": 0},
+        {"color": "yellow", "value": 2000},
+        {"color": "red", "value": 3500},
+    ],
+}
+
+# PWM 0–100 ≈ RPM 0–2000; 180 ≈ 3500 RPM; 255 = max.
+AI_PWM_THRESHOLDS = {
+    "mode": "absolute",
+    "steps": [
+        {"color": "red", "value": None},
+        {"color": "green", "value": 0},
+        {"color": "yellow", "value": 100},
+        {"color": "red", "value": 180},
     ],
 }
 
@@ -1718,43 +1746,56 @@ def ai_srv():
             description="GA 35/1/1 — MQTT availability GPU-хоста. ON = online.",
         )
     )
-    panels.append(
-        stat(
-            "Температура",
-            4,
-            y,
-            4,
-            4,
-            _load_latest_sql("35/1/2"),
-            unit="celsius",
-            decimals=1,
-            description="GA 35/1/2. −1 = нет данных. Порог защиты 84 °C.",
-        )
+    temp_stat = stat(
+        "Температура",
+        4,
+        y,
+        4,
+        4,
+        _load_latest_sql("35/1/2"),
+        unit="celsius",
+        decimals=1,
+        color_mode="background",
+        description=(
+            "GA 35/1/2. −1 = нет данных. "
+            "Зелёный <60 · жёлтый 60–75 · оранжевый 75–80 · красный >80. "
+            "Защита GPU 84 °C."
+        ),
     )
-    panels.append(
-        stat(
-            "RPM",
-            8,
-            y,
-            4,
-            4,
-            _load_latest_sql("35/1/3"),
-            decimals=0,
-            description="GA 35/1/3. 0 = вентилятор стоит. −1 = нет данных.",
-        )
+    temp_stat["fieldConfig"]["defaults"]["thresholds"] = AI_TEMP_THRESHOLDS
+    panels.append(temp_stat)
+    rpm_stat = stat(
+        "RPM",
+        8,
+        y,
+        4,
+        4,
+        _load_latest_sql("35/1/3"),
+        decimals=0,
+        color_mode="background",
+        description=(
+            "GA 35/1/3. 0 = вентилятор стоит. −1 = нет данных. "
+            "Красный <0 (−1 нет данных) или ≥3500 · зелёный 0–2000 · жёлтый 2000–3500."
+        ),
     )
-    panels.append(
-        stat(
-            "PWM",
-            12,
-            y,
-            4,
-            4,
-            _load_latest_sql("35/1/4"),
-            decimals=0,
-            description="GA 35/1/4. Команда 0…255. −1 = нет данных.",
-        )
+    rpm_stat["fieldConfig"]["defaults"]["thresholds"] = AI_RPM_THRESHOLDS
+    panels.append(rpm_stat)
+    pwm_stat = stat(
+        "PWM",
+        12,
+        y,
+        4,
+        4,
+        _load_latest_sql("35/1/4"),
+        decimals=0,
+        color_mode="background",
+        description=(
+            "GA 35/1/4. Команда 0…255. −1 = нет данных. "
+            "Красный <0 (−1 нет данных) или ≥180 · зелёный 0–100 · жёлтый 100–180."
+        ),
     )
+    pwm_stat["fieldConfig"]["defaults"]["thresholds"] = AI_PWM_THRESHOLDS
+    panels.append(pwm_stat)
     panels.append(
         stat(
             "Serial",
@@ -1802,7 +1843,8 @@ def ai_srv():
         ),
         description=(
             "−1 не скрываем: это дыра в данных. "
-            "Линия 84 °C — порог температуры GPU (без Telegram-алерта)."
+            "Температура: <60 зелёный, 60–75 жёлтый, 75–80 оранжевый, >80 красный. "
+            "Защита GPU 84 °C — без Telegram-алерта в этой волне."
         ),
     )
     ts_cool["fieldConfig"]["overrides"] = [
@@ -1811,16 +1853,27 @@ def ai_srv():
             "properties": [
                 {"id": "unit", "value": "celsius"},
                 {"id": "thresholds", "value": AI_TEMP_THRESHOLDS},
-                {"id": "custom.thresholdsStyle", "value": {"mode": "line"}},
+                {"id": "color", "value": {"mode": "thresholds"}},
+                {"id": "custom.thresholdsStyle", "value": {"mode": "line+area"}},
             ],
         },
         {
             "matcher": {"id": "byName", "options": "RPM"},
-            "properties": [{"id": "custom.axisPlacement", "value": "right"}],
+            "properties": [
+                {"id": "custom.axisPlacement", "value": "right"},
+                {"id": "thresholds", "value": AI_RPM_THRESHOLDS},
+                {"id": "color", "value": {"mode": "thresholds"}},
+                {"id": "custom.thresholdsStyle", "value": {"mode": "line+area"}},
+            ],
         },
         {
             "matcher": {"id": "byName", "options": "PWM"},
-            "properties": [{"id": "custom.axisPlacement", "value": "right"}],
+            "properties": [
+                {"id": "custom.axisPlacement", "value": "right"},
+                {"id": "thresholds", "value": AI_PWM_THRESHOLDS},
+                {"id": "color", "value": {"mode": "thresholds"}},
+                {"id": "custom.thresholdsStyle", "value": {"mode": "line+area"}},
+            ],
         },
     ]
     panels.append(ts_cool)
