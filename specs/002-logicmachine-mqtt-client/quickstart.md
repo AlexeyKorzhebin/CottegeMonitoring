@@ -94,10 +94,22 @@ Daemon автоматически регистрируется при устан
    - **mqtt_host**: `elion.black-castle.ru`
    - **mqtt_port**: `8883`
    - **mqtt_username** / **mqtt_password**: учётные данные MQTT (напр. `lm_estate`)
-5. Опционально: client_id (`auto`), buffer_size (1000), batch_interval (1.5), throttle (20), loop_sleep (0.25), event_sleep (0.03)
+5. Опционально (defaults daemon **v1.1.4**, R-028):
+
+   | Поле | Default |
+   |------|---------|
+   | snapshot_interval | **300** (0 = выкл) |
+   | throttle | **0** (без отбрасывания groupwrite) |
+   | event_sleep | **0** (в handler 1.1.4 не используется) |
+   | batch_interval | 1.5 |
+   | batch_max_size | 50 |
+   | loop_sleep | 0.25 |
+   | buffer_size | 1000 |
+   | client_id | `auto` |
+
 6. Нажать **Save** — daemon перезапустится автоматически
 
-Для снижения CPU: кнопка «Применить настройки для снижения нагрузки» / `apply_lowload.lp` (batch + throttle + sleeps).
+Кнопка «Применить настройки для снижения нагрузки» / `apply_lowload.lp` — **heal**, не старый drop-lights профиль: `throttle=0`, `event_sleep=0`, `snapshot_interval=300`, batch 1.5 / loop 0.25. После деплоя daemon: вызвать `apply_lowload.lp` + restart; затем **«Выгрузить в MQTT»** или подождать ≤300 с snapshot.
 
 ---
 
@@ -188,6 +200,8 @@ curl -X POST https://monitoring.black-castle.ru/api/v1/houses/house/restart-daem
 ./deploy/lm-apps.sh health      # mqtt_connected, last_event_age
 ```
 
+После деплоя daemon (R-028): `apply_lowload.lp` (heal: throttle=0, event_sleep=0, snapshot_interval=300) + restart; затем «Выгрузить в MQTT» или ≤300 с. Resident **`mqtt_listen` id=4** отдельно — FTP + `db:update` + respawn (раздел AI-SRV ниже).
+
 Один файл daemon без полного mirror:
 
 ```bash
@@ -232,9 +246,11 @@ ssh root@192.168.100.130 "ps w | grep scripting-resident"
 | `cm-client/scripts/create-ai-srv-objects.lua` | одноразовый user-script: 19 объектов `35/1/1`–`35/1/19` | FTP → `data/cottage-monitoring/` + `.lp` `dofile` |
 | `cm-client/scripts/mqtt_listen.lua` | resident **id=4** (`mqtt_listen`) | `db:update('scripting', { script = code }, { id = 4 })` + respawn |
 
-`mqtt_listen` подписан на LAN MQTT `cooler-arduino/alex-neuro` и `cooler-arduino/alex-neuro/availability` (брокер `192.168.100.130:1883`). Это **не** облачные топики `cm/house` — в облако значения уходят только через `grp.update` → cottage-monitoring daemon.
+`mqtt_listen` подписан на LAN MQTT `cooler-arduino/alex-neuro` и `cooler-arduino/alex-neuro/availability` (брокер `192.168.100.130:1883`). Это **не** облачные топики `cm/house` — в облако значения уходят через `grp.checkupdate` / `ai_knx` → cottage-monitoring daemon.
 
-Обновление resident 4 без Web UI — тот же паттерн, что `./deploy/lm-watchdog-update.sh`, но источник `mqtt_listen.lua` и id **4** (не 73). После `db:update` нужен respawn `lua /lib/genohm-scada/core/scripting-resident.lua 4`. Daemon cottage-monitoring не рестартовать: новые GA подхватит schema/groupwrite.
+AI-SRV `35/1/*`: `ai_knx` + `AI_SRV_MIN_INTERVAL=15` (skip unchanged; changed — не чаще 15 с на GA). Availability `35/1/1` и `apply_ai_srv_offline_numerics` — `force`, без 15 с. Zigbee/JSON — `knx_check` (`grp.checkupdate`), не `grp.update`.
+
+Обновление resident 4 без Web UI — тот же паттерн, что `./deploy/lm-watchdog-update.sh` (FTP + `db:update('scripting', { script = code }, { id = 4 })` + respawn), источник `mqtt_listen.lua`, id **4** (не 73). После `db:update` нужен respawn `lua /lib/genohm-scada/core/scripting-resident.lua 4`. Daemon cottage-monitoring не рестартовать: новые GA подхватит schema/groupwrite.
 
 ### Конфиг и TLS без Web UI
 
@@ -306,6 +322,17 @@ ssh elion "sudo -u postgres psql -d cottage_monitoring -t -c \
 ---
 
 ## Operational notes (2026-07/08)
+
+### Daemon v1.1.4 — snapshot heal, groupresponse, counted drops (2026-09-14)
+
+Ответ на R-028 (свет в Grafana отставал от LM `grp`):
+
+- localbus: `handle_bus_event` на `groupwrite` **и** `groupresponse` (не `groupread`).
+- Defaults: `snapshot_interval=300`, `throttle=0`, `event_sleep=0`. `batch_interval=1.5`, `batch_max_size=50`, `loop_sleep=0.25` без изменений.
+- `event_sleep` виден в health, в handler **нет** `os.sleep`. Throttle > 0 считает `dropped_throttle` / `dropped_nofind` (не silent).
+- `force_export` (кнопка «Выгрузить в MQTT» / `export_mqtt.lp`) вызывает `publish_meta` и сбрасывает флаг. Периодический snapshot каждые 300 с при MQTT online.
+- Heal-профиль: `apply_lowload.lp` / кнопка — throttle 0, event_sleep 0, snapshot 300. После деплоя: apply + restart, затем export или ≤300 с.
+- **Деплой:** daemon (`deploy-lftp.sh`) **и** `mqtt_listen` id=4 (FTP + `db:update` + respawn). Web UI не обязателен — см. **R-017**.
 
 ### Daemon v1.1.3 — events_stale watchdog + remote restart (2026-08-03)
 
