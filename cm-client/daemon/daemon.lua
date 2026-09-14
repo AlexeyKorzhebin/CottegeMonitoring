@@ -1,4 +1,4 @@
--- Cottage Monitoring MQTT Client Daemon v1.1.3
+-- Cottage Monitoring MQTT Client Daemon v1.1.4
 -- Compact MQTT+cmd+meta+localbus + event batching. Always pump loop(); treat only numeric nonzero as error.
 storage.set('cm_force_restart', nil)
 storage.set('cm_started_ts', os.time())
@@ -9,7 +9,7 @@ storage.set('cm_last_error', '')
 storage.set('cm_reconnect_count', 0)
 -- Baseline for watchdog events_stale check; refreshed via hb() on each localbus event
 storage.set('cm_last_event_ts', os.time())
-storage.set('cm_boot', 'v113_start')
+storage.set('cm_boot', 'v114_start')
 
 local config = require('config')
 local json = require('json')
@@ -51,8 +51,9 @@ local C = {
   client_id = cfg('client_id', '') or '',
   buffer_size = tonumber(cfg('buffer_size', 1000)) or 1000,
   loop_sleep = tonumber(cfg('loop_sleep', 0.25)) or 0.25,
-  throttle = tonumber(cfg('throttle', 20)) or 20,
-  event_sleep = tonumber(cfg('event_sleep', 0.03)) or 0.03,
+  throttle = tonumber(cfg('throttle', 0)) or 0,
+  event_sleep = tonumber(cfg('event_sleep', 0)) or 0,
+  snapshot_interval = tonumber(cfg('snapshot_interval', 300)) or 300,
   batch_interval = tonumber(cfg('batch_interval', 1.5)) or 1.5,
   batch_max_size = tonumber(cfg('batch_max_size', 50)) or 50,
   mqtt_cafile = cfg('mqtt_cafile', '') or '',
@@ -73,6 +74,8 @@ local S = {
   last_evt_ts = 0, evt_count = 0,
   last_hb_ts = 0, last_batch_flush_ts = os.time(),
   last_event_ts = os.time(), last_event_ts_written = os.time(),
+  dropped_throttle = 0, dropped_nofind = 0, last_snapshot_ts = 0,
+  dropped_throttle_written = 0, dropped_nofind_written = 0, last_snapshot_ts_written = 0,
   restart_at = nil,
 }
 local buffer = {}
@@ -89,6 +92,18 @@ local function hb(force)
   if S.last_event_ts ~= S.last_event_ts_written then
     S.last_event_ts_written = S.last_event_ts
     pcall(storage.set, 'cm_last_event_ts', S.last_event_ts)
+  end
+  if S.dropped_throttle ~= S.dropped_throttle_written then
+    S.dropped_throttle_written = S.dropped_throttle
+    pcall(storage.set, 'cm_dropped_throttle', S.dropped_throttle)
+  end
+  if S.dropped_nofind ~= S.dropped_nofind_written then
+    S.dropped_nofind_written = S.dropped_nofind
+    pcall(storage.set, 'cm_dropped_nofind', S.dropped_nofind)
+  end
+  if S.last_snapshot_ts ~= S.last_snapshot_ts_written then
+    S.last_snapshot_ts_written = S.last_snapshot_ts
+    pcall(storage.set, 'cm_last_snapshot_ts', S.last_snapshot_ts)
   end
 end
 
@@ -171,6 +186,7 @@ local function publish_meta()
     pub_cnt = pub_cnt + 1
     if pub_cnt >= 30 then pub_cnt = 0; os.sleep(0.02) end
   end
+  S.last_snapshot_ts = os.time()
 end
 
 local function setup_client()
@@ -200,7 +216,7 @@ local function setup_client()
     pcall(storage.set, 'cm_last_error', '')
     hb(true)
     pcall(function()
-      client:publish(C.base .. 'status/online', json.encode({ ts = os.time(), status = 'online', device_id = C.device_id, version = '1.1.3' }), 1, true)
+      client:publish(C.base .. 'status/online', json.encode({ ts = os.time(), status = 'online', device_id = C.device_id, version = '1.1.4' }), 1, true)
       client:subscribe(C.base .. 'cmd', 1)
       client:subscribe(C.base .. 'rpc/req/' .. C.client_id, 1)
       local flush_cnt = 0
@@ -264,16 +280,36 @@ local function setup_client()
 end
 
 
-lb:sethandler('groupwrite', function(event)
+local function find_bus_obj(event)
+  local dst = event.dst or event.dstraw
+  local obj = grp.find(dst)
+  if obj then return obj, dst end
+  if event.dstraw ~= nil and event.dstraw ~= dst then
+    obj = grp.find(event.dstraw)
+    if obj then return obj, event.dstraw end
+  end
+  if event.dst ~= nil and event.dst ~= dst then
+    obj = grp.find(event.dst)
+    if obj then return obj, event.dst end
+  end
+  return nil, dst
+end
+
+local function handle_bus_event(event, ev_type)
   if C.throttle > 0 then
     local now = os.time()
     if now ~= S.last_evt_ts then S.last_evt_ts = now; S.evt_count = 0 end
     S.evt_count = S.evt_count + 1
-    if S.evt_count > C.throttle then return end
+    if S.evt_count > C.throttle then
+      S.dropped_throttle = S.dropped_throttle + 1
+      return
+    end
   end
-  local dst = event.dst or event.dstraw
-  local obj = grp.find(dst)
-  if not obj then return end
+  local obj, dst = find_bus_obj(event)
+  if not obj then
+    S.dropped_nofind = S.dropped_nofind + 1
+    return
+  end
   local val = event.value
   if val == nil then val = safe_getvalue(dst) end
   local ts = os.time()
@@ -282,7 +318,7 @@ lb:sethandler('groupwrite', function(event)
   local ga = obj.address or dst
   local ga_safe = tostring(ga):gsub('/', '-')
   local evt = {
-    ts = ts, seq = S.seq, type = 'knx.groupwrite', ga = ga,
+    ts = ts, seq = S.seq, type = ev_type, ga = ga,
     id = obj.id, name = obj.name, datatype = obj.datatype or 0, value = val,
   }
   local state = { ts = ts, value = val, datatype = obj.datatype or 0 }
@@ -295,7 +331,13 @@ lb:sethandler('groupwrite', function(event)
     do_pub('events', json.encode(evt), 0, false)
     do_pub('state/ga/' .. ga_safe, json.encode(state), 1, true)
   end
-  if C.event_sleep > 0 then os.sleep(C.event_sleep) end
+end
+
+lb:sethandler('groupwrite', function(event)
+  handle_bus_event(event, 'knx.groupwrite')
+end)
+lb:sethandler('groupresponse', function(event)
+  handle_bus_event(event, 'knx.groupresponse')
 end)
 
 S.client = setup_client()
@@ -312,6 +354,18 @@ while true do
     if C.batch_interval > 0 and #event_batch > 0 then
       if (os.time() - S.last_batch_flush_ts) >= C.batch_interval then
         flush_batch()
+      end
+    end
+    if storage.get('force_export') then
+      pcall(storage.set, 'force_export', nil)
+      pcall(publish_meta)
+    end
+    if S.connected and C.snapshot_interval > 0 then
+      local now = os.time()
+      if S.last_snapshot_ts == 0 then
+        -- wait for first ON_CONNECT publish_meta
+      elseif (now - S.last_snapshot_ts) >= C.snapshot_interval then
+        pcall(publish_meta)
       end
     end
     local lok, lrc = pcall(function() return S.client:loop(100) end)
@@ -345,9 +399,15 @@ while true do
     if S.connected and not S.meta_sent then S.meta_sent = true; pcall(publish_meta) end
     if S.connected and (os.time() - S.last_health_pub_ts) >= HEALTH_INTERVAL then
       do_pub('status/health', json.encode({
-        ts = os.time(), status = 'online', version = '1.1.3',
+        ts = os.time(), status = 'online', version = '1.1.4',
         uptime = os.time() - S.started_ts, reconnects = S.reconnect_count, mqtt_connected = true,
         last_event_age = os.time() - S.last_event_ts,
+        dropped_throttle = S.dropped_throttle,
+        dropped_nofind = S.dropped_nofind,
+        last_snapshot_ts = S.last_snapshot_ts,
+        snapshot_interval = C.snapshot_interval,
+        throttle = C.throttle,
+        event_sleep = C.event_sleep,
       }), 1, true)
       S.last_health_pub_ts = os.time()
     end
