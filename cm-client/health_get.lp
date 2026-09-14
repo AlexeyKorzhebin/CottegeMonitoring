@@ -36,6 +36,9 @@ local out = {
   watchdog_restarts = num('cm_watchdog_restarts') or 0,
   watchdog_last_reason = tostring(storage.get('cm_watchdog_last_reason') or ''),
   watchdog_last_restart = num('cm_watchdog_last_restart'),
+  dropped_throttle = num('cm_dropped_throttle') or 0,
+  dropped_nofind = num('cm_dropped_nofind') or 0,
+  last_snapshot_ts = num('cm_last_snapshot_ts'),
 }
 
 if setheader then setheader('Content-Type', 'application/json; charset=utf-8') end
