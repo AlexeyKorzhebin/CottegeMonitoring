@@ -17,6 +17,43 @@ function OnOff2Bool(s)
     return s == "ON"
 end
 
+local AI_SRV_MIN_INTERVAL = 15
+-- Unchanged MQTT values must still refresh object.updatetime: manage_warm_floors
+-- treats Zigbee as stale after 300s and falls back to floor+k (heats while air is already hot).
+local KNX_TOUCH_SEC = 120
+local ai_last = {}
+
+local function knx_check(ga, value)
+  local obj = grp.find(ga)
+  if obj ~= nil then
+    if obj.value == value then
+      local ut = obj.updatetime
+      if type(ut) == 'number' and (os.time() - ut) < KNX_TOUCH_SEC then
+        return
+      end
+      grp.update(ga, value)
+      return
+    end
+  end
+  grp.checkupdate(ga, value)
+end
+
+-- force=true: availability / offline, skip interval.
+local function ai_knx(ga, value, force)
+  local now = os.time()
+  local prev = ai_last[ga]
+  if not force then
+    if prev and prev.v == value then
+      return
+    end
+    if prev and (now - prev.t) < AI_SRV_MIN_INTERVAL then
+      return
+    end
+  end
+  ai_last[ga] = { v = value, t = now }
+  knx_check(ga, value)
+end
+
 local function ai_num(v, status)
   if status ~= nil and status ~= 'fresh' then return -1 end
   if v == nil then return -1 end
@@ -42,7 +79,7 @@ local function apply_ai_srv_offline_numerics()
     '35/1/9','35/1/10','35/1/11','35/1/12','35/1/13','35/1/18',
   }
   for i = 1, #gas do
-    grp.update(gas[i], -1)
+    ai_knx(gas[i], -1, true)
   end
 end
 
@@ -51,48 +88,48 @@ local function apply_ai_srv_json(dd)
     apply_ai_srv_offline_numerics()
     return
   end
-  grp.update('35/1/2', ai_num(dd.temperature, dd.temperature_status))
-  grp.update('35/1/3', ai_num(dd.rpm, dd.rpm_status))
-  grp.update('35/1/4', ai_num(dd.pwm, nil))
+  ai_knx('35/1/2', ai_num(dd.temperature, dd.temperature_status))
+  ai_knx('35/1/3', ai_num(dd.rpm, dd.rpm_status))
+  ai_knx('35/1/4', ai_num(dd.pwm, nil))
   if dd.serial_state == nil or dd.serial_state == '' then
-    grp.update('35/1/5', 'unknown')
+    ai_knx('35/1/5', 'unknown')
   else
-    grp.update('35/1/5', dd.serial_state)
+    ai_knx('35/1/5', dd.serial_state)
   end
   if dd.protection_state == nil or dd.protection_state == '' then
-    grp.update('35/1/6', 'unknown')
+    ai_knx('35/1/6', 'unknown')
   else
-    grp.update('35/1/6', dd.protection_state)
+    ai_knx('35/1/6', dd.protection_state)
   end
   if dd.sensor_loss_elapsed_seconds == nil then
-    grp.update('35/1/7', 0)
+    ai_knx('35/1/7', 0)
   else
-    grp.update('35/1/7', ai_num(dd.sensor_loss_elapsed_seconds, nil))
+    ai_knx('35/1/7', ai_num(dd.sensor_loss_elapsed_seconds, nil))
   end
-  grp.update('35/1/8', ai_num(dd.gpu_utilization_percent, dd.gpu_utilization_percent_status))
-  grp.update('35/1/9', ai_mib_gib(dd.gpu_memory_used_mib, dd.gpu_memory_used_mib_status))
-  grp.update('35/1/10', ai_num(dd.gpu_power_draw_w, dd.gpu_power_draw_w_status))
-  grp.update('35/1/11', ai_num(dd.cpu_utilization_percent, dd.cpu_utilization_percent_status))
-  grp.update('35/1/12', ai_bytes_gib(dd.ram_used_bytes, dd.ram_used_bytes_status))
-  grp.update('35/1/13', ai_num(dd.disk_used_percent, dd.disk_used_percent_status))
+  ai_knx('35/1/8', ai_num(dd.gpu_utilization_percent, dd.gpu_utilization_percent_status))
+  ai_knx('35/1/9', ai_mib_gib(dd.gpu_memory_used_mib, dd.gpu_memory_used_mib_status))
+  ai_knx('35/1/10', ai_num(dd.gpu_power_draw_w, dd.gpu_power_draw_w_status))
+  ai_knx('35/1/11', ai_num(dd.cpu_utilization_percent, dd.cpu_utilization_percent_status))
+  ai_knx('35/1/12', ai_bytes_gib(dd.ram_used_bytes, dd.ram_used_bytes_status))
+  ai_knx('35/1/13', ai_num(dd.disk_used_percent, dd.disk_used_percent_status))
   if dd.boot_id == nil or dd.boot_id == '' then
-    grp.update('35/1/14', 'unknown')
+    ai_knx('35/1/14', 'unknown')
   else
-    grp.update('35/1/14', dd.boot_id)
+    ai_knx('35/1/14', dd.boot_id)
   end
   local rs = dd.last_shutdown_reason
   if type(rs) ~= 'table' then
-    grp.update('35/1/15', 'none')
-    grp.update('35/1/16', 'none')
-    grp.update('35/1/17', 'none')
-    grp.update('35/1/18', -1)
-    grp.update('35/1/19', 'none')
+    ai_knx('35/1/15', 'none')
+    ai_knx('35/1/16', 'none')
+    ai_knx('35/1/17', 'none')
+    ai_knx('35/1/18', -1)
+    ai_knx('35/1/19', 'none')
   else
-    grp.update('35/1/15', rs.reason or 'none')
-    grp.update('35/1/16', rs.event_id or 'none')
-    grp.update('35/1/17', rs.status or 'none')
-    grp.update('35/1/18', ai_num(rs.last_temperature_c, nil))
-    grp.update('35/1/19', rs.timestamp_utc or 'none')
+    ai_knx('35/1/15', rs.reason or 'none')
+    ai_knx('35/1/16', rs.event_id or 'none')
+    ai_knx('35/1/17', rs.status or 'none')
+    ai_knx('35/1/18', ai_num(rs.last_temperature_c, nil))
+    ai_knx('35/1/19', rs.timestamp_utc or 'none')
   end
 end
 
@@ -195,7 +232,7 @@ if not mclient then
     mclient.ON_MESSAGE = function(mid, topic, data)
         if topic == 'cooler-arduino/alex-neuro/availability' then
           local online = (data == 'online')
-          grp.update('35/1/1', online)
+          ai_knx('35/1/1', online, true)
           if not online then apply_ai_srv_offline_numerics() end
           return
         end
@@ -224,10 +261,10 @@ if not mclient then
                         if address then
                             if type(address) == "table" then
                                 -- если объект таблица, то значит содержит функцию конвертирования значения
-                                grp.update(address.addr, address.convert_func(v))
+                                knx_check(address.addr, address.convert_func(v))
                             else
                                 -- если объекта содержит только адрес, то по нему устанавливаем значение из поля json без конвертации
-                                grp.update(address, v)
+                                knx_check(address, v)
                             end    
 
                         end

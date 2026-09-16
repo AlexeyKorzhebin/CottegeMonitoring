@@ -593,6 +593,12 @@ Loadavg LM (`34/1/6` 1‑мин) вырос с ~0.85 avg (14–16.07) до ~1.58
 - После renew cert брокера (R-013): проверить handshake с LM; при `tlsv1 alert unknown ca` — `tls_verify_off.lp`.
 - Docker server deploy: pin `mcp>=1.0,<2` (mcp 2.0 убрал `mcp.server.fastmcp` — падение 0.2.7 при первой сборке).
 
+## R-029: Zigbee checkupdate stale → floor fallback heats (2026-09-16)
+
+`mqtt_listen` после R-028 писал Zigbee через `grp.checkupdate`. Одинаковая температура не обновляет `updatetime`. `manage warm floors` (id 39, скрипт без изменений) считает датчик мёртвым через 300 с и греет по полу: `setpoint + k`. Гостиная: воздух 26 °C, уставка 21, реле ON, пока fallback видел пол 27 vs цель 28.
+
+`knx_check`: если значение то же и `updatetime` старше 120 с — `grp.update` (heartbeat). Маппинг гостиной верный: `sensor_3_temp_hum_living_room_fl1` → `33/1/7`.
+
 ---
 
 ## Сводка решений
@@ -616,3 +622,4 @@ Loadavg LM (`34/1/6` 1‑мин) вырос с ~0.85 avg (14–16.07) до ~1.58
 | R-015 | CPU / batching | v1.1.2: batch + hb 3s + softer sleeps |
 | R-016 | Watchdog gap / zombie daemon | heartbeat+MQTT OK ≠ телеметрия; TLS verify+YR2; см. инцидент 2026-08-02 |
 | R-017 | Деплой без Web UI | lftp + lm-apps.sh + lm-watchdog-update.sh; resident pidfile respawn |
+| R-029 | Zigbee stale fallback heat | checkupdate не обновляет updatetime; knx_check heartbeat 120 с |
