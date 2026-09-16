@@ -627,6 +627,12 @@ Grafana / `list_lights` / skip_unchanged остаются на status `1/2/*`. F
 
 `apply_lowload.lp` + restart daemon; «Выгрузить в MQTT» или ≤300 с snapshot. `mqtt_listen` id=4 — FTP + `db:update` + respawn (как watchdog, id **4**, не 73). Проверка: LM `1/2/3`,`1/2/7` = `current_state`; `35/1/*` << 5500/h; `dropped_throttle` = 0.
 
+## R-029: Zigbee checkupdate stale → floor fallback heats (2026-09-16)
+
+`grp.checkupdate` не трогает `updatetime`, если значение то же. `manage warm floors` (scheduled id 39, скрипт **без изменений**) считает Zigbee живым только при `age ≤ 300 с`. После деплоя R-028 все 13 зон ушли в `floor_fallback`: гостиная воздух 26 °C / уставка 21, реле гостиная2 ON, потому что fallback греет до `setpoint + k` (21+7=28) по датчику пола.
+
+`knx_check`: при том же значении, если `updatetime` старше `KNX_TOUCH_SEC=120`, `grp.update` (heartbeat). Иначе `checkupdate`. AI-SRV по-прежнему режется `ai_knx` (unchanged return до `knx_check`). Маппинг `sensor_3_temp_hum_living_room_fl1` → `33/1/7` / `zb_sensor_fl1_living_room_temperature` верный.
+
 ---
 
 ## Сводка решений
@@ -651,3 +657,4 @@ Grafana / `list_lights` / skip_unchanged остаются на status `1/2/*`. F
 | R-016 | Watchdog gap / zombie daemon | heartbeat+MQTT OK ≠ телеметрия; TLS verify+YR2; см. инцидент 2026-08-02 |
 | R-017 | Деплой без Web UI | lftp + lm-apps.sh + lm-watchdog-update.sh; resident pidfile respawn |
 | R-028 | Stale light status | flood `grp.update` + silent drops + no snapshot; v1.1.4 + checkupdate/15s; Grafana остаётся на `1/2/*` |
+| R-029 | Zigbee stale fallback heat | checkupdate не обновляет updatetime; knx_check heartbeat 120 с; скрипт полов без изменений |

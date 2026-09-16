@@ -248,7 +248,7 @@ ssh root@192.168.100.130 "ps w | grep scripting-resident"
 
 `mqtt_listen` подписан на LAN MQTT `cooler-arduino/alex-neuro` и `cooler-arduino/alex-neuro/availability` (брокер `192.168.100.130:1883`). Это **не** облачные топики `cm/house` — в облако значения уходят через `grp.checkupdate` / `ai_knx` → cottage-monitoring daemon.
 
-AI-SRV `35/1/*`: `ai_knx` + `AI_SRV_MIN_INTERVAL=15` (skip unchanged; changed — не чаще 15 с на GA). Availability `35/1/1` и `apply_ai_srv_offline_numerics` — `force`, без 15 с. Zigbee/JSON — `knx_check` (`grp.checkupdate`), не `grp.update`.
+AI-SRV `35/1/*`: `ai_knx` + `AI_SRV_MIN_INTERVAL=15` (skip unchanged; changed — не чаще 15 с на GA). Availability `35/1/1` и `apply_ai_srv_offline_numerics` — `force`, без 15 с. Zigbee/JSON — `knx_check`: `grp.checkupdate` если значение сменилось; если то же, но `updatetime` старше `KNX_TOUCH_SEC=120` — `grp.update` (иначе тёплые полы уходят в floor_fallback, R-029).
 
 Обновление resident 4 без Web UI — тот же паттерн, что `./deploy/lm-watchdog-update.sh` (FTP + `db:update('scripting', { script = code }, { id = 4 })` + respawn), источник `mqtt_listen.lua`, id **4** (не 73). После `db:update` нужен respawn `lua /lib/genohm-scada/core/scripting-resident.lua 4`. Daemon cottage-monitoring не рестартовать: новые GA подхватит schema/groupwrite.
 
@@ -333,6 +333,7 @@ ssh elion "sudo -u postgres psql -d cottage_monitoring -t -c \
 - `force_export` (кнопка «Выгрузить в MQTT» / `export_mqtt.lp`) вызывает `publish_meta` и сбрасывает флаг. Периодический snapshot каждые 300 с при MQTT online.
 - Heal-профиль: `apply_lowload.lp` / кнопка — throttle 0, event_sleep 0, snapshot 300. После деплоя: apply + restart, затем export или ≤300 с.
 - **Деплой:** daemon (`deploy-lftp.sh`) **и** `mqtt_listen` id=4 (FTP + `db:update` + respawn). Web UI не обязателен — см. **R-017**.
+- **R-029:** `checkupdate` не обновляет Zigbee `updatetime` → все зоны ТП в `floor_fallback` и греют при горячем воздухе. `knx_check` делает `grp.update` heartbeat раз в 120 с, если значение не изменилось.
 
 ### Daemon v1.1.3 — events_stale watchdog + remote restart (2026-08-03)
 

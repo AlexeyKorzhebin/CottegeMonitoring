@@ -84,8 +84,11 @@ def test_mqtt_listen_uses_checkupdate_not_unconditional_update() -> None:
     assert "grp.checkupdate" in listen
     assert "AI_SRV_MIN_INTERVAL" in listen
     assert "AI_SRV_MIN_INTERVAL = 15" in listen
-    # Zigbee / AI-SRV must not hammer localbus on identical values
-    assert listen.count("grp.update(") == 0
+    assert "KNX_TOUCH_SEC = 120" in listen
+    # Zigbee JSON / AI-SRV go through knx_check; identical values skip the bus
+    # unless updatetime is older than KNX_TOUCH_SEC (warm-floor Zigbee freshness).
+    assert listen.count("grp.update(") == 1
+    assert "local function knx_check" in listen
 
 
 def test_mqtt_listen_ai_srv_force_path_exists() -> None:
