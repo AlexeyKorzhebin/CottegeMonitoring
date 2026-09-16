@@ -232,7 +232,7 @@ ssh root@192.168.100.130 "ps w | grep scripting-resident"
 | `cm-client/scripts/create-ai-srv-objects.lua` | одноразовый user-script: 19 объектов `35/1/1`–`35/1/19` | FTP → `data/cottage-monitoring/` + `.lp` `dofile` |
 | `cm-client/scripts/mqtt_listen.lua` | resident **id=4** (`mqtt_listen`) | `db:update('scripting', { script = code }, { id = 4 })` + respawn |
 
-`mqtt_listen` подписан на LAN MQTT `cooler-arduino/alex-neuro` и `cooler-arduino/alex-neuro/availability` (брокер `192.168.100.130:1883`). Это **не** облачные топики `cm/house` — в облако значения уходят через `knx_check` (`grp.checkupdate`, при том же значении heartbeat `grp.update` раз в 120 с — иначе тёплые полы уходят в fallback, R-029).
+`mqtt_listen` подписан на LAN MQTT `cooler-arduino/alex-neuro` и `cooler-arduino/alex-neuro/availability` (брокер `192.168.100.130:1883`). Это **не** облачные топики `cm/house` — в облако значения уходят через `knx_check` (`grp.update` для Zigbee JSON, иначе температура не освежает `updatetime` и полы уходят в fallback, R-029).
 
 Обновление resident 4 без Web UI — тот же паттерн, что `./deploy/lm-watchdog-update.sh`, но источник `mqtt_listen.lua` и id **4** (не 73). После `db:update` нужен respawn `lua /lib/genohm-scada/core/scripting-resident.lua 4`. Daemon cottage-monitoring не рестартовать: новые GA подхватит schema/groupwrite.
 

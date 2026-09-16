@@ -595,9 +595,9 @@ Loadavg LM (`34/1/6` 1‑мин) вырос с ~0.85 avg (14–16.07) до ~1.58
 
 ## R-029: Zigbee checkupdate stale → floor fallback heats (2026-09-16)
 
-`mqtt_listen` после R-028 писал Zigbee через `grp.checkupdate`. Одинаковая температура не обновляет `updatetime`. `manage warm floors` (id 39, скрипт без изменений) считает датчик мёртвым через 300 с и греет по полу: `setpoint + k`. Гостиная: воздух 26 °C, уставка 21, реле ON, пока fallback видел пол 27 vs цель 28.
+`mqtt_listen` после R-028 писал Zigbee через `grp.checkupdate`. Одинаковая температура (и float, который не проходит `==`, но слишком близко для checkupdate) не обновляет `updatetime` объекта воздуха. Влажность гостиной приходит ~каждые 150 с, температура в том же JSON — нет. `manage warm floors` через 300 с считает Zigbee мёртвым и греет пол до `setpoint + k` (гостиная k=7, не погода: при Tout≥0 `kw_base=0`).
 
-`knx_check`: если значение то же и `updatetime` старше 120 с — `grp.update` (heartbeat). Маппинг гостиной верный: `sensor_3_temp_hum_living_room_fl1` → `33/1/7`.
+`knx_check` для Zigbee JSON снова `grp.update`. `ZB_STALE_SEC=1800`. Маппинг гостиной верный: `sensor_3_temp_hum_living_room_fl1` → `33/1/7`.
 
 ---
 
@@ -622,4 +622,4 @@ Loadavg LM (`34/1/6` 1‑мин) вырос с ~0.85 avg (14–16.07) до ~1.58
 | R-015 | CPU / batching | v1.1.2: batch + hb 3s + softer sleeps |
 | R-016 | Watchdog gap / zombie daemon | heartbeat+MQTT OK ≠ телеметрия; TLS verify+YR2; см. инцидент 2026-08-02 |
 | R-017 | Деплой без Web UI | lftp + lm-apps.sh + lm-watchdog-update.sh; resident pidfile respawn |
-| R-029 | Zigbee stale fallback heat | checkupdate не обновляет updatetime; knx_check heartbeat 120 с |
+| R-029 | Zigbee stale fallback heat | checkupdate+float глотает temp; knx_check=grp.update; ZB_STALE=1800 |

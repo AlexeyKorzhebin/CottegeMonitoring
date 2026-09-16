@@ -38,7 +38,7 @@ local USING_POWER_GA = 'Энергия на теплые полы'
 local OUTDOOR_TEMP_OBJ = 'Погода - температура'
 
 -- Свежесть Zigbee
-local ZB_STALE_SEC = 300  -- 5 минуты
+local ZB_STALE_SEC = 1800  -- 30 мин: Aqara temp ~15 мин; после reboot MQTT молчит до первого z2m
 
 -- Защита по времени нагрева без Zigbee
 local MAX_ON_SEC = 40 * 60  -- 40 минут

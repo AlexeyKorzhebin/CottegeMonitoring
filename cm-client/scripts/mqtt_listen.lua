@@ -18,24 +18,13 @@ function OnOff2Bool(s)
 end
 
 local AI_SRV_MIN_INTERVAL = 15
--- Unchanged MQTT values must still refresh object.updatetime: manage_warm_floors
--- treats Zigbee as stale after 300s and falls back to floor+k (heats while air is already hot).
-local KNX_TOUCH_SEC = 120
 local ai_last = {}
 
+-- Zigbee JSON always grp.update: humidity/battery publishes include the same
+-- temperature, and checkupdate/float-compare leaves temperature.updatetime stale.
+-- AI-SRV still goes through ai_knx (15s / skip unchanged) before this.
 local function knx_check(ga, value)
-  local obj = grp.find(ga)
-  if obj ~= nil then
-    if obj.value == value then
-      local ut = obj.updatetime
-      if type(ut) == 'number' and (os.time() - ut) < KNX_TOUCH_SEC then
-        return
-      end
-      grp.update(ga, value)
-      return
-    end
-  end
-  grp.checkupdate(ga, value)
+  grp.update(ga, value)
 end
 
 -- force=true: availability / offline, skip interval.
