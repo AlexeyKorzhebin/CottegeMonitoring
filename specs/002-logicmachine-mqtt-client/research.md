@@ -629,9 +629,9 @@ Grafana / `list_lights` / skip_unchanged остаются на status `1/2/*`. F
 
 ## R-029: Zigbee checkupdate stale → floor fallback heats (2026-09-16)
 
-`grp.checkupdate` не трогает `updatetime`, если значение то же. `manage warm floors` (scheduled id 39, скрипт **без изменений**) считает Zigbee живым только при `age ≤ 300 с`. После деплоя R-028 все 13 зон ушли в `floor_fallback`: гостиная воздух 26 °C / уставка 21, реле гостиная2 ON, потому что fallback греет до `setpoint + k` (21+7=28) по датчику пола.
+`grp.checkupdate` не трогает `updatetime`, если значение то же (и если float MQTT ≠ DPT9, но дельта меньше порога — тоже не пишет). `manage warm floors` (scheduled id 39) считает Zigbee живым только при `age ≤ ZB_STALE_SEC`. Heartbeat 120 с не помог: JSON с влажностью гостиной идёт ~каждые 150 с, температура в нём та же → `==` не срабатывает / `checkupdate` пропускает запись → age температуры 10+ мин → fallback. Гостиная: воздух 26 °C, уставка 21, реле ON, потому что fallback греет пол до `setpoint + k` (21+7=28). Погодная `kw_base` при Tout≥0 уже 0; плюс 7 — это **k**, не погода.
 
-`knx_check`: при том же значении, если `updatetime` старше `KNX_TOUCH_SEC=120`, `grp.update` (heartbeat). Иначе `checkupdate`. AI-SRV по-прежнему режется `ai_knx` (unchanged return до `knx_check`). Маппинг `sensor_3_temp_hum_living_room_fl1` → `33/1/7` / `zb_sensor_fl1_living_room_temperature` верный.
+`knx_check` для Zigbee JSON снова `grp.update` (как до R-028 на этой ветке). AI-SRV по-прежнему режется `ai_knx`. `ZB_STALE_SEC=1800`, чтобы после reboot LM не греть 5 минут до первого z2m. Маппинг `sensor_3_temp_hum_living_room_fl1` → `33/1/7` верный.
 
 ---
 
@@ -657,4 +657,4 @@ Grafana / `list_lights` / skip_unchanged остаются на status `1/2/*`. F
 | R-016 | Watchdog gap / zombie daemon | heartbeat+MQTT OK ≠ телеметрия; TLS verify+YR2; см. инцидент 2026-08-02 |
 | R-017 | Деплой без Web UI | lftp + lm-apps.sh + lm-watchdog-update.sh; resident pidfile respawn |
 | R-028 | Stale light status | flood `grp.update` + silent drops + no snapshot; v1.1.4 + checkupdate/15s; Grafana остаётся на `1/2/*` |
-| R-029 | Zigbee stale fallback heat | checkupdate не обновляет updatetime; knx_check heartbeat 120 с; скрипт полов без изменений |
+| R-029 | Zigbee stale fallback heat | checkupdate+float глотает temp; knx_check=grp.update; ZB_STALE=1800; k≠погода |
