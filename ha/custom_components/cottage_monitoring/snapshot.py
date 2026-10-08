@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import re
 from dataclasses import dataclass
+from types import SimpleNamespace
 from typing import Any
 
 from .const import FLOOR_LABELS, HOUSE_AREA_NAME
@@ -55,6 +56,112 @@ def _as_on_optional(value: Any) -> bool | None:
     if value is None:
         return None
     return _as_on(value)
+
+
+def _as_float(value: Any) -> float | None:
+    if value is None or isinstance(value, bool):
+        return None
+    if isinstance(value, (int, float)):
+        return float(value)
+    if isinstance(value, str):
+        try:
+            return float(value.replace(",", ".").strip())
+        except ValueError:
+            return None
+    return None
+
+
+def _floor_label(name: str) -> str:
+    """«Темп  - холл 1 этаж» и «холл 1 этаж» → одно и то же."""
+    text = re.sub(r"\s+", " ", (name or "").strip().lower())
+    return re.sub(r"^темп\s*-+\s*", "", text).strip()
+
+
+def climate_shown_temperature(
+    *, floor_temp: float | None, room_temp: float | None
+) -> float | None:
+    """Число на карточке «Полы» в режиме Климат: пол, если датчик зоны есть."""
+    if floor_temp is not None:
+        return floor_temp
+    return room_temp
+
+
+def pick_area_entity(
+    current: str | None,
+    desired: str | None,
+    *,
+    current_is_ours: bool,
+) -> tuple[bool, str | None]:
+    """Назначать воздух/влажность зоны, не затирая чужой ручной выбор."""
+    if current == desired:
+        return False, current
+    if current is None or current_is_ours:
+        return True, desired
+    return False, current
+
+
+def _reading_by_place(
+    sensors: tuple[SensorItem, ...] | list[SensorItem],
+    kind: str,
+    floors_by_area: dict[str, frozenset[str]],
+) -> dict[str, list[SensorItem]]:
+    grouped: dict[str, list[SensorItem]] = {}
+    for sensor in sensors:
+        if sensor.kind != kind:
+            continue
+        place = place_device_name(
+            raw_name=sensor.name,
+            area=sensor.area,
+            floor=sensor.floor,
+            floors_by_area=floors_by_area,
+        )
+        grouped.setdefault(place, []).append(sensor)
+    return grouped
+
+
+def _single_reading(
+    grouped: dict[str, list[SensorItem]], place: str
+) -> float | None:
+    items = grouped.get(place) or []
+    if len(items) != 1:
+        return None
+    return _as_float(items[0].value)
+
+
+def match_zone_floor_temp(
+    *,
+    room: str,
+    area: str | None,
+    floor: str | None,
+    floor_sensors: list[SensorItem],
+    floors_by_area: dict[str, frozenset[str]],
+    fallback: Any,
+) -> float | None:
+    """Датчик пола этой зоны. Резолвер get_climate путает соседние комнаты."""
+    label = _floor_label(room)
+    named = [sensor for sensor in floor_sensors if _floor_label(sensor.name) == label]
+    if len(named) == 1:
+        return _as_float(named[0].value)
+    place = place_device_name(
+        raw_name=room,
+        area=area,
+        floor=floor,
+        floors_by_area=floors_by_area,
+    )
+    same_place = [
+        sensor
+        for sensor in floor_sensors
+        if place_device_name(
+            raw_name=sensor.name,
+            area=sensor.area,
+            floor=sensor.floor,
+            floors_by_area=floors_by_area,
+        )
+        == place
+    ]
+    if len(same_place) == 1:
+        return _as_float(same_place[0].value)
+    return _as_float(fallback)
 
 
 def floors_by_area_from_items(
@@ -286,7 +393,6 @@ class HouseSnapshot:
         kettle_op = ops.get("get_kettle") or {}
 
         sensors: list[SensorItem] = []
-        humidity_by_area: dict[object, object] = {}
 
         for item in temps_op.get("items") or []:
             source = item.get("source") or "air"
@@ -312,7 +418,6 @@ class HouseSnapshot:
                     unique_id=_unique_id(house_id, "sensor_humidity", item["name"]),
                 )
             )
-            humidity_by_area.setdefault(item.get("area"), item.get("value"))
 
         battery_op = ops.get("get_sensors_battery") or {}
         energy_op = ops.get("get_energy_status") or {}
@@ -354,20 +459,51 @@ class HouseSnapshot:
             for item in lights_op.get("items") or []
         )
 
-        climates = tuple(
-            ClimateZone(
-                room=zone["room"],
+        zone_rows = climate.get("zones") or []
+        floors = floors_by_area_from_items(
+            lights,
+            sensors,
+            [
+                SimpleNamespace(area=zone.get("area"), floor=zone.get("floor"))
+                for zone in zone_rows
+            ],
+        )
+        air_by_place = _reading_by_place(sensors, "air", floors)
+        humidity_by_place = _reading_by_place(sensors, "humidity", floors)
+        floor_sensors = [sensor for sensor in sensors if sensor.kind == "floor"]
+
+        climates_list: list[ClimateZone] = []
+        for zone in zone_rows:
+            place = place_device_name(
+                raw_name=zone["room"],
                 area=zone.get("area"),
                 floor=zone.get("floor"),
-                setpoint=zone.get("setpoint"),
-                room_temp=zone.get("room_temp"),
-                floor_temp=zone.get("floor_temp"),
-                relay_on=_as_on_optional(zone.get("relay_on")),
-                humidity=humidity_by_area.get(zone.get("area")),
-                unique_id=_unique_id(house_id, "climate", zone["room"]),
+                floors_by_area=floors,
             )
-            for zone in climate.get("zones") or []
-        )
+            room_temp = _as_float(zone.get("room_temp"))
+            if room_temp is None:
+                room_temp = _single_reading(air_by_place, place)
+            climates_list.append(
+                ClimateZone(
+                    room=zone["room"],
+                    area=zone.get("area"),
+                    floor=zone.get("floor"),
+                    setpoint=_as_float(zone.get("setpoint")),
+                    room_temp=room_temp,
+                    floor_temp=match_zone_floor_temp(
+                        room=zone["room"],
+                        area=zone.get("area"),
+                        floor=zone.get("floor"),
+                        floor_sensors=floor_sensors,
+                        floors_by_area=floors,
+                        fallback=zone.get("floor_temp"),
+                    ),
+                    relay_on=_as_on_optional(zone.get("relay_on")),
+                    humidity=_single_reading(humidity_by_place, place),
+                    unique_id=_unique_id(house_id, "climate", zone["room"]),
+                )
+            )
+        climates = tuple(climates_list)
 
         appliance = kettle_op.get("appliance")
         kettle: KettleItem | None = None
@@ -393,6 +529,31 @@ class HouseSnapshot:
             sensors=tuple(sensors),
             kettle=kettle,
         )
+
+    def area_climate_sensor_uids(self) -> dict[str, dict[str, str | None]]:
+        """Комнаты с уставкой пола → unique_id воздуха и влажности для режима Климат."""
+        floors = self.floors_by_area()
+        places: set[str] = set()
+        for zone in self.climates:
+            places.add(
+                place_device_name(
+                    raw_name=zone.room,
+                    area=zone.area,
+                    floor=zone.floor,
+                    floors_by_area=floors,
+                )
+            )
+        air = _reading_by_place(self.sensors, "air", floors)
+        humidity = _reading_by_place(self.sensors, "humidity", floors)
+        out: dict[str, dict[str, str | None]] = {}
+        for place in sorted(places):
+            airs = air.get(place) or []
+            hums = humidity.get(place) or []
+            out[place] = {
+                "air": airs[0].unique_id if len(airs) == 1 else None,
+                "humidity": hums[0].unique_id if len(hums) == 1 else None,
+            }
+        return out
 
     def floors_by_area(self) -> dict[str, frozenset[str]]:
         groups: list[tuple] = [self.lights, self.climates, self.sensors]

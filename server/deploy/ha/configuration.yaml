@@ -16,3 +16,9 @@ lovelace:
       icon: mdi:chart-areaspline
       show_in_sidebar: true
       filename: dashboards/graphs.yaml
+    cottage-appliances:
+      mode: yaml
+      title: Бытовая техника
+      icon: mdi:kettle
+      show_in_sidebar: true
+      filename: dashboards/appliances.yaml

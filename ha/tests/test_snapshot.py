@@ -277,3 +277,74 @@ def test_battery_sensors_and_display_name() -> None:
         "state_class": "measurement",
     }
 
+
+def test_climate_zone_uses_its_own_floor_air_and_humidity() -> None:
+    """get_climate.floor_temp путает соседние зоны; карточка берёт датчик этой комнаты."""
+    from cottage_monitoring.snapshot import climate_shown_temperature, pick_area_entity
+
+    ops = {
+        "get_house_status": {"online_status": "online"},
+        "list_lights": {"items": []},
+        "get_climate": {
+            "auto_heating_enabled": True,
+            "zones": [
+                {"room": "гостиная 1", "area": "гостиная", "floor": "1", "setpoint": 22, "room_temp": None, "floor_temp": 21.78, "relay_on": False},
+                {"room": "гостиная 2", "area": "гостиная", "floor": "1", "setpoint": 22, "room_temp": None, "floor_temp": 21.78, "relay_on": False},
+                {"room": "холл 1 этаж", "area": "холл", "floor": "1", "setpoint": 12, "room_temp": None, "floor_temp": 16.14, "relay_on": False},
+                {"room": "холл 2 этаж", "area": "холл", "floor": "2", "setpoint": 12, "room_temp": None, "floor_temp": 25.92, "relay_on": False},
+                {"room": "Тимнина комната", "area": "Тимнина комната", "floor": "2", "setpoint": 12, "room_temp": None, "floor_temp": None, "relay_on": False},
+                {"room": "тамбур", "area": "тамбур", "floor": "1", "setpoint": 12, "room_temp": None, "floor_temp": 16.14, "relay_on": False},
+            ],
+        },
+        "get_temperature": {
+            "items": [
+                {"name": "zb_sensor_fl1_living_room_temperature", "source": "air", "value": 19.87, "area": "гостиная", "floor": "1"},
+                {"name": "zb_sensor_fl1_hall_temperature", "source": "air", "value": 19.3, "area": "холл", "floor": "1"},
+                {"name": "zb_sensor_fl2_hall_temperature", "source": "air", "value": 22.54, "area": "холл", "floor": "2"},
+                {"name": "zb_sensor_fl1_server_room_temperature", "source": "air", "value": 19.23, "area": None, "floor": "1"},
+                {"name": "Темп - гостиная 1", "source": "floor", "value": 21.1, "area": "гостиная", "floor": "1"},
+                {"name": "Темп - гостиная 2", "source": "floor", "value": 21.38, "area": "гостиная", "floor": "1"},
+                {"name": "Темп  - холл 1 этаж", "source": "floor", "value": 21.24, "area": "холл", "floor": "1"},
+                {"name": "Темп - холл 2 этаж", "source": "floor", "value": 18.76, "area": "холл", "floor": "2"},
+                {"name": "Темп - Тимина комната", "source": "floor", "value": 25.92, "area": "Тимнина комната", "floor": "2"},
+                {"name": "Темп - тамбур", "source": "floor", "value": 16.14, "area": "тамбур", "floor": "1"},
+            ]
+        },
+        "get_sensors": {
+            "items": [
+                {"name": "zb_sensor_fl1_living_room_humidity", "value": 37, "area": "гостиная", "floor": "1"},
+                {"name": "zb_sensor_fl1_hall_humidity", "value": 39, "area": "холл", "floor": "1"},
+                {"name": "zb_sensor_fl2_hall_humidity", "value": 45, "area": "холл", "floor": "2"},
+            ]
+        },
+        "get_kettle": {},
+    }
+    snap = HouseSnapshot.from_ops("house", ops)
+    by_room = {zone.room: zone for zone in snap.climates}
+    assert by_room["гостиная 1"].floor_temp == 21.1
+    assert by_room["гостиная 2"].floor_temp == 21.38
+    assert by_room["гостиная 1"].room_temp == 19.87
+    assert by_room["гостиная 1"].humidity == 37
+    assert by_room["холл 1 этаж"].floor_temp == 21.24
+    assert by_room["холл 2 этаж"].floor_temp == 18.76
+    assert by_room["холл 1 этаж"].room_temp == 19.3
+    assert by_room["холл 2 этаж"].room_temp == 22.54
+    assert by_room["холл 1 этаж"].humidity == 39
+    assert by_room["холл 2 этаж"].humidity == 45
+    assert by_room["Тимнина комната"].floor_temp == 25.92
+    assert by_room["тамбур"].room_temp is None
+    assert by_room["тамбур"].humidity is None
+    assert climate_shown_temperature(floor_temp=21.1, room_temp=19.87) == 21.1
+    assert climate_shown_temperature(floor_temp=None, room_temp=19.3) == 19.3
+
+    uids = snap.area_climate_sensor_uids()
+    assert uids["гостиная"]["air"] == "house:sensor_air:zb_sensor_fl1_living_room_temperature"
+    assert uids["гостиная"]["humidity"] == "house:sensor_humidity:zb_sensor_fl1_living_room_humidity"
+    assert uids["холл (1 этаж)"]["humidity"] == "house:sensor_humidity:zb_sensor_fl1_hall_humidity"
+    assert uids["холл (2 этаж)"]["air"] == "house:sensor_air:zb_sensor_fl2_hall_temperature"
+    assert "серверная" not in uids
+    assert pick_area_entity(None, "sensor.vozdukh", current_is_ours=True) == (True, "sensor.vozdukh")
+    assert pick_area_entity("sensor.vozdukh", "sensor.vozdukh", current_is_ours=True) == (False, "sensor.vozdukh")
+    assert pick_area_entity("sensor.ruchnoy", "sensor.vozdukh", current_is_ours=False) == (False, "sensor.ruchnoy")
+    assert pick_area_entity("sensor.staryy_pol", None, current_is_ours=True) == (True, None)
+

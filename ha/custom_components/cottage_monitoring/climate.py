@@ -11,7 +11,12 @@ from homeassistant.const import ATTR_TEMPERATURE, UnitOfTemperature
 from .commands import climate_set_temp_body
 from .const import DOMAIN
 from .entity import CottageEntity, area_name_for
-from .snapshot import ClimateZone, climate_display_name, place_device_name
+from .snapshot import (
+    ClimateZone,
+    climate_display_name,
+    climate_shown_temperature,
+    place_device_name,
+)
 
 
 async def async_setup_platform(hass, config, async_add_entities, discovery_info=None):
@@ -55,7 +60,20 @@ class CottageClimate(CottageEntity, ClimateEntity):
 
     @property
     def current_temperature(self) -> float | None:
-        return self._zone().room_temp
+        zone = self._zone()
+        return climate_shown_temperature(
+            floor_temp=zone.floor_temp, room_temp=zone.room_temp
+        )
+
+    @property
+    def extra_state_attributes(self) -> dict:
+        zone = self._zone()
+        attrs: dict = {}
+        if zone.floor_temp is not None:
+            attrs["floor_temperature"] = zone.floor_temp
+        if zone.room_temp is not None:
+            attrs["room_temperature"] = zone.room_temp
+        return attrs
 
     @property
     def target_temperature(self) -> float | None:

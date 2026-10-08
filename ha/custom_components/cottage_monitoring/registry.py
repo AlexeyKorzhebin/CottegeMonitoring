@@ -1,11 +1,19 @@
+import logging
+
 from homeassistant.helpers import area_registry as ar
 from homeassistant.helpers import entity_registry as er
 from homeassistant.helpers import floor_registry as fr
 
-from .const import FLOOR_LABELS, HOUSE_AREA_NAME
-from .snapshot import HouseSnapshot, leftover_split_area_names, place_device_name
+from .const import DOMAIN, FLOOR_LABELS, HOUSE_AREA_NAME
+from .snapshot import (
+    HouseSnapshot,
+    leftover_split_area_names,
+    pick_area_entity,
+    place_device_name,
+)
 
 FLOOR_LEVELS = {"1": 1, "2": 2, "outside": 0}
+_LOGGER = logging.getLogger(__name__)
 
 
 def _item_area_name(item, floors_by_area) -> str | None:
@@ -73,3 +81,58 @@ def sync_floors_areas(hass, snap: HouseSnapshot) -> None:
         if area is None or area.id in occupied:
             continue
         areas.async_delete(area.id)
+
+    _assign_climate_area_sensors(areas, ents, snap, area_by_name)
+    _hide_kettle_from_generated_views(ents, snap)
+
+
+def _assign_climate_area_sensors(areas, ents, snap: HouseSnapshot, area_by_name) -> None:
+    """Режим Климат показывает temperature/humidity entity комнаты рядом с уставками."""
+    uid_to_eid = {
+        entry.unique_id: entry.entity_id
+        for entry in ents.entities.values()
+        if entry.unique_id
+    }
+    for place, uids in snap.area_climate_sensor_uids().items():
+        area = area_by_name.get(place)
+        if area is None:
+            continue
+        for field, kind in (
+            ("temperature_entity_id", "air"),
+            ("humidity_entity_id", "humidity"),
+        ):
+            uid = uids.get(kind)
+            if uid and uid not in uid_to_eid:
+                continue
+            desired = uid_to_eid.get(uid) if uid else None
+            current = getattr(area, field)
+            entry = ents.async_get(current) if current else None
+            ours = current is None or entry is None or entry.platform == DOMAIN
+            change, value = pick_area_entity(current, desired, current_is_ours=ours)
+            if not change:
+                continue
+            try:
+                area = areas.async_update(area.id, **{field: value})
+            except ValueError:
+                _LOGGER.debug(
+                    "Skip %s for %s until %s is available",
+                    field,
+                    place,
+                    desired,
+                )
+
+
+def _hide_kettle_from_generated_views(ents, snap: HouseSnapshot) -> None:
+    """Чайник — бытовая техника. Скрытая сущность не попадает в авто-экран Климат."""
+    if snap.kettle is None:
+        return
+    for entry in ents.entities.values():
+        if entry.unique_id != snap.kettle.unique_id:
+            continue
+        if entry.hidden_by is not None:
+            return
+        ents.async_update_entity(
+            entry.entity_id,
+            hidden_by=er.RegistryEntryHider.INTEGRATION,
+        )
+        return

@@ -591,8 +591,9 @@ Grafana на elion — OSS. Для агента: MCP `user-grafana` →
 |-----|------|
 | systemd | `server/deploy/home-assistant.service` (`--network host`, volume `/var/lib/homeassistant`; entrypoint биндит go2rtc WebRTC на `127.0.0.1:18555`) |
 | nginx | `server/deploy/nginx/home-assistant.conf` (`ha.black-castle.ru` на `127.0.0.1:8443`; публичный 443 — stream `ssl_preread`, как grafana) |
-| Канон HA YAML | `server/deploy/ha/configuration.yaml` (без `http:` — listen/proxy в UI Network: `127.0.0.1:8123`; Lovelace YAML только `cottage-graphs`) |
+| Канон HA YAML | `server/deploy/ha/configuration.yaml` (без `http:` — listen/proxy в UI Network: `127.0.0.1:8123`; Lovelace YAML: `cottage-graphs`, `cottage-appliances`) |
 | Lovelace «Графики» | `server/deploy/ha/dashboards/graphs.yaml` (iframe UID `cottage-energy` / `cottage-batteries`) |
+| Lovelace «Бытовая техника» | `server/deploy/ha/dashboards/appliances.yaml` (чайник `water_heater.ble_teapot_rk_m173s`) |
 | Energy grid template | `server/deploy/ha/energy-grid.example.json` (`unique_id` `house:energy:meter`) |
 | Energy LTS backfill | `server/deploy/ha/import-meter-lts.py` (hourly `32/1/59` → recorder; HA stop) |
 | go2rtc localhost | `server/deploy/ha/go2rtc-localhost-entrypoint.sh` (WebRTC `127.0.0.1:18555`) |
@@ -625,4 +626,6 @@ ssh elion 'ss -lntp | grep 8123'   # только 127.0.0.1:8123, не 0.0.0.0
 
 Onboarding владельца на `https://ha.black-castle.ru`; Settings → People — логин на человека; обычные без админа. Семья в Nord не проецируется: все клики — один `actor_key_id` ключа `home-assistant`.
 
-Чайник: вкл/выкл и текущая T; слайдер уставки только если `get_kettle.appliance.setpoint_c` не `null` (объект LM `ble_teapot_RK-M173S_setpoint` отложен оператором).
+Чайник: вкл/выкл и текущая T; слайдер уставки только если `get_kettle.appliance.setpoint_c` не `null` (объект LM `ble_teapot_RK-M173S_setpoint` отложен оператором). Домен `water_heater`, поэтому встроенный экран Климат забирает его вместе с полами. Сущность скрыта интеграцией (`hidden_by: integration`) и не попадает в авто-экраны; карточка — в боковом разделе «Бытовая техника».
+
+Режим **Климат** (`/climate`): у комнаты с уставкой тёплого пола карточка «Полы» показывает температуру пола этой зоны (`current_temperature`) рядом с уставкой. Датчик берётся по имени зоны (`Темп - гостиная 2`), а не из `get_climate.floor_temp` — резолвер путает соседние комнаты. Воздух комнаты пишется в `temperature_entity_id` зоны, влажность — в `humidity_entity_id`, поэтому на той же странице есть карточки температуры и влажности. Нет датчика — слот пустой (тамбур без Zigbee). Чужой ручной выбор сенсора зоны не перезаписывается.

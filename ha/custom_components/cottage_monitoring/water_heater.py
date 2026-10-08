@@ -21,6 +21,9 @@ async def async_setup_platform(hass, config, async_add_entities, discovery_info=
 
 
 class CottageKettle(CottageEntity, WaterHeaterEntity):
+    # Авто-экраны (Климат, зона кухни) не показывают скрытые сущности.
+    # Карточка живёт в разделе «Бытовая техника».
+    _attr_entity_registry_visible_default = False
     _attr_temperature_unit = UnitOfTemperature.CELSIUS
     _attr_operation_list = [STATE_ON, STATE_OFF]
     _attr_min_temp = 40

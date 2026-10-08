@@ -1,0 +1,20 @@
+title: Бытовая техника
+views:
+  - title: Бытовая техника
+    path: appliances
+    type: sections
+    max_columns: 2
+    sections:
+      - type: grid
+        cards:
+          - type: heading
+            heading: Кухня
+          - type: tile
+            entity: water_heater.ble_teapot_rk_m173s
+            name: Чайник
+            icon: mdi:kettle
+            state_content:
+              - state
+              - current_temperature
+            features:
+              - type: water-heater-operation-modes
