@@ -81,9 +81,22 @@ def test_ai_srv_text_stats_avoid_grafana_nodata() -> None:
         assert panel["options"]["reduceOptions"]["fields"] == "/^value$/"
         assert panel["fieldConfig"]["defaults"]["noValue"]
     assert "нет данных" in serial["targets"][0]["rawSql"]
+    assert "offline" in serial["targets"][0]["rawSql"]
+    assert "interval '3 minutes'" in serial["targets"][0]["rawSql"]
     assert "нет" in reason["targets"][0]["rawSql"]
     assert "Europe/Moscow" in when["targets"][0]["rawSql"]
     assert crash_temp["fieldConfig"]["defaults"]["mappings"] == mod.AI_MISSING_NUM_MAPPINGS
+
+
+def test_ai_srv_online_follows_fresh_measurements() -> None:
+    mod = _load_generate_dashboards()
+    dash = mod.ai_srv()
+    online = next(p for p in dash["panels"] if p.get("title") == "Online")
+    sql = online["targets"][0]["rawSql"]
+    assert "interval '3 minutes'" in sql
+    for ga in ("35/1/2", "35/1/3", "35/1/4", "35/1/8", "35/1/10"):
+        assert ga in sql
+    assert "'35/1/1'" not in sql
 
 
 def test_ai_srv_temp_thresholds() -> None:

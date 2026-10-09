@@ -1693,6 +1693,66 @@ AI_MISSING_NUM_MAPPINGS = [
 ]
 
 
+# Живые измерения. Снимок KNX после включения дома обновляет current_state,
+# но не пишет новых events, пока GPU-хост сам не публикует MQTT.
+AI_SRV_FRESH = "3 minutes"
+AI_SRV_HEARTBEAT_GAS = ("35/1/2", "35/1/3", "35/1/4", "35/1/8", "35/1/10")
+
+
+def _ai_srv_heartbeat_sql() -> str:
+    gas = ", ".join(f"'{ga}'" for ga in AI_SRV_HEARTBEAT_GAS)
+    return f"""(
+  SELECT max(e.ts) FROM events e
+  WHERE e.house_id = 'house' AND e.ga IN ({gas})
+)"""
+
+
+def _ai_srv_online_sql() -> str:
+    return f"""
+SELECT now() AS time,
+  CASE
+    WHEN {_ai_srv_heartbeat_sql()} > now() - interval '{AI_SRV_FRESH}'
+    THEN 1 ELSE 0
+  END AS value
+""".strip()
+
+
+def _ai_srv_latest_num_sql(ga: str, expr: str | None = None) -> str:
+    value_expr = expr or NUM
+    return f"""
+SELECT now() AS time,
+  CASE
+    WHEN {_ai_srv_heartbeat_sql()} > now() - interval '{AI_SRV_FRESH}'
+    THEN (
+      SELECT {value_expr}
+      FROM events e
+      WHERE e.house_id = 'house' AND e.ga = '{ga}'
+      ORDER BY e.ts DESC
+      LIMIT 1
+    )
+    ELSE NULL
+  END AS value
+""".strip()
+
+
+def _ai_srv_text_sql(ga: str, empty_label: str = "нет данных") -> str:
+    return f"""
+SELECT CASE
+  WHEN hb.ts IS NULL OR hb.ts <= now() - interval '{AI_SRV_FRESH}' THEN 'offline'
+  WHEN cur.value IS NULL OR lower(cur.value) IN ('none', 'unknown', '') THEN '{empty_label}'
+  ELSE cur.value
+END AS value
+FROM (SELECT {_ai_srv_heartbeat_sql()} AS ts) hb
+LEFT JOIN LATERAL (
+  SELECT e.value #>> '{{}}' AS value
+  FROM events e
+  WHERE e.house_id = 'house' AND e.ga = '{ga}'
+  ORDER BY e.ts DESC
+  LIMIT 1
+) cur ON true
+""".strip()
+
+
 def _load_latest_bool_sql(ga: str) -> str:
     return f"""
 SELECT e.ts AS time, {BOOL01} AS value
@@ -1803,8 +1863,12 @@ def ai_srv():
             y,
             4,
             4,
-            _load_latest_bool_sql("35/1/1"),
-            description="GA 35/1/1 — MQTT availability GPU-хоста. ON = online.",
+            _ai_srv_online_sql(),
+            description=(
+                "ON только если за 3 минуты были измерения хоста "
+                "(температура, RPM, PWM, GPU, мощность). "
+                "Последнее «online» в KNX после включения дома не считается."
+            ),
         )
     )
     temp_stat = stat(
@@ -1813,10 +1877,11 @@ def ai_srv():
         y,
         4,
         4,
-        _load_latest_sql("35/1/2"),
+        _ai_srv_latest_num_sql("35/1/2"),
         unit="celsius",
         decimals=1,
         color_mode="background",
+        no_value="offline",
         description=(
             "GA 35/1/2. −1 = нет данных. "
             "Зелёный <60 · жёлтый 60–75 · оранжевый 75–80 · красный >80. "
@@ -1831,9 +1896,10 @@ def ai_srv():
         y,
         4,
         4,
-        _load_latest_sql("35/1/3"),
+        _ai_srv_latest_num_sql("35/1/3"),
         decimals=0,
         color_mode="background",
+        no_value="offline",
         description=(
             "GA 35/1/3. 0 = вентилятор стоит. −1 = нет данных. "
             "Красный <0 (−1 нет данных) или ≥3500 · зелёный 0–2000 · жёлтый 2000–2700 · оранжевый 2700–3500."
@@ -1847,10 +1913,11 @@ def ai_srv():
         y,
         4,
         4,
-        _load_latest_pwm_pct_sql(),
+        _ai_srv_latest_num_sql("35/1/4", f"round(({AI_PWM_PCT_EXPR})::numeric, 0)"),
         unit="percent",
         decimals=0,
         color_mode="background",
+        no_value="offline",
         description=(
             "GA 35/1/4. Доля команды 0…255. −1 = нет данных. "
             "Зелёный 0–40% · жёлтый 40–55% · оранжевый 55–70% · красный ≥70% (≈ PWM 180)."
@@ -1865,7 +1932,7 @@ def ai_srv():
             y,
             4,
             4,
-            _cs_text_value_sql("35/1/5", "нет данных"),
+            _ai_srv_text_sql("35/1/5"),
             decimals=0,
             graph_mode="none",
             text_mode="value",
@@ -1878,11 +1945,15 @@ def ai_srv():
                     "options": {
                         "connected": {"text": "connected", "color": "green", "index": 0},
                         "error": {"text": "error", "color": "red", "index": 1},
-                        "нет данных": {"text": "нет данных", "color": "text", "index": 2},
+                        "offline": {"text": "offline", "color": "red", "index": 2},
+                        "нет данных": {"text": "нет данных", "color": "text", "index": 3},
                     },
                 }
             ],
-            description="GA 35/1/5 serial_state. Пусто/unknown → «нет данных», не Grafana No data.",
+            description=(
+                "GA 35/1/5 serial_state. Без свежих измерений хоста — offline, "
+                "даже если в KNX осталось connected."
+            ),
         )
     )
     panels.append(
@@ -1892,7 +1963,7 @@ def ai_srv():
             y,
             4,
             4,
-            _cs_text_value_sql("35/1/6", "нет данных"),
+            _ai_srv_text_sql("35/1/6"),
             decimals=0,
             graph_mode="none",
             text_mode="value",
@@ -1910,11 +1981,12 @@ def ai_srv():
                             "index": 1,
                         },
                         "alarm": {"text": "alarm", "color": "red", "index": 2},
-                        "нет данных": {"text": "нет данных", "color": "text", "index": 3},
+                        "offline": {"text": "offline", "color": "red", "index": 3},
+                        "нет данных": {"text": "нет данных", "color": "text", "index": 4},
                     },
                 }
             ],
-            description="GA 35/1/6 protection_state. Пусто/unknown → «нет данных».",
+            description="GA 35/1/6 protection_state. Без свежих измерений хоста — offline.",
         )
     )
     y += 4
