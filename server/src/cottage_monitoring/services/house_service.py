@@ -2,12 +2,13 @@
 
 from __future__ import annotations
 
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 
 import structlog
-from sqlalchemy import select
+from sqlalchemy import or_, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from cottage_monitoring.config import settings
 from cottage_monitoring.db.session import async_session_factory
 from cottage_monitoring.metrics import HOUSE_STATUS
 from cottage_monitoring.models.device import Device
@@ -93,7 +94,7 @@ async def handle_status(
 
         logger.info("device_status_updated", house_id=house_id, device_id=device_id, status=status)
 
-        await _aggregate_house_status(house_id, session=session)
+        await _aggregate_house_status(house_id, session=session, touch_last_seen=True)
 
         if own_session:
             await session.commit()
@@ -102,8 +103,72 @@ async def handle_status(
             await session.close()
 
 
+async def mark_stale_devices_offline(
+    *,
+    session: AsyncSession | None = None,
+    now: datetime | None = None,
+    stale_after: timedelta | None = None,
+    house_id: str | None = None,
+) -> int:
+    """Mark active devices offline when their last MQTT message is too old.
+
+    ``last_seen`` is left as the real last contact. ``house_id`` limits the
+    update (tests); the background loop omits it and sweeps every house.
+    """
+    own_session = session is None
+    if own_session:
+        session = async_session_factory()
+
+    try:
+        moment = now or datetime.now(UTC)
+        window = (
+            stale_after
+            if stale_after is not None
+            else timedelta(seconds=settings.device_offline_after_seconds)
+        )
+        cutoff = moment - window
+        conditions = [
+            Device.is_active.is_(True),
+            Device.online_status == "online",
+            or_(Device.last_seen.is_(None), Device.last_seen < cutoff),
+        ]
+        if house_id is not None:
+            conditions.append(Device.house_id == house_id)
+
+        result = await session.execute(
+            update(Device)
+            .where(*conditions)
+            .values(online_status="offline")
+            .returning(Device.house_id, Device.device_id)
+        )
+        rows = result.all()
+        affected: dict[str, list[str]] = {}
+        for row in rows:
+            affected.setdefault(row.house_id, []).append(row.device_id)
+            # Core UPDATE does not refresh the identity map; drop stale "online".
+            loaded = await session.get(Device, (row.house_id, row.device_id))
+            if loaded is not None:
+                session.expire(loaded)
+
+        for hid, device_ids in affected.items():
+            logger.info(
+                "devices_marked_offline_stale",
+                house_id=hid,
+                device_ids=device_ids,
+                cutoff=cutoff.isoformat(),
+            )
+            await _aggregate_house_status(hid, session=session, touch_last_seen=False)
+
+        if own_session and rows:
+            await session.commit()
+        return len(rows)
+    finally:
+        if own_session:
+            await session.close()
+
+
 async def _aggregate_house_status(
-    house_id: str, *, session: AsyncSession
+    house_id: str, *, session: AsyncSession, touch_last_seen: bool = True
 ) -> None:
     """Recompute house online_status from its devices."""
     result = await session.execute(
@@ -124,7 +189,8 @@ async def _aggregate_house_status(
     house = result.scalar_one_or_none()
     if house:
         house.online_status = aggregated
-        house.last_seen = datetime.now(UTC)
+        if touch_last_seen:
+            house.last_seen = datetime.now(UTC)
         HOUSE_STATUS.labels(house_id=house_id).set(1.0 if aggregated == "online" else 0.0)
 
 

@@ -54,6 +54,18 @@ class TestParseTopic:
         assert result.message_type == MessageType.STATUS
         assert result.params == {}
 
+    def test_status_offline_topic(self):
+        result = parse_topic("cm/house-01/lm-main/v1/status/offline", prefix="")
+        assert result is not None
+        assert result.house_id == "house-01"
+        assert result.device_id == "lm-main"
+        assert result.message_type == MessageType.STATUS
+        assert result.params == {}
+
+    def test_status_health_is_not_status(self):
+        result = parse_topic("cm/house-01/lm-main/v1/status/health", prefix="")
+        assert result is None
+
     def test_cmd_ack_topic(self):
         result = parse_topic("cm/house-01/lm-main/v1/cmd/ack/req-123", prefix="")
         assert result is not None

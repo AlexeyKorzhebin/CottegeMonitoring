@@ -364,9 +364,12 @@ chunk_buffer: dict[str, dict] = {
 
 ```
 unknown ──[status=online]──→ online
-online  ──[LWT offline]───→ offline
+online  ──[LWT status/offline | тишина >180 с]──→ offline
 offline ──[status=online]──→ online
 ```
+
+Тишина считается по `devices.last_seen`. Перевод в `offline` по таймауту
+`last_seen` не сдвигает.
 
 House.online_status агрегируется от devices:
 - all devices online → house online

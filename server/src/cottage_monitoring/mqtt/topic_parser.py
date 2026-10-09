@@ -85,7 +85,8 @@ def parse_topic(topic: str, prefix: str = "") -> ParsedTopic | None:
     if rest == "meta/objects":
         return ParsedTopic(house_id=house_id, device_id=device_id, message_type=MessageType.META_FULL, params={})
 
-    if rest == "status/online":
+    # LWT is a different topic from the connect announce. Both carry status in the payload.
+    if rest in ("status/online", "status/offline"):
         return ParsedTopic(house_id=house_id, device_id=device_id, message_type=MessageType.STATUS, params={})
 
     if rest.startswith("cmd/ack/"):

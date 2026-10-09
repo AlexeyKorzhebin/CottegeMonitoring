@@ -201,7 +201,13 @@ ssh elion '/opt/cottage-monitoring/wait_http_health.sh http://127.0.0.1:8321/hea
 
 Сеть: **bridge** + `host.docker.internal:host-gateway` (не `--network=host`).
 
-Текущий pin: **`cottage-monitoring:0.3.4`** (`server/deploy/IMAGE_PIN.yaml`).
+Текущий pin: **`cottage-monitoring:0.3.5`** (`server/deploy/IMAGE_PIN.yaml`).
+
+### Сделано в 0.3.5 (2026-10-09)
+
+- LWT `status/offline` больше не отбрасывается как неизвестный топик: дом переходит в `offline`.
+- Если сообщений нет дольше 180 с (`DEVICE_OFFLINE_AFTER_SECONDS`), устройство и дом тоже становятся `offline`. `last_seen` не сдвигается.
+- Миграции нет. Плитка Grafana «Дом online» дополнительно требует `last_seen` не старше 3 минут.
 
 ### Сделано в 0.3.4 + live elion (2026-08-28)
 
@@ -552,6 +558,8 @@ Contact point `cottage-telegram`, route matcher `team=cottage`.
 | `cottage-lm-load15-high` | GA `34/1/8` (load15) **> 2.0** | 10m | warning |
 
 `cottage-lm-load15-high`: `noDataState=OK` (отсутствие точек не спамит — за stale отвечает другой алерт).
+
+Плитка «Дом online»: ON только при `online_status = online` и `last_seen` не старше 3 минут. LWT приходит в `status/offline`. Сервер сам ставит `offline`, если сообщений нет дольше 180 с (`DEVICE_OFFLINE_AFTER_SECONDS`, R-029). `last_seen` при этом не обновляется.
 
 ### Cursor / MCP
 

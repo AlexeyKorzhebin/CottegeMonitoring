@@ -36,6 +36,10 @@ class Settings(BaseSettings):
     cmd_timeout_seconds: int = 60
     cmd_max_retries: int = 2
 
+    # Device still marked online, but no MQTT message for this long → offline.
+    # Broker keepalive is 60s (disconnect ~90s); 180s leaves room for one missed LWT.
+    device_offline_after_seconds: int = 180
+
     # Auth / MCP
     # None → secure default resolved by env: enabled in production, off in dev/test.
     auth_required: bool | None = None

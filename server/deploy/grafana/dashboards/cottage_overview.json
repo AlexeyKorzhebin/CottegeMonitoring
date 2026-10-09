@@ -137,7 +137,7 @@
           "refId": "A",
           "rawQuery": true,
           "format": "table",
-          "rawSql": "SELECT now() AS time,\n  CASE WHEN online_status = 'online' THEN 1 ELSE 0 END AS value\nFROM houses WHERE house_id = 'house'"
+          "rawSql": "SELECT now() AS time,\n  CASE\n    WHEN online_status = 'online'\n     AND last_seen > now() - interval '3 minutes'\n    THEN 1 ELSE 0\n  END AS value\nFROM houses WHERE house_id = 'house'"
         }
       ],
       "fieldConfig": {
@@ -175,7 +175,7 @@
         "graphMode": "none",
         "textMode": "value"
       },
-      "description": "Контроллер LogicMachine на связи с сервером."
+      "description": "ON, только если контроллер online и last_seen не старше 3 минут."
     },
     {
       "id": 4,

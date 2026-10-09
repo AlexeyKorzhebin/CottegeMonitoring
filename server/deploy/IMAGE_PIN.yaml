@@ -1,8 +1,8 @@
-version: "0.3.4"
+version: "0.3.5"
 git_ref: "main"
-image_tag: "cottage-monitoring:0.3.4"
-image_digest: ""
+image_tag: "cottage-monitoring:0.3.5"
+image_digest: "sha256:270d3e5dac6ade853a607c513451d9f88eb19caef8d507121c42f2916c530660"
 overlay_retired: true
-replaces_overlay: "cottage-monitoring:0.3.3"
+replaces_overlay: "cottage-monitoring:0.3.4"
 notes: |
-  v0.3.4: get_sensors kind=battery (ROOM_BATTERY). HA energy tiles use existing get_energy_status unchanged.
+  v0.3.5: ingest LWT status/offline; mark a device offline after 180s without messages. No migration.

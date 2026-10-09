@@ -17,6 +17,18 @@ from cottage_monitoring.logging_config import setup_logging
 logger = structlog.get_logger(__name__)
 
 
+async def _device_liveness_loop() -> None:
+    """Drop devices that stopped sending. LWT is the fast path; this covers a lost will."""
+    from cottage_monitoring.services.house_service import mark_stale_devices_offline
+
+    while True:
+        try:
+            await mark_stale_devices_offline()
+        except Exception:
+            logger.exception("device_liveness_error")
+        await asyncio.sleep(30)
+
+
 async def _command_retry_loop() -> None:
     """Periodically check for timed-out commands and retry."""
     from cottage_monitoring.services.command_service import retry_pending_commands
@@ -60,12 +72,13 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
 
         mqtt_task = asyncio.create_task(_mqtt_loop())
         retry_task = asyncio.create_task(_command_retry_loop())
+        liveness_task = asyncio.create_task(_device_liveness_loop())
 
         yield
 
         logger.info("shutting_down")
         await mqtt_client.disconnect()
-        for task in (mqtt_task, retry_task):
+        for task in (mqtt_task, retry_task, liveness_task):
             task.cancel()
             try:
                 await task

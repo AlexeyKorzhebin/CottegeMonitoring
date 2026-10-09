@@ -594,10 +594,14 @@ def overview():
             4,
             """
 SELECT now() AS time,
-  CASE WHEN online_status = 'online' THEN 1 ELSE 0 END AS value
+  CASE
+    WHEN online_status = 'online'
+     AND last_seen > now() - interval '3 minutes'
+    THEN 1 ELSE 0
+  END AS value
 FROM houses WHERE house_id = 'house'
 """.strip(),
-            description="Контроллер LogicMachine на связи с сервером.",
+            description="ON, только если контроллер online и last_seen не старше 3 минут.",
         )
     )
     panels.append(

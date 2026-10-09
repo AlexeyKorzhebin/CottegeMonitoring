@@ -142,7 +142,7 @@ MQTT-клиент (LWT) и проверить обновление статус�
    статусом `online` и обновляется `last_seen`.
 
 2. **Given** дом `house-01` пропадает без корректного disconnect,
-   **When** брокер публикует LWT с `status=offline`,
+   **When** брокер публикует LWT в `status/offline` с `status=offline`,
    **Then** в БД статус дома обновляется на `offline`.
 
 3. **Given** ingestor получает `meta/objects` с новым `schema_hash`,
@@ -305,8 +305,11 @@ MQTT-клиент (LWT) и проверить обновление статус�
   `last_seen`, `online_status`.
 - **FR-014**: При получении `status/online` с `status=online` система MUST
   обновить `online_status` дома и `last_seen`.
-- **FR-015**: При получении LWT `status=offline` система MUST обновить
-  `online_status` дома на `offline`.
+- **FR-015**: При получении LWT на топике `status/offline` с `status=offline`
+  система MUST обновить `online_status` устройства и дома на `offline`.
+  Если активное устройство числится `online`, но сообщений от него не было
+  дольше 180 с, система MUST перевести его в `offline` и пересчитать статус
+  дома. `last_seen` при этом остаётся временем последнего сообщения.
 - **FR-016**: Если `house_id` из входящего сообщения не найден в БД —
   система MUST автоматически создать запись дома с `is_active=true`.
 - **FR-035**: Система MUST поддерживать деактивацию дома

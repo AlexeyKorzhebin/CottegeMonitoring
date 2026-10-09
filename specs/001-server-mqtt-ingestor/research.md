@@ -937,6 +937,14 @@ Stat-плитки (`time_series` + колонка `metric`): Grafana Postgres lo
 
 ---
 
+## R-029: Дом offline по LWT и по тишине (2026-10-09)
+
+Клиент публикует LWT в `cm/<house>/<device>/v1/status/offline`. Парсер принимал только `status/online`, ингестор писал `unknown_topic` и оставлял `online_status=online`. 2026-10-09 брокер оборвал `house-lm-main` по keepalive в 09:39 МСК, LWT дошёл, плитка Grafana осталась ON. Retained `status/online` при этом живёт отдельно и при рестарте ингестора может снова выставить online.
+
+Решение: `status/offline` идёт в тот же `handle_status`. Раз в 30 с устройства с `online_status=online` и `last_seen` старше `DEVICE_OFFLINE_AFTER_SECONDS` (180) переводятся в offline, статус дома пересчитывается, `last_seen` не сдвигается. Плитка «Дом online» дополнительно требует `last_seen` не старше 3 минут. `status/health` по-прежнему не статус: в payload `ts` LWT запечён на момент `will_set`, по нему свежесть не считать.
+
+---
+
 ## Сводка решений
 
 | ID | Тема | Решение | Альтернатива |
@@ -969,3 +977,4 @@ Stat-плитки (`time_series` + колонка `metric`): Grafana Postgres lo
 | R-026 | HA write vs poll | optimistic + delayed refresh; control/status не путать | poll сразу после write |
 | R-027 | HA energy/batteries | 6 GA в snapshot; battery poll; Grafana iframe+ссылки; LTS backfill | сужать Nord ENERGY_SUMMARY / анонимный Grafana |
 | R-028 | MCP SDK 2.x | оставить `mcp>=1.0,<2` до боли на клиенте / реплик / CVE; native MCP агента, не generate-cli | апгрейд Nord первым / CLI как путь Telegram |
+| R-029 | House offline | `status/offline` + тишина 180 с; плитка ещё и по `last_seen` | только Grafana SQL / сверка `ts` внутри LWT |

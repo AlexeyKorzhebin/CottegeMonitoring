@@ -50,7 +50,8 @@ Dev-данные создаются тестовыми клиентами с п�
 | `{prefix}cm/+/+/v1/state/batch` | 1 | no | Пакет состояний (один send) |
 | `{prefix}cm/+/+/v1/meta/objects` | 1 | yes | Полная схема объектов |
 | `{prefix}cm/+/+/v1/meta/objects/chunk/+` | 1 | yes | Чанки схемы объектов |
-| `{prefix}cm/+/+/v1/status/online` | 1 | yes | Online/offline (LWT) |
+| `{prefix}cm/+/+/v1/status/online` | 1 | yes | Retain при connect, payload `status=online` |
+| `{prefix}cm/+/+/v1/status/offline` | 1 | yes | LWT, payload `status=offline` |
 | `{prefix}cm/+/+/v1/cmd/ack/+` | 0/1 | no | Подтверждения команд |
 | `{prefix}cm/+/+/v1/rpc/resp/+/+` | 0/1 | no | Ответы RPC |
 
@@ -82,7 +83,8 @@ Topic parser сначала отбрасывает `MQTT_TOPIC_PREFIX` (если
 | `state/batch` | STATE_BATCH | state_service.handle_batch() |
 | `meta/objects` | META_FULL | schema_service.handle_full() |
 | `meta/objects/chunk/<n>` | META_CHUNK | schema_service.handle_chunk() |
-| `status/online` | STATUS | house_service.handle_device_status() |
+| `status/online` | STATUS | house_service.handle_status() |
+| `status/offline` | STATUS | house_service.handle_status() |
 | `cmd/ack/<request_id>` | CMD_ACK | command_service.handle_ack() |
 | `rpc/resp/<client_id>/<request_id>` | RPC_RESP | rpc_service.handle_resp() |
 
@@ -192,7 +194,7 @@ Required: `ts`, `schema_hash`, `count`, `objects`
 
 Required: `ts`, `schema_hash`, `count`, `chunk_no`, `chunk_total`, `objects`
 
-### STATUS (status/online)
+### STATUS (`status/online`, `status/offline`)
 
 Online:
 ```json
