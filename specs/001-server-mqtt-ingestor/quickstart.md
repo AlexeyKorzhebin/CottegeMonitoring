@@ -525,7 +525,7 @@ mosquitto_sub -h localhost -t "cm/+/+/v1/#" -v
 | `cottage-lights` | Lights | Canvas сейчас + state-timeline история `1/2/*` | 30s |
 | `cottage-batteries` | Batteries | Zigbee battery % | 1m |
 | `cottage-lm-load` | LM Load | loadavg LM: GA `34/1/6` (1м), `34/1/7` (5м), `34/1/8` (15м) | 1m |
-| `cottage-ai-srv` | AI-SRV | GPU-хост `35/1/1`–`19`: сейчас, температура/RPM/PWM (цвета: °C <60/60–75/75–80/>80, RPM 0–2000/≥3500, PWM 0–100/≥180), GPU/CPU, авария | 30s |
+| `cottage-ai-srv` | AI-SRV | GPU-хост `35/1/1`–`19`: сейчас, °C (<60 / 60–75 / 75–80 / >80), RPM (0–2000 / 2000–2700 / 2700–3500 / ≥3500), PWM в % от 255 (0–40 / 40–55 / 55–70 / ≥70), GPU/CPU, авария (пустое → «нет данных», время МСК) | 30s |
 
 Папка Grafana: **Cottage** (`folderUid=ffsa6lrlntse8b`).
 Datasource: PostgreSQL UID `cottage-monitoring-pg` → БД `cottage_monitoring`,

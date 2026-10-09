@@ -233,6 +233,8 @@ def stat(
     graph_mode="area",
     text_mode="auto",
     color_mode="value",
+    no_value=None,
+    reduce_fields=None,
 ):
     p = panel_common(title, "stat", x, y, w, h)
     p["targets"] = [sql_target("A", sql, fmt="table")]
@@ -244,9 +246,14 @@ def stat(
         defaults["unit"] = unit
     if mappings:
         defaults["mappings"] = mappings
+    if no_value is not None:
+        defaults["noValue"] = no_value
     p["fieldConfig"] = {"defaults": defaults}
+    reduce: dict = {"calcs": ["lastNotNull"]}
+    if reduce_fields:
+        reduce["fields"] = reduce_fields
     p["options"] = {
-        "reduceOptions": {"calcs": ["lastNotNull"]},
+        "reduceOptions": reduce,
         "colorMode": color_mode,
         "graphMode": graph_mode,
         "textMode": text_mode,
@@ -1660,20 +1667,30 @@ AI_RPM_THRESHOLDS = {
         {"color": "red", "value": None},
         {"color": "green", "value": 0},
         {"color": "yellow", "value": 2000},
+        {"color": "orange", "value": 2700},
         {"color": "red", "value": 3500},
     ],
 }
 
-# PWM 0–100 ≈ RPM 0–2000; 180 ≈ 3500 RPM; 255 = max.
+# PWM на дашборде в % от 255. 0–100 PWM ≈ 0–39%; 180 PWM ≈ 71%.
+AI_PWM_PCT_EXPR = f"CASE WHEN {NUM} < 0 THEN -1 ELSE {NUM} / 255.0 * 100 END"
 AI_PWM_THRESHOLDS = {
     "mode": "absolute",
     "steps": [
         {"color": "red", "value": None},
         {"color": "green", "value": 0},
-        {"color": "yellow", "value": 100},
-        {"color": "red", "value": 180},
+        {"color": "yellow", "value": 40},
+        {"color": "orange", "value": 55},
+        {"color": "red", "value": 70},
     ],
 }
+
+AI_MISSING_NUM_MAPPINGS = [
+    {
+        "type": "value",
+        "options": {"-1": {"text": "—", "index": 0}},
+    }
+]
 
 
 def _load_latest_bool_sql(ga: str) -> str:
@@ -1711,9 +1728,49 @@ WHERE cs.house_id = 'house' AND {CS_JOIN} = '{ga}'
 """.strip()
 
 
-def _ai_events_ts_sql(series: list[tuple[str, str]]) -> str:
+def _cs_text_value_sql(ga: str, empty_label: str = "—") -> str:
+    """Одна колонка value, без time: иначе Grafana stat пишет No data на строках."""
+    return f"""
+SELECT CASE
+  WHEN cs.value IS NULL THEN '{empty_label}'
+  WHEN lower(cs.value #>> '{{}}') IN ('none', 'unknown', '') THEN '{empty_label}'
+  ELSE cs.value #>> '{{}}'
+END AS value
+FROM current_state cs
+WHERE cs.house_id = 'house' AND {CS_JOIN} = '{ga}'
+""".strip()
+
+
+def _cs_accident_time_sql() -> str:
+    return f"""
+SELECT CASE
+  WHEN cs.value IS NULL THEN '—'
+  WHEN lower(cs.value #>> '{{}}') IN ('none', 'unknown', '') THEN '—'
+  ELSE to_char(
+    (cs.value #>> '{{}}')::timestamptz AT TIME ZONE 'Europe/Moscow',
+    'DD.MM.YYYY HH24:MI'
+  )
+END AS value
+FROM current_state cs
+WHERE cs.house_id = 'house' AND {CS_JOIN} = '35/1/19'
+""".strip()
+
+
+def _load_latest_pwm_pct_sql() -> str:
+    return f"""
+SELECT e.ts AS time, round(({AI_PWM_PCT_EXPR})::numeric, 0) AS value
+FROM events e
+WHERE e.house_id = 'house' AND e.ga = '35/1/4'
+ORDER BY e.ts DESC
+LIMIT 1
+""".strip()
+
+
+def _ai_events_ts_sql(series: list[tuple[str, str]], *, expr_by_ga: dict | None = None) -> str:
+    expr_by_ga = expr_by_ga or {}
     avgs = ",\n  ".join(
-        f'avg({NUM}) FILTER (WHERE e.ga = \'{ga}\') AS "{alias}"' for ga, alias in series
+        f'avg({expr_by_ga.get(ga, NUM)}) FILTER (WHERE e.ga = \'{ga}\') AS "{alias}"'
+        for ga, alias in series
     )
     gas = ",".join(f"'{ga}'" for ga, _ in series)
     return f"""
@@ -1779,7 +1836,7 @@ def ai_srv():
         color_mode="background",
         description=(
             "GA 35/1/3. 0 = вентилятор стоит. −1 = нет данных. "
-            "Красный <0 (−1 нет данных) или ≥3500 · зелёный 0–2000 · жёлтый 2000–3500."
+            "Красный <0 (−1 нет данных) или ≥3500 · зелёный 0–2000 · жёлтый 2000–2700 · оранжевый 2700–3500."
         ),
     )
     rpm_stat["fieldConfig"]["defaults"]["thresholds"] = AI_RPM_THRESHOLDS
@@ -1790,12 +1847,13 @@ def ai_srv():
         y,
         4,
         4,
-        _load_latest_sql("35/1/4"),
+        _load_latest_pwm_pct_sql(),
+        unit="percent",
         decimals=0,
         color_mode="background",
         description=(
-            "GA 35/1/4. Команда 0…255. −1 = нет данных. "
-            "Красный <0 (−1 нет данных) или ≥180 · зелёный 0–100 · жёлтый 100–180."
+            "GA 35/1/4. Доля команды 0…255. −1 = нет данных. "
+            "Зелёный 0–40% · жёлтый 40–55% · оранжевый 55–70% · красный ≥70% (≈ PWM 180)."
         ),
     )
     pwm_stat["fieldConfig"]["defaults"]["thresholds"] = AI_PWM_THRESHOLDS
@@ -1807,11 +1865,24 @@ def ai_srv():
             y,
             4,
             4,
-            _load_latest_text_sql("35/1/5"),
+            _cs_text_value_sql("35/1/5", "нет данных"),
             decimals=0,
             graph_mode="none",
             text_mode="value",
-            description="GA 35/1/5 serial_state: connected / error / unknown.",
+            color_mode="background",
+            no_value="нет данных",
+            reduce_fields="/^value$/",
+            mappings=[
+                {
+                    "type": "value",
+                    "options": {
+                        "connected": {"text": "connected", "color": "green", "index": 0},
+                        "error": {"text": "error", "color": "red", "index": 1},
+                        "нет данных": {"text": "нет данных", "color": "text", "index": 2},
+                    },
+                }
+            ],
+            description="GA 35/1/5 serial_state. Пусто/unknown → «нет данных», не Grafana No data.",
         )
     )
     panels.append(
@@ -1821,11 +1892,29 @@ def ai_srv():
             y,
             4,
             4,
-            _load_latest_text_sql("35/1/6"),
+            _cs_text_value_sql("35/1/6", "нет данных"),
             decimals=0,
             graph_mode="none",
             text_mode="value",
-            description="GA 35/1/6 protection_state: monitoring / sensor_unavailable / alarm.",
+            color_mode="background",
+            no_value="нет данных",
+            reduce_fields="/^value$/",
+            mappings=[
+                {
+                    "type": "value",
+                    "options": {
+                        "monitoring": {"text": "monitoring", "color": "green", "index": 0},
+                        "sensor_unavailable": {
+                            "text": "sensor_unavailable",
+                            "color": "orange",
+                            "index": 1,
+                        },
+                        "alarm": {"text": "alarm", "color": "red", "index": 2},
+                        "нет данных": {"text": "нет данных", "color": "text", "index": 3},
+                    },
+                }
+            ],
+            description="GA 35/1/6 protection_state. Пусто/unknown → «нет данных».",
         )
     )
     y += 4
@@ -1842,8 +1931,9 @@ def ai_srv():
             [
                 ("35/1/2", "Температура"),
                 ("35/1/3", "RPM"),
-                ("35/1/4", "PWM"),
-            ]
+                ("35/1/4", "PWM %"),
+            ],
+            expr_by_ga={"35/1/4": AI_PWM_PCT_EXPR},
         ),
         description=(
             "−1 не скрываем: это дыра в данных. "
@@ -1871,8 +1961,9 @@ def ai_srv():
             ],
         },
         {
-            "matcher": {"id": "byName", "options": "PWM"},
+            "matcher": {"id": "byName", "options": "PWM %"},
             "properties": [
+                {"id": "unit", "value": "percent"},
                 {"id": "custom.axisPlacement", "value": "right"},
                 {"id": "thresholds", "value": AI_PWM_THRESHOLDS},
                 {"id": "color", "value": {"mode": "thresholds"}},
@@ -1955,17 +2046,54 @@ def ai_srv():
 
     panels.append(row("Авария", y))
     y += 1
-    text_stat = {"decimals": 0, "graph_mode": "none", "text_mode": "value"}
+    text_stat = {
+        "decimals": 0,
+        "graph_mode": "none",
+        "text_mode": "value",
+        "color_mode": "background",
+        "no_value": "—",
+        "reduce_fields": "/^value$/",
+    }
     accident = [
-        ("Причина", "35/1/15", _cs_latest_text_sql, text_stat),
-        ("ID", "35/1/16", _cs_latest_text_sql, text_stat),
-        ("Статус", "35/1/17", _cs_latest_text_sql, text_stat),
-        ("Температура", "35/1/18", _cs_latest_num_sql, {"unit": "celsius", "decimals": 1}),
-        ("Время", "35/1/19", _cs_latest_text_sql, text_stat),
+        (
+            "Причина",
+            _cs_text_value_sql("35/1/15", "нет"),
+            {**text_stat, "description": "GA 35/1/15 last_shutdown_reason.reason. none → «нет»."},
+        ),
+        (
+            "ID",
+            _cs_text_value_sql("35/1/16"),
+            {**text_stat, "description": "GA 35/1/16 event_id."},
+        ),
+        (
+            "Статус",
+            _cs_text_value_sql("35/1/17"),
+            {**text_stat, "description": "GA 35/1/17 last_shutdown_reason.status."},
+        ),
+        (
+            "°C аварии",
+            _cs_latest_num_sql("35/1/18"),
+            {
+                "unit": "celsius",
+                "decimals": 1,
+                "mappings": AI_MISSING_NUM_MAPPINGS,
+                "description": (
+                    "GA 35/1/18 — температура в момент аварии, не текущая GPU. "
+                    "−1 / нет аварии → —."
+                ),
+            },
+        ),
+        (
+            "Время",
+            _cs_accident_time_sql(),
+            {**text_stat, "description": "GA 35/1/19 timestamp_utc, Москва. none → —."},
+        ),
     ]
-    widths = [5, 5, 5, 4, 5]
+    widths = [5, 5, 4, 4, 6]
     x = 0
-    for (title, ga, sql_fn, extra), w in zip(accident, widths, strict=True):
+    for (title, sql, extra), w in zip(accident, widths, strict=True):
+        kwargs = dict(extra)
+        desc = kwargs.pop("description", "last_shutdown из current_state.")
         panels.append(
             stat(
                 title,
@@ -1973,9 +2101,9 @@ def ai_srv():
                 y,
                 w,
                 4,
-                sql_fn(ga),
-                description=f"GA {ga} — last_shutdown из current_state.",
-                **extra,
+                sql,
+                description=desc,
+                **kwargs,
             )
         )
         x += w

@@ -40,6 +40,7 @@ def test_ai_srv_rpm_thresholds_are_two_sided() -> None:
     assert _threshold_color(steps, 1500) == "green"
     assert _threshold_color(steps, 1999) == "green"
     assert _threshold_color(steps, 2500) == "yellow"
+    assert _threshold_color(steps, 3000) == "orange"
     assert _threshold_color(steps, 3500) == "red"
     dash = mod.ai_srv()
     rpm = next(p for p in dash["panels"] if p.get("title") == "RPM")
@@ -47,19 +48,42 @@ def test_ai_srv_rpm_thresholds_are_two_sided() -> None:
     assert rpm["options"]["colorMode"] == "background"
 
 
-def test_ai_srv_pwm_thresholds_match_rpm_shape() -> None:
+def test_ai_srv_pwm_is_percent_of_255() -> None:
     mod = _load_generate_dashboards()
     steps = mod.AI_PWM_THRESHOLDS["steps"]
     assert _threshold_color(steps, -1) == "red"
     assert _threshold_color(steps, 0) == "green"
-    assert _threshold_color(steps, 77) == "green"
-    assert _threshold_color(steps, 150) == "yellow"
-    assert _threshold_color(steps, 180) == "red"
-    assert _threshold_color(steps, 255) == "red"
+    assert _threshold_color(steps, 30) == "green"
+    assert _threshold_color(steps, 50) == "yellow"
+    assert _threshold_color(steps, 60) == "orange"
+    assert _threshold_color(steps, 70) == "red"
+    assert _threshold_color(steps, 100) == "red"
     dash = mod.ai_srv()
     pwm = next(p for p in dash["panels"] if p.get("title") == "PWM")
+    sql = pwm["targets"][0]["rawSql"]
+    assert "/ 255.0 * 100" in sql
+    assert pwm["fieldConfig"]["defaults"]["unit"] == "percent"
     assert pwm["fieldConfig"]["defaults"]["thresholds"] == mod.AI_PWM_THRESHOLDS
     assert pwm["options"]["colorMode"] == "background"
+
+
+def test_ai_srv_text_stats_avoid_grafana_nodata() -> None:
+    mod = _load_generate_dashboards()
+    dash = mod.ai_srv()
+    serial = next(p for p in dash["panels"] if p.get("title") == "Serial")
+    protection = next(p for p in dash["panels"] if p.get("title") == "Защита")
+    reason = next(p for p in dash["panels"] if p.get("title") == "Причина")
+    when = next(p for p in dash["panels"] if p.get("title") == "Время")
+    crash_temp = next(p for p in dash["panels"] if p.get("title") == "°C аварии")
+    for panel in (serial, protection, reason, when):
+        sql = panel["targets"][0]["rawSql"]
+        assert "AS time" not in sql
+        assert panel["options"]["reduceOptions"]["fields"] == "/^value$/"
+        assert panel["fieldConfig"]["defaults"]["noValue"]
+    assert "нет данных" in serial["targets"][0]["rawSql"]
+    assert "нет" in reason["targets"][0]["rawSql"]
+    assert "Europe/Moscow" in when["targets"][0]["rawSql"]
+    assert crash_temp["fieldConfig"]["defaults"]["mappings"] == mod.AI_MISSING_NUM_MAPPINGS
 
 
 def test_ai_srv_temp_thresholds() -> None:
