@@ -29,6 +29,12 @@ async def handle_message(message: aiomqtt.Message) -> None:
         logger.warning("invalid_json", topic=topic_str)
         return
 
+    # Retained diagnostics are not telemetry or an online/offline transition.
+    # Do not let stale health replay refresh last_seen or mask a stale alert.
+    if parsed.message_type == MessageType.HEALTH:
+        logger.debug("health_diagnostic_received", topic=topic_str)
+        return
+
     house_id = parsed.house_id
     device_id = parsed.device_id
     msg_type = parsed.message_type

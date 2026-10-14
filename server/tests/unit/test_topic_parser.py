@@ -133,3 +133,12 @@ class TestParseTopic:
     def test_meta_chunk_invalid_number(self):
         result = parse_topic("cm/house-01/lm-main/v1/meta/objects/chunk/abc", prefix="")
         assert result is None
+
+
+def test_service_status_variants():
+    for prefix in ("", "dev/"):
+        for suffix, expected in (("online", MessageType.STATUS), ("offline", MessageType.STATUS), ("health", MessageType.HEALTH)):
+            parsed = parse_topic(prefix + "cm/house/lm-main/v1/status/" + suffix, prefix=prefix)
+            assert parsed is not None
+            assert parsed.message_type == expected
+        assert parse_topic(prefix + "cm/house/lm-main/v1/status/unexpected", prefix=prefix) is None

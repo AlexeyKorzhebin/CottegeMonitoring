@@ -18,6 +18,7 @@ class MessageType(Enum):
     META_FULL = "meta_full"
     META_CHUNK = "meta_chunk"
     STATUS = "status"
+    HEALTH = "health"
     CMD_ACK = "cmd_ack"
     RPC_RESP = "rpc_resp"
 
@@ -85,7 +86,10 @@ def parse_topic(topic: str, prefix: str = "") -> ParsedTopic | None:
     if rest == "meta/objects":
         return ParsedTopic(house_id=house_id, device_id=device_id, message_type=MessageType.META_FULL, params={})
 
-    if rest == "status/online":
+    if rest == "status/health":
+        return ParsedTopic(house_id=house_id, device_id=device_id, message_type=MessageType.HEALTH, params={})
+
+    if rest in ("status/online", "status/offline"):
         return ParsedTopic(house_id=house_id, device_id=device_id, message_type=MessageType.STATUS, params={})
 
     if rest.startswith("cmd/ack/"):
