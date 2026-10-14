@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import json
+import math
+import time
 
 import aiomqtt
 import structlog
@@ -11,6 +13,34 @@ from cottage_monitoring.config import settings
 from cottage_monitoring.mqtt.topic_parser import MessageType, parse_topic
 
 logger = structlog.get_logger(__name__)
+
+
+def is_fresh_live_event(message, msg_type, payload: dict) -> bool:
+    """Only current, non-retained sensor events establish device liveness.
+
+    LWT timestamps describe connection setup, not disconnect; never order
+    live offline against them. Retained status is replay, not a transition.
+    """
+    if getattr(message, "retain", False):
+        return False
+    if msg_type == MessageType.EVENT:
+        events = [payload]
+    elif msg_type == MessageType.EVENT_BATCH:
+        events = payload.get("events", [])
+        if not isinstance(events, list):
+            return False
+    else:
+        return False
+    now = time.time()
+    return any(
+        isinstance(evt, dict)
+        and evt.get("ga") is not None and "value" in evt
+        and isinstance(evt.get("ts"), (int, float))
+        and not isinstance(evt["ts"], bool)
+        and math.isfinite(evt["ts"])
+        and -30 <= now - evt["ts"] <= 120
+        for evt in events
+    )
 
 
 async def handle_message(message: aiomqtt.Message) -> None:
@@ -35,6 +65,14 @@ async def handle_message(message: aiomqtt.Message) -> None:
         logger.debug("health_diagnostic_received", topic=topic_str)
         return
 
+    if not isinstance(payload, dict):
+        logger.warning("invalid_payload", topic=topic_str)
+        return
+
+    if parsed.message_type == MessageType.STATUS and getattr(message, "retain", False):
+        logger.info("retained_status_ignored", topic=topic_str)
+        return
+
     house_id = parsed.house_id
     device_id = parsed.device_id
     msg_type = parsed.message_type
@@ -46,7 +84,7 @@ async def handle_message(message: aiomqtt.Message) -> None:
     from cottage_monitoring.services.house_service import ensure_device, ensure_house, is_house_active
 
     await ensure_house(house_id)
-    await ensure_device(house_id, device_id)
+    device = await ensure_device(house_id, device_id)
 
     # CMD_ACK and RPC_RESP are responses to our requests — always process them
     if msg_type not in (MessageType.STATUS, MessageType.CMD_ACK, MessageType.RPC_RESP):
@@ -94,6 +132,13 @@ async def handle_message(message: aiomqtt.Message) -> None:
         await handle_rpc_response(
             house_id, parsed.params["client_id"], parsed.params["request_id"], payload
         )
+
+    # Successful current sensor events recover a stale/offline device naturally.
+    # Live LWT still applies immediately, even with a connection-time timestamp.
+    if is_fresh_live_event(message, msg_type, payload) and device.online_status != "online":
+        from cottage_monitoring.services.house_service import handle_status
+
+        await handle_status(house_id, device_id, {"status": "online"})
 
     logger.debug(
         "message_processed", house_id=house_id, device_id=device_id,
