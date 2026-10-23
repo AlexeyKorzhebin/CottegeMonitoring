@@ -16,6 +16,9 @@
 --
 --  ЗАЩИТЫ:
 --   A) Перегрев пола: floor_temp >= FLOOR_MAX_TEMP -> OFF
+--      Гостиная: обе зоны получают living_floor_max = max(1/3/5, 1/3/6).
+--      Нет числа с любого из двух датчиков — оба реле OFF. Иначе горячий
+--      датчик выпадает из максимума, и холодный разрешает греть оба контура.
 --   B) Долгий нагрев без Zigbee: Zigbee stale + relay ON долго -> OFF
 --
 --  Диагностика: пишем текст/числа в объекты диагностики
@@ -37,7 +40,9 @@ local USING_POWER_GA = 'Энергия на теплые полы'
 -- Внешняя температура
 local OUTDOOR_TEMP_OBJ = 'Погода - температура'
 
--- Свежесть Zigbee
+-- Свежесть Zigbee: скрипт смотрит object.updatetime воздуха, не «есть ли число».
+-- mqtt_listen для этих GA обязан grp.update (не checkupdate) — иначе age растёт
+-- при той же температуре и зона уходит в floor_fallback (R-029).
 local ZB_STALE_SEC = 1800  -- 30 мин: Aqara temp ~15 мин; после reboot MQTT молчит до первого z2m
 
 -- Защита по времени нагрева без Zigbee
@@ -92,6 +97,22 @@ local function to_number(v)
   return nil
 end
 
+-- peak, blind. blind = true, если хотя бы один адрес не дал число:
+-- пропуск nil оставлял бы потолок по оставшемуся, более холодному датчику.
+local function peak_temp(addrs)
+  local peak = nil
+  local blind = false
+  for i = 1, #addrs do
+    local t = to_number(grp.getvalue(addrs[i]))
+    if t == nil then
+      blind = true
+    elseif peak == nil or t > peak then
+      peak = t
+    end
+  end
+  return peak, blind
+end
+
 local function has_updatetime(obj)
   return (obj ~= nil) and (type(obj.updatetime) == 'number')
 end
@@ -137,12 +158,15 @@ end
 --   1.4+ - тамбур/холодная зона/витражи
 local floors = {}
 
+-- Один пол, два контура. Максимум и признак «датчик пропал» кладутся в обе зоны.
+local living_floor_max, living_floor_blind = peak_temp({'1/3/5', '1/3/6'})
+
 -- !!! room='...' заменить на реальные Zigbee объекты !!!
 table.insert(floors, {name='тамбур',          floor='1/3/2',  room='ZB Тамбур Темп',        					setpoint='1/6/2',  ctrl='1/4/2',  pow=200,  prior=2, k=3, w=1.4})
 table.insert(floors, {name='холл 1',          floor='1/3/3',  room='zb_sensor_fl1_hall_temperature',         	setpoint='1/6/3',  ctrl='1/4/3',  pow=1500, prior=3, k=5, w=1.0})
 table.insert(floors, {name='спальня',         floor='1/3/4',  room='zb_sensor_fl1_bedroom_temperature',     	setpoint='1/6/4',  ctrl='1/4/4',  pow=1600, prior=2, k=5, w=1.4})
-table.insert(floors, {name='гостиная 1',      floor='1/3/5',  room='zb_sensor_fl1_living_room_temperature',     setpoint='1/6/5',  ctrl='1/4/5',  pow=2200, prior=4, k=7, w=1.2})
-table.insert(floors, {name='гостиная 2',      floor='1/3/6',  room='zb_sensor_fl1_living_room_temperature',     setpoint='1/6/6',  ctrl='1/4/6',  pow=200,  prior=4, k=7, w=1.2})
+table.insert(floors, {name='гостиная 1',      floor='1/3/5',  floor_cap=living_floor_max, floor_blind=living_floor_blind, room='zb_sensor_fl1_living_room_temperature', setpoint='1/6/5', ctrl='1/4/5', pow=2200, prior=4, k=7, w=1.2})
+table.insert(floors, {name='гостиная 2',      floor='1/3/6',  floor_cap=living_floor_max, floor_blind=living_floor_blind, room='zb_sensor_fl1_living_room_temperature', setpoint='1/6/6', ctrl='1/4/6', pow=200,  prior=4, k=7, w=1.2})
 table.insert(floors, {name='кухня',           floor='1/3/7',  room='zb_sensor_fl1_kitchen_temperature',         setpoint='1/6/7',  ctrl='1/4/7',  pow=1450, prior=3, k=6, w=1.0})
 table.insert(floors, {name='ванная 1',        floor='1/3/8',  room='zb_sensor_fl1_bathroom_temperature',       	setpoint='1/6/8',  ctrl='1/4/8',  pow=225,  prior=2, k=2, w=0.8})
 
@@ -200,8 +224,8 @@ for i = 1, #floors do
   -- Уставка пользователя
   f.sp = grp.getvalue(f.setpoint)
 
-  -- Температура пола
-  f.floor_ct = grp.getvalue(f.floor)
+  -- Температура пола. nil, если объект пустой или это не число.
+  f.floor_ct = to_number(grp.getvalue(f.floor))
 
   -- Zigbee температура воздуха
   local room_obj = grp.find(f.room)
@@ -213,6 +237,7 @@ for i = 1, #floors do
     f.zb_ct = to_number(room_obj.value)
     if f.zb_ct ~= nil then
       f.zb_age = tnow - room_obj.updatetime
+      -- updatetime двигает только grp.update в mqtt_listen; checkupdate = stale = fallback
       f.zb_ok = (f.zb_age <= ZB_STALE_SEC)
     end
   end
@@ -235,23 +260,35 @@ for i = 1, #floors do
   if f.zb_ok then
     f.mode = 'zigbee'
     f.ctrl_temp = f.zb_ct
-    f.effective_sp = f.sp
+    f.effective_sp = to_number(f.sp)
     cnt_zigbee = cnt_zigbee + 1
   else
     f.mode = 'floor_fallback'
     f.ctrl_temp = f.floor_ct
-    f.effective_sp = f.sp + f.k + f.kw_room
+    local sp = to_number(f.sp)
+    if sp == nil or type(f.floor_ct) ~= 'number' then
+      f.effective_sp = nil
+    else
+      f.effective_sp = sp + f.k + f.kw_room
+    end
     cnt_fallback = cnt_fallback + 1
   end
 
   --log('TP: ' .. f.name .. ' ' .. f.effective_sp)  
     
-  -- Недогрев
-  f.need = f.effective_sp - f.ctrl_temp
-  if f.need < 0 then f.need = 0 end
+  -- Недогрев. Нет числа — не вычитаем: иначе весь скрипт падает на nil.
+  if type(f.effective_sp) == 'number' and type(f.ctrl_temp) == 'number' then
+    f.need = f.effective_sp - f.ctrl_temp
+    if f.need < 0 then f.need = 0 end
+  else
+    f.need = 0
+  end
 
-  -- Защита A: перегрев пола
-  f.floor_overheat = (type(f.floor_ct) == 'number') and (f.floor_ct >= FLOOR_MAX_TEMP)
+  -- Защита A. Гостиная: floor_blind гасит оба контура, если хоть один датчик пуст.
+  -- Остальные комнаты: нет своего числа — тоже OFF, греть вслепую нельзя.
+  local cap = f.floor_cap
+  if type(cap) ~= 'number' then cap = f.floor_ct end
+  f.floor_overheat = f.floor_blind or type(cap) ~= 'number' or cap >= FLOOR_MAX_TEMP
   if f.floor_overheat then
     cnt_overheat = cnt_overheat + 1
   end
@@ -293,8 +330,10 @@ for _, f in ipairs(floors) do
     want_on = false
   else
     if f.mode == 'zigbee' then
-      -- Гистерезис по воздуху
-      if f.ctrl_temp < (f.effective_sp - HYST_ON) then
+      -- Гистерезис по воздуху. Нет числа — OFF, сравнение с nil роняет скрипт.
+      if type(f.ctrl_temp) ~= 'number' or type(f.effective_sp) ~= 'number' then
+        want_on = false
+      elseif f.ctrl_temp < (f.effective_sp - HYST_ON) then
         want_on = true
       elseif f.ctrl_temp > (f.effective_sp + HYST_OFF) then
         want_on = false
@@ -352,7 +391,7 @@ grp.update(USING_POWER_GA, using_power)
 
 -- Короткие строки
 grp.update(DIAG_MODE_OBJ, string.format('zigbee=%d fallback=%d on=%d', cnt_zigbee, cnt_fallback, cnt_on))
-grp.update(DIAG_BLOCK_OBJ, string.format('overheat=%d long_block=%d', cnt_overheat, cnt_longblock))
+grp.update(DIAG_BLOCK_OBJ, string.format('overheat=%d long_block=%d living_max=%s blind=%d', cnt_overheat, cnt_longblock, fmt1(living_floor_max), living_floor_blind and 1 or 0))
 grp.update(DIAG_WEATHER_OBJ, string.format('Tout=%s kw_base=%s', fmt1(to_number(tout)), fmt1(kw_base)))
 grp.update(DIAG_POWER_OBJ, string.format('using=%d limit=%d', using_power, grp.getvalue(MAX_POWER_GA)))
 
@@ -362,7 +401,7 @@ text = text .. 'ТП авто: ВКЛ\n'
 text = text .. 'Температура улицы: ' .. fmt1(to_number(tout)) .. '°C\n'
 text = text .. 'Погодная добавка база: ' .. fmt1(kw_base) .. '°C\n'
 text = text .. 'Режимы: zigbee=' .. cnt_zigbee .. ', fallback=' .. cnt_fallback .. '\n'
-text = text .. 'Блокировки: overheat=' .. cnt_overheat .. ', long_block=' .. cnt_longblock .. '\n'
+text = text .. 'Блокировки: overheat=' .. cnt_overheat .. ', long_block=' .. cnt_longblock .. ', living_max=' .. fmt1(living_floor_max) .. ', blind=' .. (living_floor_blind and 1 or 0) .. '\n'
 text = text .. 'Мощность: ' .. using_power .. ' / ' .. grp.getvalue(MAX_POWER_GA) .. ' Вт\n'
 
 grp.update(DIAG_TEXT_OBJ, text)
