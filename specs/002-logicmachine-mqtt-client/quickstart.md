@@ -236,6 +236,8 @@ ssh root@192.168.100.130 "ps w | grep scripting-resident"
 
 Обновление resident 4 без Web UI — тот же паттерн, что `./deploy/lm-watchdog-update.sh`, но источник `mqtt_listen.lua` и id **4** (не 73). После `db:update` нужен respawn `lua /lib/genohm-scada/core/scripting-resident.lua 4`. Daemon cottage-monitoring не рестартовать: новые GA подхватит schema/groupwrite.
 
+Снимок включённых скриптов LM на 2026-10-24 без вшитых секретов: `cm-client/scripts/lm-live/2026-10-24/`. Вне git остались light control и Setup watch dog timers (пароль admin в URL), `mqtt_listen` и zigbee send (пароль MQTT), погода Яндекса (API key), `telegram_listner` (токен бота). id 39 в снимке — текст до общей блокировки гостиной; на LM с этой ночи `docs/superpowers/plans/manage_warm_floor.lua`: пик датчиков гостиной 1/2 гасит оба реле с 34°C и отпускает их на 32°C.
+
 ### Конфиг и TLS без Web UI
 
 | Действие | HTTP (admin + Referer) |

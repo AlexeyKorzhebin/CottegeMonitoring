@@ -1,0 +1,143 @@
+{
+  "captured_at": "2026-10-24T01:30:00+03:00",
+  "source": "LogicMachine scripting table, active=1, before warm-floor group-block update",
+  "note": "id 39 в этой папке — текст до заливки общей блокировки гостиной. Текущий текст на LM — docs/superpowers/plans/manage_warm_floor.lua.",
+  "included": [
+    {
+      "id": 10,
+      "name": "write last working time",
+      "type": "scheduled",
+      "bytes": 98,
+      "file": "0010-write-last-working-time.lua"
+    },
+    {
+      "id": 29,
+      "name": "night lighing - sunset  / sunrise",
+      "type": "scheduled",
+      "bytes": 868,
+      "file": "0029-night-lighting.lua"
+    },
+    {
+      "id": 31,
+      "name": "Event for Автоматическое управление отоплением (1/7/1)",
+      "type": "event",
+      "bytes": 188,
+      "file": "0031-event-auto-heating.lua"
+    },
+    {
+      "id": 32,
+      "name": "Event for Уставка ТП - master (1/6/1)",
+      "type": "event",
+      "bytes": 123,
+      "file": "0032-event-floor-setpoint-master.lua"
+    },
+    {
+      "id": 33,
+      "name": "Event for electric meter - Total P (32/1/35)",
+      "type": "event",
+      "bytes": 82,
+      "file": "0033-event-meter-total-p.lua"
+    },
+    {
+      "id": 39,
+      "name": "manage warm floors",
+      "type": "scheduled",
+      "bytes": 15291,
+      "file": "0039-manage-warm-floors.lua"
+    },
+    {
+      "id": 50,
+      "name": "получение последних данных потребления энергии",
+      "type": "scheduled",
+      "bytes": 4379,
+      "file": "0050-energy-last-values.lua"
+    },
+    {
+      "id": 51,
+      "name": "Event for electric meter - Total  AP energy (32/1/39)",
+      "type": "event",
+      "bytes": 259,
+      "file": "0051-event-meter-ap-energy.lua"
+    },
+    {
+      "id": 52,
+      "name": "Event for energy meter - consumption Daily (32/1/58)",
+      "type": "event",
+      "bytes": 0,
+      "file": "0052-event-consumption-daily.lua"
+    },
+    {
+      "id": 53,
+      "name": "Event for energy_meter - consumption Total (32/1/59)",
+      "type": "event",
+      "bytes": 0,
+      "file": "0053-event-consumption-total.lua"
+    },
+    {
+      "id": 70,
+      "name": "Получение значения загрузки контроллера",
+      "type": "scheduled",
+      "bytes": 1190,
+      "file": "0070-controller-load.lua"
+    },
+    {
+      "id": 71,
+      "name": "чтение температур из RD по mdobus",
+      "type": "resident",
+      "bytes": 13721,
+      "file": "0071-modbus-floor-temps.lua"
+    },
+    {
+      "id": 72,
+      "name": "чтение статусов основного света",
+      "type": "resident",
+      "bytes": 12071,
+      "file": "0072-main-light-status.lua"
+    },
+    {
+      "id": 73,
+      "name": "watchdog-cm-mqtt",
+      "type": "resident",
+      "bytes": 11953,
+      "file": "0073-watchdog-cm-mqtt.lua"
+    }
+  ],
+  "excluded": [
+    {
+      "id": 3,
+      "name": "light control",
+      "type": "event",
+      "reason": "пароль admin в URL"
+    },
+    {
+      "id": 4,
+      "name": "mqtt_listen",
+      "type": "resident",
+      "reason": "пароль MQTT в тексте"
+    },
+    {
+      "id": 11,
+      "name": "Setup watch dog timers",
+      "type": "resident",
+      "reason": "пароль admin в URL"
+    },
+    {
+      "id": 34,
+      "name": "Получение погоды в Аксиньино",
+      "type": "scheduled",
+      "reason": "ключ Yandex Weather API"
+    },
+    {
+      "id": 36,
+      "name": "zigbee send",
+      "type": "event",
+      "reason": "пароль MQTT в тексте"
+    },
+    {
+      "id": 46,
+      "name": "telegram_listner ",
+      "type": "resident",
+      "reason": "токен Telegram-бота"
+    }
+  ]
+}
