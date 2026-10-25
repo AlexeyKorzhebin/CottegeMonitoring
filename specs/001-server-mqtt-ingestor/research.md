@@ -941,7 +941,7 @@ Stat-плитки (`time_series` + колонка `metric`): Grafana Postgres lo
 
 Клиент публикует LWT в `cm/<house>/<device>/v1/status/offline`. Парсер принимал только `status/online`, ингестор писал `unknown_topic` и оставлял `online_status=online`. 2026-10-09 брокер оборвал `house-lm-main` по keepalive в 09:39 МСК, LWT дошёл, плитка Grafana осталась ON. Retained `status/online` при этом живёт отдельно и при рестарте ингестора может снова выставить online.
 
-Решение: `status/offline` идёт в тот же `handle_status`. Раз в 30 с устройства с `online_status=online` и `last_seen` старше `DEVICE_OFFLINE_AFTER_SECONDS` (180) переводятся в offline, статус дома пересчитывается, `last_seen` не сдвигается. Плитка «Дом online» дополнительно требует `last_seen` не старше 3 минут. `status/health` по-прежнему не статус: в payload `ts` LWT запечён на момент `will_set`, по нему свежесть не считать.
+Решение: `status/offline` идёт в тот же `handle_status`. Раз в 30 с устройства с `online_status=online` и `last_seen` старше `DEVICE_OFFLINE_AFTER_SECONDS` (180) переводятся в offline, статус дома пересчитывается, `last_seen` не сдвигается. Плитка «Дом online» дополнительно требует `last_seen` не старше 3 минут. Retained `status/online` и `status/offline` ингестор отбрасывает, чтобы рестарт не поднимал дом по старому LWT. `status/health` парсится отдельно и не обновляет `last_seen`: в payload `ts` LWT запечён на момент `will_set`, по нему свежесть не считать.
 
 ---
 

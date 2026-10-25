@@ -559,7 +559,7 @@ Contact point `cottage-telegram`, route matcher `team=cottage`.
 
 `cottage-lm-load15-high`: `noDataState=OK` (отсутствие точек не спамит — за stale отвечает другой алерт).
 
-Плитка «Дом online»: ON только при `online_status = online` и `last_seen` не старше 3 минут. LWT приходит в `status/offline`. Сервер сам ставит `offline`, если сообщений нет дольше 180 с (`DEVICE_OFFLINE_AFTER_SECONDS`, R-029). `last_seen` при этом не обновляется.
+Плитка «Дом online»: ON только при `online_status = online` и `last_seen` не старше 3 минут. LWT приходит в `status/offline`. Сервер сам ставит `offline`, если сообщений нет дольше 180 с (`DEVICE_OFFLINE_AFTER_SECONDS`, R-029). `last_seen` при этом не обновляется. Retained `status/online` и `status/offline` не применяются; `status/health` не двигает `last_seen`.
 
 ### Cursor / MCP
 
