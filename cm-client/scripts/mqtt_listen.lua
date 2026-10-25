@@ -20,9 +20,14 @@ end
 local AI_SRV_MIN_INTERVAL = 15
 local ai_last = {}
 
--- Zigbee JSON always grp.update: humidity/battery publishes include the same
--- temperature, and checkupdate/float-compare leaves temperature.updatetime stale.
--- AI-SRV still goes through ai_knx (15s / skip unchanged) before this.
+-- НЕ менять knx_check на grp.checkupdate для Zigbee JSON (R-029, 2026-09-16).
+-- grp.checkupdate НЕ обновляет object.updatetime, если значение то же
+-- (и если float из MQTT чуть отличается от DPT9, но меньше дельты — тоже не пишет).
+-- mqtt_listen шлёт температуру в каждом JSON вместе с влажностью/battery;
+-- воздух «замирает» на 10–15 мин, manage_warm_floors считает Zigbee протухшим
+-- (age > ZB_STALE_SEC) и греет пол до setpoint+k, хотя в комнате уже жара.
+-- AI-SRV режется отдельно в ai_knx (15 с / skip unchanged) ДО этого вызова.
+-- Сырые DRM88-строки ниже по файлу по-прежнему grp.checkupdate.
 local function knx_check(ga, value)
   grp.update(ga, value)
 end
