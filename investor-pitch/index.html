@@ -1,0 +1,445 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<title>CottageMonitoring · инвесторам</title>
+<!--
+  Один файл: Chrome блокирует iframe на file://, поэтому стена из отдельных HTML
+  показывала пустые слайды. Здесь все 12 страниц внутри <deck-stage>.
+  Стрелки / пробел / клик по краям. Полноэкран — F11 или Cmd+Shift+F.
+-->
+<style>
+  :root {
+    --bg: #f5f5f7;
+    --ink: #1d1d1f;
+    --muted: #86868b;
+    --dim: #6e6e73;
+    --green: #024538;
+    --card: #ffffff;
+    --hair: #e8e8ed;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { background: #000; }
+  deck-stage > section {
+    font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text",
+      "Helvetica Neue", "Segoe UI", sans-serif;
+    color: var(--ink);
+    background: var(--bg);
+    -webkit-font-smoothing: antialiased;
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
+  }
+  deck-stage > section.active { display: flex !important; flex-direction: column; }
+  .eyebrow { font-size: 17px; font-weight: 600; letter-spacing: -0.01em; color: var(--green); margin-bottom: 16px; }
+  h1, h2 { font-weight: 600; letter-spacing: -0.035em; line-height: 1.08; }
+  .green { color: var(--green); }
+  .card { background: var(--card); border: 1px solid var(--hair); border-radius: 22px; }
+  .shot { width: 100%; height: 100%; object-fit: cover; object-position: top; display: block; }
+
+  .s01 { align-items: center; justify-content: center; text-align: center; padding: 80px; }
+  .s01 img { width: 72px; height: 72px; border-radius: 18px; margin-bottom: 48px; }
+  .s01 h1 { font-size: 84px; max-width: 1400px; }
+  .s01 .sub { margin-top: 28px; font-size: 28px; font-weight: 400; letter-spacing: -0.02em; line-height: 1.35; color: var(--muted); max-width: 920px; }
+
+  .s02 { padding: 100px 108px; justify-content: center; }
+  .s02 h2 { font-size: 56px; max-width: 1200px; }
+  .s02 .lede { margin-top: 28px; font-size: 24px; line-height: 1.45; letter-spacing: -0.015em; color: var(--muted); max-width: 820px; }
+  .s02 .row { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 16px; margin-top: 64px; }
+  .s02 .card { padding: 32px 36px; min-height: 220px; }
+  .s02 h3 { font-size: 22px; font-weight: 600; letter-spacing: -0.025em; margin-bottom: 10px; }
+  .s02 p { font-size: 18px; line-height: 1.45; color: var(--muted); letter-spacing: -0.01em; }
+
+  .s03.active { display: grid !important; grid-template-columns: 0.92fr 1.08fr; gap: 80px; padding: 100px 108px; align-items: center; }
+  .s03 h2 { font-size: 56px; }
+  .s03 .lead p { margin-top: 22px; font-size: 22px; line-height: 1.45; letter-spacing: -0.015em; color: var(--muted); max-width: 480px; }
+  .s03 .rows { display: flex; flex-direction: column; gap: 14px; }
+  .s03 .row { display: grid; grid-template-columns: 1fr auto; align-items: center; gap: 24px; padding: 28px 32px; }
+  .s03 h3 { font-size: 22px; font-weight: 600; letter-spacing: -0.025em; }
+  .s03 .hint { margin-top: 4px; font-size: 17px; color: var(--muted); }
+  .s03 .tag { font-size: 15px; font-weight: 500; color: var(--dim); white-space: nowrap; }
+
+  .s-flow { padding: 52px 64px 40px; }
+  .s-flow h2 { font-size: 42px; }
+  .s-flow .lede { margin-top: 12px; font-size: 20px; line-height: 1.4; color: var(--muted); max-width: 920px; }
+  .s-flow .board {
+    flex: 1; min-height: 0; margin-top: 24px;
+    display: grid;
+    grid-template-columns: minmax(0,1.7fr) 52px minmax(0,0.82fr) 52px minmax(0,1fr) 52px minmax(0,0.95fr);
+    grid-template-rows: auto minmax(0,1fr) auto;
+    align-items: stretch;
+  }
+  .s-flow .zh {
+    font-size: 13px; font-weight: 600; letter-spacing: -0.01em; color: var(--muted);
+    padding-bottom: 10px;
+  }
+  .s-flow .field {
+    grid-column: 1; grid-row: 2;
+    background: var(--card); border: 1px solid var(--hair); border-radius: 22px;
+    padding: 20px 18px; display: grid;
+    grid-template-columns: minmax(0,0.9fr) 36px minmax(0,1fr) 36px minmax(0,1.15fr);
+    grid-template-rows: auto minmax(0,1.05fr) 10px minmax(0,0.95fr);
+    min-height: 0; align-items: stretch;
+  }
+  .s-flow .field .wired {
+    grid-column: 1 / 4; grid-row: 4;
+    display: grid; grid-template-columns: 1fr 1fr; gap: 10px; min-height: 0;
+  }
+  .s-flow .field .fh {
+    font-size: 12px; font-weight: 600; color: var(--muted); letter-spacing: -0.01em; padding-bottom: 8px;
+  }
+  .s-flow .node {
+    background: var(--card); border: 1px solid var(--hair); border-radius: 22px;
+    padding: 18px 20px; min-height: 0; display: flex; flex-direction: column; justify-content: center;
+  }
+  .s-flow .field .node { background: var(--bg); }
+  .s-flow .node h3 { font-size: 19px; font-weight: 600; letter-spacing: -0.025em; }
+  .s-flow .node p { margin-top: 6px; font-size: 14px; line-height: 1.35; color: var(--muted); }
+  .s-flow .lm h3 { color: var(--green); }
+  .s-flow .stack { display: flex; flex-direction: column; gap: 10px; min-height: 0; }
+  .s-flow .stack .node { flex: 1; }
+  .s-flow .plan { border-style: dashed; background: transparent; }
+  .s-flow .plan h3, .s-flow .plan p { color: var(--muted); }
+  .s-flow .mqtt {
+    grid-column: 3; grid-row: 2;
+    background: var(--card); border: 1px solid var(--hair); border-radius: 22px;
+    padding: 24px 18px; display: flex; flex-direction: column; justify-content: center; text-align: center;
+  }
+  .s-flow .mqtt h3 { font-size: 20px; font-weight: 600; letter-spacing: -0.03em; color: var(--green); }
+  .s-flow .mqtt .sub { margin-top: 8px; font-size: 14px; color: var(--muted); line-height: 1.35; }
+  .s-flow .chips { display: flex; flex-wrap: wrap; justify-content: center; gap: 6px; margin-top: 16px; }
+  .s-flow .chips span {
+    font-size: 12px; font-weight: 500; color: var(--ink);
+    background: var(--bg); border-radius: 8px; padding: 5px 8px; letter-spacing: -0.01em;
+  }
+  .s-flow .cloud, .s-flow .north { min-height: 0; }
+  .s-flow .arr {
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    gap: 5px; color: var(--green); font-size: 11px; font-weight: 600; letter-spacing: -0.01em; text-align: center;
+    line-height: 1.2;
+  }
+  .s-flow .arr i {
+    display: block; width: 28px; height: 1.5px; background: currentColor; position: relative;
+  }
+  .s-flow .arr i::after {
+    content: ""; position: absolute; right: -1px; top: 50%; width: 6px; height: 6px;
+    border-right: 1.5px solid currentColor; border-top: 1.5px solid currentColor;
+    transform: translateY(-50%) rotate(45deg);
+  }
+  .s-flow .arr.both i::before {
+    content: ""; position: absolute; left: -1px; top: 50%; width: 6px; height: 6px;
+    border-left: 1.5px solid currentColor; border-bottom: 1.5px solid currentColor;
+    transform: translateY(-50%) rotate(45deg);
+  }
+  .s-flow .arr.dim { color: var(--dim); }
+  .s-flow .foot {
+    grid-column: 1 / -1; grid-row: 3;
+    margin-top: 16px; font-size: 14px; color: var(--muted);
+  }
+
+  .s04 { padding: 92px 108px; }
+  .s04 h2 { font-size: 52px; margin-bottom: 48px; }
+  .s04 .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  .s04 .card { padding: 32px 36px; }
+  .s04 h3 { font-size: 22px; font-weight: 600; letter-spacing: -0.025em; margin-bottom: 8px; }
+  .s04 p { font-size: 18px; line-height: 1.45; color: var(--muted); }
+
+  .s05.active { display: grid !important; grid-template-columns: 1fr 1fr; gap: 80px; padding: 100px 108px; align-items: center; }
+  .s05 h2 { font-size: 56px; }
+  .s05 .lead p { margin-top: 22px; font-size: 22px; line-height: 1.45; color: var(--muted); max-width: 460px; }
+  .s05 .rows { display: flex; flex-direction: column; gap: 12px; }
+  .s05 .row { display: grid; grid-template-columns: 140px 1fr; gap: 20px; align-items: baseline; padding: 22px 28px; }
+  .s05 .k { font-size: 15px; font-weight: 600; color: var(--green); }
+  .s05 .v { font-size: 20px; font-weight: 500; letter-spacing: -0.02em; }
+
+  .s06 { padding: 92px 108px; }
+  .s06 h2 { font-size: 52px; max-width: 1300px; }
+  .s06 .lede { margin: 20px 0 48px; font-size: 22px; line-height: 1.45; color: var(--muted); max-width: 780px; }
+  .s06 .grid { display: grid; grid-template-columns: 1.15fr 1fr 1fr; gap: 16px; }
+  .s06 .card { padding: 32px 36px; min-height: 280px; }
+  .s06 .k { font-size: 15px; font-weight: 600; color: var(--green); margin-bottom: 12px; }
+  .s06 h3 { font-size: 24px; font-weight: 600; letter-spacing: -0.025em; margin-bottom: 12px; }
+  .s06 p { font-size: 18px; line-height: 1.45; color: var(--muted); }
+
+  .s07 { padding: 56px 64px 48px; }
+  .s07 .head { display: flex; justify-content: space-between; align-items: flex-end; margin-bottom: 22px; }
+  .s07 h2 { font-size: 40px; }
+  .s07 .note { font-size: 16px; color: var(--muted); max-width: 560px; text-align: right; }
+  .s07 .grid { flex: 1; display: grid; grid-template-columns: 1fr 1fr; grid-template-rows: 1fr 1fr; gap: 14px; min-height: 0; }
+  .s07 .frame { overflow: hidden; position: relative; min-height: 0; }
+  .s07 .frame img { width: 100%; height: 100%; object-fit: cover; object-position: top left; }
+  .s07 .lab {
+    position: absolute; left: 16px; bottom: 14px;
+    background: rgba(255,255,255,0.92); border-radius: 999px;
+    padding: 6px 12px; font-size: 13px; font-weight: 600; letter-spacing: -0.01em;
+  }
+
+  .s08.active { display: grid !important; grid-template-columns: 0.9fr 1.1fr; gap: 56px; padding: 80px 88px; align-items: center; }
+  .s08 h2 { font-size: 48px; }
+  .s08 .lede { margin-top: 20px; font-size: 20px; line-height: 1.45; color: var(--muted); max-width: 480px; }
+  .s08 .shots { display: grid; grid-template-columns: 0.72fr 1fr; gap: 16px; height: 780px; }
+  .s08 .phone { overflow: hidden; }
+  .s08 .stack { display: flex; flex-direction: column; gap: 16px; min-height: 0; }
+  .s08 .stack .card { flex: 1; overflow: hidden; min-height: 0; }
+  .s08 .foot { margin-top: 16px; font-size: 13px; color: var(--muted); max-width: 480px; }
+
+  .s09 { padding: 80px 108px; }
+  .s09 h2 { font-size: 48px; margin-bottom: 36px; }
+  .s09 .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+  .s09 .card { padding: 28px 32px; }
+  .s09 .n { font-size: 13px; font-weight: 600; color: var(--green); margin-bottom: 8px; }
+  .s09 h3 { font-size: 22px; font-weight: 600; letter-spacing: -0.025em; margin-bottom: 8px; }
+  .s09 p { font-size: 17px; line-height: 1.45; color: var(--muted); }
+  .s09 .src { margin-top: 28px; font-size: 13px; color: var(--muted); }
+
+  .s10.active { display: grid !important; grid-template-columns: 0.85fr 1.15fr; gap: 72px; padding: 100px 108px; align-items: center; }
+  .s10 h2 { font-size: 52px; }
+  .s10 .lead p { margin-top: 22px; font-size: 22px; line-height: 1.45; color: var(--muted); max-width: 440px; }
+  .s10 .rows { display: flex; flex-direction: column; gap: 12px; }
+  .s10 .row { padding: 22px 28px; }
+  .s10 h3 { font-size: 20px; font-weight: 600; letter-spacing: -0.02em; }
+  .s10 .row p { margin-top: 4px; font-size: 16px; color: var(--muted); }
+
+  .s11 { padding: 92px 108px; justify-content: center; }
+  .s11 h2 { font-size: 56px; max-width: 1200px; }
+  .s11 .grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 16px; margin-top: 56px; }
+  .s11 .card { padding: 32px 36px; min-height: 240px; }
+  .s11 .st { font-size: 13px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; margin-bottom: 14px; }
+  .s11 .live { color: var(--green); }
+  .s11 .plan { color: var(--muted); }
+  .s11 h3 { font-size: 22px; font-weight: 600; letter-spacing: -0.025em; margin-bottom: 10px; }
+  .s11 p { font-size: 17px; line-height: 1.45; color: var(--muted); }
+</style>
+</head>
+<body>
+<deck-stage>
+  <section class="s01">
+    <img src="assets/logo.png" alt="">
+    <h1>Облако для дома,<br>который уже <span class="green">умный</span>.</h1>
+    <p class="sub">Автоматика остаётся на объекте. Мы даём память, команды и голос.</p>
+  </section>
+
+  <section class="s02">
+    <div class="eyebrow">Продукт</div>
+    <h2>CottageMonitoring — облачный контур<br>для профессиональной автоматизации.</h2>
+    <p class="lede">LogicMachine остаётся мозгом дома. Облако снимает телеметрию, хранит историю и отдаёт управление через API, Grafana и агента.</p>
+    <div class="row">
+      <div class="card"><h3>Не замена дома</h3><p>Сценарии и KNX живут на контроллере. Если облако недоступно, дом продолжает работать.</p></div>
+      <div class="card"><h3>Много домов</h3><p>Каждый объект — house_id. Несколько контроллеров на дом. Один протокол на всех.</p></div>
+      <div class="card"><h3>Уже в проде</h3><p>Живая усадьба, Grafana, Telegram-агент. Алиса и Home Assistant — следующий слой сверху.</p></div>
+    </div>
+  </section>
+
+  <section class="s03">
+    <div class="lead">
+      <div class="eyebrow">Архитектура</div>
+      <h2>Один контур.<br>Несколько узлов.</h2>
+      <p>Облако не ходит на контроллер. Связь только через MQTT. Радио, Алиса и Home Assistant входят как слои — не как новые мозги дома.</p>
+    </div>
+    <div class="rows">
+      <div class="card row"><div><h3>LogicMachine и Raspberry</h3><div class="hint">KNX, Modbus, Zigbee, Bluetooth</div></div><div class="tag">Поле</div></div>
+      <div class="card row"><div><h3>MQTT v1 · TLS</h3><div class="hint">Телеметрия, команды, ack. Без прямого HTTP.</div></div><div class="tag">Связь</div></div>
+      <div class="card row"><div><h3>История, срез, REST, MCP</h3><div class="hint">Timescale, Redis, схема с версиями</div></div><div class="tag">Облако</div></div>
+      <div class="card row"><div><h3>Grafana, агент, Алиса, HA</h3><div class="hint">Оператор, чат, экосистемы — сверху</div></div><div class="tag">Интерфейсы</div></div>
+    </div>
+  </section>
+
+  <section class="s-flow">
+    <div class="eyebrow">Потоки</div>
+    <h2>Облако говорит только<br>с LogicMachine.</h2>
+    <p class="lede">Raspberry держит Zigbee и Bluetooth и слушает групповые адреса контроллера. В облако уходит MQTT с LogicMachine — не радио.</p>
+    <div class="board">
+      <div class="zh" style="grid-column:1">Поле</div>
+      <div class="zh" style="grid-column:3">Связь с облаком</div>
+      <div class="zh" style="grid-column:5">Облако</div>
+      <div class="zh" style="grid-column:7">Интерфейсы</div>
+
+      <div class="field">
+        <div class="fh" style="grid-column:1">Эфир</div>
+        <div class="fh" style="grid-column:3">Радио</div>
+        <div class="fh" style="grid-column:5">Мозг дома</div>
+
+        <div class="node" style="grid-column:1;grid-row:2">
+          <h3>Zigbee · Bluetooth</h3>
+          <p>Датчики, реле, батареи. Эфир, не облако.</p>
+        </div>
+        <div class="arr both" style="grid-column:2;grid-row:2"><span>радио</span><i></i></div>
+        <div class="node" style="grid-column:3;grid-row:2">
+          <h3>Raspberry</h3>
+          <p>Слушает MQTT с групповыми адресами LogicMachine. С облаком не связан.</p>
+        </div>
+        <div class="arr both" style="grid-column:4;grid-row:2"><span>GA</span><i></i></div>
+        <div class="node lm" style="grid-column:5;grid-row:2 / 5">
+          <h3>LogicMachine</h3>
+          <p>Сценарии. Единственный узел, который говорит с облаком.</p>
+        </div>
+
+        <div class="wired">
+          <div class="node">
+            <h3>KNX</h3>
+            <p>Устройства на шине.</p>
+          </div>
+          <div class="node">
+            <h3>Modbus</h3>
+            <p>Устройства на шине.</p>
+          </div>
+        </div>
+        <div class="arr both" style="grid-column:4;grid-row:4"><span>шина</span><i></i></div>
+      </div>
+
+      <div class="arr both" style="grid-column:2;grid-row:2"><span>events · cmd</span><i></i></div>
+
+      <div class="mqtt">
+        <h3>MQTT v1 · TLS</h3>
+        <div class="sub">Только LogicMachine ↔ сервер. Радио сюда не ходит.</div>
+        <div class="chips">
+          <span>events</span><span>state</span><span>cmd</span><span>ack</span><span>online</span>
+        </div>
+      </div>
+
+      <div class="arr both" style="grid-column:4;grid-row:2"><span>state · cmd</span><i></i></div>
+
+      <div class="stack cloud" style="grid-column:5;grid-row:2">
+        <div class="node">
+          <h3>Сервер</h3>
+          <p>FastAPI. История, срез, команды.</p>
+        </div>
+        <div class="node">
+          <h3>Timescale · Redis</h3>
+          <p>События и актуальное состояние.</p>
+        </div>
+        <div class="node">
+          <h3>REST · MCP</h3>
+          <p>Валидация, затем cmd в брокер.</p>
+        </div>
+      </div>
+
+      <div class="arr both" style="grid-column:6;grid-row:2"><span>API</span><i></i></div>
+
+      <div class="stack north" style="grid-column:7;grid-row:2">
+        <div class="node">
+          <h3>Grafana</h3>
+          <p>Оператор. Живой дом.</p>
+        </div>
+        <div class="node">
+          <h3>Агент</h3>
+          <p>Telegram в проде. Семантика, не адрес.</p>
+        </div>
+        <div class="node plan">
+          <h3>Алиса · HA</h3>
+          <p>Адаптеры сверху, не в дом.</p>
+        </div>
+      </div>
+
+      <p class="foot">KNX и радио сходятся в LogicMachine. Команда из облака — cmd на контроллер, дальше grp.write и групповые адреса. Пунктир — план.</p>
+    </div>
+  </section>
+
+  <section class="s04">
+    <div class="eyebrow">Возможности</div>
+    <h2>Что система делает сегодня.</h2>
+    <div class="grid">
+      <div class="card"><h3>Телеметрия</h3><p>Поток событий с шины и актуальный срез каждого объекта. Схема дома версионируется по хешу.</p></div>
+      <div class="card"><h3>Управление</h3><p>Команда с подтверждением: sent → ack / error / timeout. Retry и идемпотентность по request_id.</p></div>
+      <div class="card"><h3>Наблюдаемость</h3><p>Online/offline через LWT. Grafana: энергия, климат, свет, батареи, нагрузка контроллера.</p></div>
+      <div class="card"><h3>Голос и агенты</h3><p>MCP-tools с семантикой: «свет на первом этаже», не групповой адрес. Telegram уже в проде.</p></div>
+    </div>
+  </section>
+
+  <section class="s05">
+    <div class="lead">
+      <div class="eyebrow">Стек</div>
+      <h2>Знакомые части.<br>Жёсткий контракт.</h2>
+      <p>Поле — Lua на LogicMachine. Облако — один asyncio-процесс. AI садится на MCP, не на шину.</p>
+    </div>
+    <div class="rows">
+      <div class="card row"><div class="k">Поле</div><div class="v">LogicMachine · Lua 5.1 · KNX · watchdog</div></div>
+      <div class="card row"><div class="k">Радио</div><div class="v">Raspberry · Zigbee · Bluetooth · групповые адреса LM</div></div>
+      <div class="card row"><div class="k">Шина</div><div class="v">Mosquitto · TLS · протокол v1</div></div>
+      <div class="card row"><div class="k">Облако</div><div class="v">Python 3.12 · FastAPI · Timescale · Redis</div></div>
+      <div class="card row"><div class="k">Север</div><div class="v">Grafana · MCP · OpenClaw · REST</div></div>
+    </div>
+  </section>
+
+  <section class="s06">
+    <div class="eyebrow">Расширение поля</div>
+    <h2>Провод держит LogicMachine.<br>Эфир закроет Raspberry.</h2>
+    <p class="lede">Zigbee и Bluetooth на Raspberry слушают групповые адреса LogicMachine. С облаком Pi не связан — в MQTT v1 ходит только контроллер.</p>
+    <div class="grid">
+      <div class="card"><div class="k">Сейчас</div><h3>Радио уже в контуре</h3><p>Датчики воздуха, батареи, PIR, BLE-чайник видны как объекты KNX. Облако не знает, какой чип в стене.</p></div>
+      <div class="card"><div class="k">Дальше</div><h3>Точка покрытия</h3><p>Гостевой дом, участок, хозблок — без протяжки шины. Дешевле вторая LogicMachine.</p></div>
+      <div class="card"><div class="k">Контракт</div><h3>Не ещё один брокер</h3><p>Pi слушает GA с LogicMachine. Не пишет в базу, не знает про Алису, в облако не ходит.</p></div>
+    </div>
+  </section>
+
+  <section class="s07">
+    <div class="head">
+      <div>
+        <div class="eyebrow">Оператор</div>
+        <h2>Живой дом. Снято с Grafana сегодня.</h2>
+      </div>
+      <p class="note">Прод: overview, электричество, климат, свет. Не макет.</p>
+    </div>
+    <div class="grid">
+      <div class="card frame"><img class="shot" src="assets/grafana/overview.png" alt=""><div class="lab">Overview</div></div>
+      <div class="card frame"><img class="shot" src="assets/grafana/energy.png" alt=""><div class="lab">Электричество</div></div>
+      <div class="card frame"><img class="shot" src="assets/grafana/climate.png" alt=""><div class="lab">Климат</div></div>
+      <div class="card frame"><img class="shot" src="assets/grafana/lights.png" alt=""><div class="lab">Свет</div></div>
+    </div>
+  </section>
+
+  <section class="s08">
+    <div>
+      <div class="eyebrow">Северные адаптеры</div>
+      <h2>Не конкурируем<br>с экосистемами.<br>Стыкуемся.</h2>
+      <p class="lede">Home Assistant — локальный UI интегратора. Алиса — голос жителя. Оба читают тот же API, что уже отдаёт Telegram-агент.</p>
+      <p class="foot">Скриншоты Home Assistant: официальный блог 2026.1 и документация dashboards. Потенциальная интеграция, не партнёрство. Бейдж «Works with Alice» не используем — нужна сертификация Яндекса.</p>
+    </div>
+    <div class="shots">
+      <div class="card phone"><img class="shot" src="assets/ha/home-dashboard-mobile.png" alt=""></div>
+      <div class="stack">
+        <div class="card"><img class="shot" src="assets/ha/protocol-dashboards.png" alt=""></div>
+        <div class="card"><img class="shot" src="assets/ha/sidebar-view.png" alt=""></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="s09">
+    <div class="eyebrow">Куда выходить</div>
+    <h2>Четыре входа. Одно ядро.</h2>
+    <div class="grid">
+      <div class="card"><div class="n">01 · B2B интеграторы</div><h3>KNX и LogicMachine</h3><p>Профессиональные дома уже стоят. Им не хватает облака с историей, командами и агентом — без замены полевой автоматики.</p></div>
+      <div class="card"><div class="n">02 · Портфель объектов</div><h3>Несколько усадеб, один контур</h3><p>Семья, УК загородной недвижимости, гостевые дома. house_id из коробки. Оператор видит все объекты в Grafana.</p></div>
+      <div class="card"><div class="n">03 · Экосистема HA</div><h3>Облако над локальным UI</h3><p>Open Home Foundation: более 2 млн активных установок Home Assistant в 2025. Мы не заменяем HA — даём историю, флот и профессиональный KNX.</p></div>
+      <div class="card"><div class="n">04 · Голос и радио</div><h3>Алиса и объекты без шины</h3><p>Массовый канал в RU — навык Алисы поверх MCP. Raspberry закрывает участок и аренду, где KNX не протянуть.</p></div>
+    </div>
+    <p class="src">Источник по HA: годовой отчёт Open Home Foundation, 2025. Алиса и HA — roadmap, не текущий прод.</p>
+  </section>
+
+  <section class="s10">
+    <div class="lead">
+      <div class="eyebrow">Принципы</div>
+      <h2>Дом автономен.<br>Облако — память.</h2>
+      <p>Новый канал не переписывает автоматику. Новый радиоузел не знает про Алису.</p>
+    </div>
+    <div class="rows">
+      <div class="card row"><h3>MQTT — единственная связь</h3><p>Нет VPN к каждому дому и нет прямого HTTP на контроллер.</p></div>
+      <div class="card row"><h3>KNX — каноническая модель</h3><p>На поле любой протокол. В облаке — нормализованные объекты.</p></div>
+      <div class="card row"><h3>Команда с замкнутым циклом</h3><p>Ack, retry, таймаут. Валидация до публикации в брокер.</p></div>
+      <div class="card row"><h3>Семантика поверх адресов</h3><p>Интегратор видит 1/2/15. Житель говорит «свет на кухне».</p></div>
+    </div>
+  </section>
+
+  <section class="s11">
+    <div class="eyebrow">Доказательство</div>
+    <h2>Уже работает.<br>Дальше — покрытие и голос.</h2>
+    <div class="grid">
+      <div class="card"><div class="st live">Прод</div><h3>Живой объект</h3><p>Усадьба, ~150 объектов. Grafana, Telegram-агент, Zigbee и BLE через LogicMachine.</p></div>
+      <div class="card"><div class="st plan">Следом</div><h3>Raspberry на эфире</h3><p>Радиоузел для участка без KNX. Слушает групповые адреса LogicMachine, не облако.</p></div>
+      <div class="card"><div class="st plan">Следом</div><h3>Алиса и Home Assistant</h3><p>Тонкие адаптеры на REST и MCP. Ядро дома не переписываем.</p></div>
+    </div>
+  </section>
+</deck-stage>
+<script src="shared/deck_stage.js"></script>
+</body>
+</html>

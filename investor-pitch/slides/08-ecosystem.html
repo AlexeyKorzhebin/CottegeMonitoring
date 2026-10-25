@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<title>Экосистема</title>
+<link rel="stylesheet" href="../shared/tokens.css">
+<style>
+  body { display: grid; grid-template-columns: 0.9fr 1.1fr; gap: 56px; padding: 80px 88px; align-items: center; }
+  h2 { font-size: 48px; }
+  .lede { margin-top: 20px; font-size: 20px; line-height: 1.45; color: var(--muted); max-width: 480px; }
+  .shots { display: grid; grid-template-columns: 0.72fr 1fr; gap: 16px; height: 780px; }
+  .phone { overflow: hidden; display: flex; align-items: stretch; }
+  .phone img { object-fit: cover; object-position: top; }
+  .stack { display: flex; flex-direction: column; gap: 16px; min-height: 0; }
+  .stack .card { flex: 1; overflow: hidden; min-height: 0; }
+  .foot { margin-top: 16px; font-size: 13px; color: var(--muted); max-width: 480px; }
+</style>
+</head>
+<body>
+  <div>
+    <div class="eyebrow">Северные адаптеры</div>
+    <h2>Не конкурируем<br>с экосистемами.<br>Стыкуемся.</h2>
+    <p class="lede">Home Assistant — локальный UI интегратора. Алиса — голос жителя. Оба читают тот же API, что уже отдаёт Telegram-агент.</p>
+    <p class="foot">Скриншоты Home Assistant: официальный блог 2026.1 и документация dashboards. Потенциальная интеграция, не партнёрство. Бейдж «Works with Alice» не используем — нужна сертификация Яндекса.</p>
+  </div>
+  <div class="shots">
+    <div class="card phone">
+      <img class="shot" src="../assets/ha/home-dashboard-mobile.png" alt="Home Assistant Home dashboard">
+    </div>
+    <div class="stack">
+      <div class="card">
+        <img class="shot" src="../assets/ha/protocol-dashboards.png" alt="Home Assistant protocols including KNX Zigbee Bluetooth">
+      </div>
+      <div class="card">
+        <img class="shot" src="../assets/ha/sidebar-view.png" alt="Home Assistant Energy dashboard">
+      </div>
+    </div>
+  </div>
+</body>
+</html>

@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<title>Стек</title>
+<link rel="stylesheet" href="../shared/tokens.css">
+<style>
+  body { display: grid; grid-template-columns: 1fr 1fr; gap: 80px; padding: 100px 108px; align-items: center; }
+  h2 { font-size: 56px; }
+  .lead p { margin-top: 22px; font-size: 22px; line-height: 1.45; color: var(--muted); max-width: 460px; }
+  .rows { display: flex; flex-direction: column; gap: 12px; }
+  .row { display: grid; grid-template-columns: 140px 1fr; gap: 20px; align-items: baseline; padding: 22px 28px; }
+  .k { font-size: 15px; font-weight: 600; color: var(--green); }
+  .v { font-size: 20px; font-weight: 500; letter-spacing: -0.02em; }
+</style>
+</head>
+<body>
+  <div class="lead">
+    <div class="eyebrow">Стек</div>
+    <h2>Знакомые части.<br>Жёсткий контракт.</h2>
+    <p>Поле — Lua на LogicMachine. Облако — один asyncio-процесс. AI садится на MCP, не на шину.</p>
+  </div>
+  <div class="rows">
+    <div class="card row"><div class="k">Поле</div><div class="v">LogicMachine · Lua 5.1 · KNX · watchdog</div></div>
+    <div class="card row"><div class="k">Радио</div><div class="v">Raspberry · Zigbee · Bluetooth · тот же MQTT</div></div>
+    <div class="card row"><div class="k">Шина</div><div class="v">Mosquitto · TLS · протокол v1</div></div>
+    <div class="card row"><div class="k">Облако</div><div class="v">Python 3.12 · FastAPI · Timescale · Redis</div></div>
+    <div class="card row"><div class="k">Север</div><div class="v">Grafana · MCP · OpenClaw · REST</div></div>
+  </div>
+</body>
+</html>

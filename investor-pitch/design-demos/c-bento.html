@@ -1,0 +1,214 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<title>CottageMonitoring · Bento</title>
+<!--
+  Showcase C · Bento air (Apple-like product keynote)
+  Cool off-white, unequal tiles, hairline only — no shadows, no left-accent bars.
+-->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500&family=Sora:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { background: #121414; }
+  deck-stage > section {
+    font-family: "IBM Plex Sans", sans-serif;
+    color: #1e2422;
+    background: #eef2ef;
+  }
+  deck-stage > section.active {
+    display: flex !important;
+    flex-direction: column;
+  }
+
+  .bar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 48px 64px 0;
+  }
+  .bar img { width: 44px; height: 44px; border-radius: 12px; }
+  .bar .name {
+    font-family: Sora, sans-serif;
+    font-size: 14px;
+    font-weight: 500;
+    letter-spacing: 0.04em;
+    color: #024538;
+  }
+  .bar-left { display: flex; align-items: center; gap: 14px; }
+  .bar .when {
+    font-size: 14px;
+    color: #7a8480;
+  }
+
+  .hero {
+    flex: 1;
+    padding: 36px 64px 64px;
+    display: grid;
+    grid-template-columns: 1.15fr 0.85fr;
+    grid-template-rows: 1fr 200px;
+    gap: 18px;
+  }
+  .tile {
+    background: #f7faf8;
+    border: 1px solid #dce3df;
+    border-radius: 20px;
+    padding: 36px 40px;
+  }
+  .hero-main {
+    grid-row: 1 / 3;
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-end;
+  }
+  .pill {
+    align-self: flex-start;
+    font-family: Sora, sans-serif;
+    font-size: 12px;
+    font-weight: 500;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: #8a7028;
+    background: #f3ead3;
+    border-radius: 999px;
+    padding: 8px 14px;
+    margin-bottom: 28px;
+  }
+  .hero-main h1 {
+    font-family: Sora, sans-serif;
+    font-weight: 500;
+    font-size: 52px;
+    line-height: 1.12;
+    letter-spacing: -0.035em;
+  }
+  .hero-main h1 span { color: #024538; }
+  .hero-main p {
+    margin-top: 22px;
+    font-size: 20px;
+    line-height: 1.5;
+    color: #5c6662;
+    max-width: 640px;
+  }
+  .side-a h3, .side-b h3 {
+    font-family: Sora, sans-serif;
+    font-size: 15px;
+    font-weight: 500;
+    color: #024538;
+    margin-bottom: 10px;
+  }
+  .side-a p, .side-b p {
+    font-size: 22px;
+    line-height: 1.35;
+    font-family: Sora, sans-serif;
+    font-weight: 400;
+  }
+  .side-a { display: flex; flex-direction: column; justify-content: flex-end; }
+  .side-b { display: flex; flex-direction: column; justify-content: flex-end; }
+
+  .grid-page {
+    flex: 1;
+    padding: 28px 64px 56px;
+    display: flex;
+    flex-direction: column;
+  }
+  .grid-page h2 {
+    font-family: Sora, sans-serif;
+    font-size: 32px;
+    font-weight: 500;
+    letter-spacing: -0.03em;
+    margin: 20px 0 22px;
+  }
+  .bento {
+    flex: 1;
+    display: grid;
+    grid-template-columns: 1.2fr 1fr 1fr;
+    grid-template-rows: 1fr 1fr;
+    gap: 16px;
+  }
+  .bento .tile h3 {
+    font-family: Sora, sans-serif;
+    font-size: 20px;
+    font-weight: 500;
+    margin-bottom: 10px;
+  }
+  .bento .tile p {
+    font-size: 17px;
+    line-height: 1.45;
+    color: #5c6662;
+  }
+  .wide { grid-column: 1; grid-row: 1 / 3; display: flex; flex-direction: column; justify-content: flex-end; }
+  .wide h3 { font-size: 28px !important; }
+  .muted { font-size: 13px; letter-spacing: 0.14em; text-transform: uppercase; color: #9a7a2f; margin-bottom: 12px; font-family: Sora, sans-serif; }
+</style>
+</head>
+<body>
+<deck-stage>
+  <section>
+    <div class="bar">
+      <div class="bar-left">
+        <img src="../assets/logo.png" alt="">
+        <span class="name">CottageMonitoring</span>
+      </div>
+      <div class="when">Инвесторам · 2026</div>
+    </div>
+    <div class="hero">
+      <div class="tile hero-main">
+        <div class="pill">Уже в проде</div>
+        <h1>Облако для домов,<br>где автоматика <span>профессиональная</span></h1>
+        <p>LogicMachine на объекте. MQTT как единственная связь. История, команды с ack и агент — без замены полевой автоматики.</p>
+      </div>
+      <div class="tile side-a">
+        <h3>Сейчас</h3>
+        <p>Живой дом, Grafana, Telegram-агент, Zigbee и BLE через контроллер.</p>
+      </div>
+      <div class="tile side-b">
+        <h3>Дальше</h3>
+        <p>Raspberry на радио. Алиса и Home Assistant поверх того же API.</p>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <div class="bar">
+      <div class="bar-left">
+        <img src="../assets/logo.png" alt="">
+        <span class="name">CottageMonitoring</span>
+      </div>
+      <div class="when">Как устроено</div>
+    </div>
+    <div class="grid-page">
+      <h2>Один дом. Несколько полевых узлов. Одно облако.</h2>
+      <div class="bento">
+        <div class="tile wide">
+          <div class="muted">Поле</div>
+          <h3>LogicMachine держит провод. Raspberry держит эфир.</h3>
+          <p>KNX и сценарии остаются на контроллере. Zigbee- и Bluetooth-адаптеры на Pi публикуют те же объекты в тот же MQTT — как ещё один device_id.</p>
+        </div>
+        <div class="tile">
+          <div class="muted">Шина</div>
+          <h3>MQTT v1</h3>
+          <p>TLS, LWT, команды с ack. Нет прямого HTTP на дом.</p>
+        </div>
+        <div class="tile">
+          <div class="muted">Облако</div>
+          <h3>Память</h3>
+          <p>Timescale, Redis-срез, REST, MCP. Схема с хешем версий.</p>
+        </div>
+        <div class="tile">
+          <div class="muted">Оператор</div>
+          <h3>Grafana</h3>
+          <p>Энергия, климат, свет, батареи — уже на проде.</p>
+        </div>
+        <div class="tile">
+          <div class="muted">Север</div>
+          <h3>Голос</h3>
+          <p>Агент сейчас. Алиса и HA — адаптеры, не новые «мозги» дома.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+</deck-stage>
+<script src="../shared/deck_stage.js"></script>
+</body>
+</html>

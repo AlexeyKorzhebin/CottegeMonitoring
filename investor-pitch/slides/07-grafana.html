@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<title>Grafana</title>
+<link rel="stylesheet" href="../shared/tokens.css">
+<style>
+  body { padding: 56px 64px 48px; display: flex; flex-direction: column; }
+  .head { display: flex; justify-content: space-between; align-items: flex-end; margin-bottom: 22px; }
+  h2 { font-size: 40px; }
+  .note { font-size: 16px; color: var(--muted); max-width: 560px; text-align: right; }
+  .grid { flex: 1; display: grid; grid-template-columns: 1fr 1fr; grid-template-rows: 1fr 1fr; gap: 14px; min-height: 0; }
+  .frame { overflow: hidden; position: relative; }
+  .frame img { width: 100%; height: 100%; object-fit: cover; object-position: top left; }
+  .lab {
+    position: absolute; left: 16px; bottom: 14px;
+    background: rgba(255,255,255,0.92);
+    border-radius: 999px;
+    padding: 6px 12px;
+    font-size: 13px;
+    font-weight: 600;
+    letter-spacing: -0.01em;
+  }
+</style>
+</head>
+<body>
+  <div class="head">
+    <div>
+      <div class="eyebrow">Оператор</div>
+      <h2>Живой дом. Снято с Grafana сегодня.</h2>
+    </div>
+    <p class="note">Прод: overview, электричество, климат, свет. Не макет.</p>
+  </div>
+  <div class="grid">
+    <div class="card frame">
+      <img class="shot" src="../assets/grafana/overview.png" alt="Grafana Overview">
+      <div class="lab">Overview</div>
+    </div>
+    <div class="card frame">
+      <img class="shot" src="../assets/grafana/energy.png" alt="Grafana Electricity">
+      <div class="lab">Электричество</div>
+    </div>
+    <div class="card frame">
+      <img class="shot" src="../assets/grafana/climate.png" alt="Grafana Climate">
+      <div class="lab">Климат</div>
+    </div>
+    <div class="card frame">
+      <img class="shot" src="../assets/grafana/lights.png" alt="Grafana Lights">
+      <div class="lab">Свет</div>
+    </div>
+  </div>
+</body>
+</html>

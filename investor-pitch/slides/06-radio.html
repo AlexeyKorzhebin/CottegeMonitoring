@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<title>Радиослой</title>
+<link rel="stylesheet" href="../shared/tokens.css">
+<style>
+  body { padding: 92px 108px; }
+  h2 { font-size: 52px; max-width: 1300px; }
+  .lede { margin: 20px 0 48px; font-size: 22px; line-height: 1.45; color: var(--muted); max-width: 780px; }
+  .grid { display: grid; grid-template-columns: 1.15fr 1fr 1fr; gap: 16px; }
+  .card { padding: 32px 36px; min-height: 280px; }
+  .k { font-size: 15px; font-weight: 600; color: var(--green); margin-bottom: 12px; }
+  .card h3 { font-size: 24px; font-weight: 600; letter-spacing: -0.025em; margin-bottom: 12px; }
+  .card p { font-size: 18px; line-height: 1.45; color: var(--muted); }
+  .wide { }
+</style>
+</head>
+<body>
+  <div class="eyebrow">Расширение поля</div>
+  <h2>Провод держит LogicMachine.<br>Эфир закроет Raspberry.</h2>
+  <p class="lede">Zigbee и BLE уже есть в живом доме — через контроллер. Отдельный радиоузел на Pi — тот же device_id в том же протоколе.</p>
+  <div class="grid">
+    <div class="card wide">
+      <div class="k">Сейчас</div>
+      <h3>Радио уже в контуре</h3>
+      <p>Датчики воздуха, батареи, PIR, BLE-чайник публикуются как объекты KNX. Облако не знает, какой чип в стене.</p>
+    </div>
+    <div class="card">
+      <div class="k">Дальше</div>
+      <h3>Точка покрытия</h3>
+      <p>Гостевой дом, участок, хозблок — без протяжки шины. Дешевле второй LogicMachine.</p>
+    </div>
+    <div class="card">
+      <div class="k">Контракт</div>
+      <h3>Ещё один узел</h3>
+      <p>Pi не пишет в базу и не знает про Алису. Только MQTT: meta, state, cmd.</p>
+    </div>
+  </div>
+</body>
+</html>

@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<title>Рынки</title>
+<link rel="stylesheet" href="../shared/tokens.css">
+<style>
+  body { padding: 80px 108px; }
+  h2 { font-size: 48px; margin-bottom: 36px; }
+  .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+  .card { padding: 28px 32px; }
+  .n { font-size: 13px; font-weight: 600; color: var(--green); margin-bottom: 8px; }
+  .card h3 { font-size: 22px; font-weight: 600; letter-spacing: -0.025em; margin-bottom: 8px; }
+  .card p { font-size: 17px; line-height: 1.45; color: var(--muted); }
+  .src { margin-top: 28px; font-size: 13px; color: var(--muted); }
+</style>
+</head>
+<body>
+  <div class="eyebrow">Куда выходить</div>
+  <h2>Четыре входа. Одно ядро.</h2>
+  <div class="grid">
+    <div class="card">
+      <div class="n">01 · B2B интеграторы</div>
+      <h3>KNX и LogicMachine</h3>
+      <p>Профессиональные дома уже стоят. Им не хватает облака с историей, командами и агентом — без замены полевой автоматики.</p>
+    </div>
+    <div class="card">
+      <div class="n">02 · Портфель объектов</div>
+      <h3>Несколько усадеб, один контур</h3>
+      <p>Семья, УК загородной недвижимости, гостевые дома. house_id из коробки. Оператор видит все объекты в Grafana.</p>
+    </div>
+    <div class="card">
+      <div class="n">03 · Экосистема HA</div>
+      <h3>Облако над локальным UI</h3>
+      <p>Open Home Foundation: более 2 млн активных установок Home Assistant в 2025. Мы не заменяем HA — даём историю, флот и профессиональный KNX.</p>
+    </div>
+    <div class="card">
+      <div class="n">04 · Голос и радио</div>
+      <h3>Алиса и объекты без шины</h3>
+      <p>Массовый канал в RU — навык Алисы поверх MCP. Raspberry закрывает участок и аренду, где KNX не протянуть.</p>
+    </div>
+  </div>
+  <p class="src">Источник по HA: годовой отчёт Open Home Foundation, 2025. Алиса и HA — roadmap, не текущий прод.</p>
+</body>
+</html>

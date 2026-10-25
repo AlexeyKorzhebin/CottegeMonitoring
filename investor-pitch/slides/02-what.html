@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<title>Что это</title>
+<link rel="stylesheet" href="../shared/tokens.css">
+<style>
+  body { padding: 100px 108px; display: flex; flex-direction: column; justify-content: center; }
+  h2 { font-size: 56px; max-width: 1200px; }
+  .lede { margin-top: 28px; font-size: 24px; line-height: 1.45; letter-spacing: -0.015em; color: var(--muted); max-width: 820px; }
+  .row { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 16px; margin-top: 64px; }
+  .card { padding: 32px 36px; min-height: 220px; }
+  .card h3 { font-size: 22px; font-weight: 600; letter-spacing: -0.025em; margin-bottom: 10px; }
+  .card p { font-size: 18px; line-height: 1.45; color: var(--muted); letter-spacing: -0.01em; }
+</style>
+</head>
+<body>
+  <div class="eyebrow">Продукт</div>
+  <h2>CottageMonitoring — облачный контур<br>для профессиональной автоматизации.</h2>
+  <p class="lede">LogicMachine остаётся мозгом дома. Облако снимает телеметрию, хранит историю и отдаёт управление через API, Grafana и агента.</p>
+  <div class="row">
+    <div class="card">
+      <h3>Не замена дома</h3>
+      <p>Сценарии и KNX живут на контроллере. Если облако недоступно, дом продолжает работать.</p>
+    </div>
+    <div class="card">
+      <h3>Много домов</h3>
+      <p>Каждый объект — house_id. Несколько контроллеров на дом. Один протокол на всех.</p>
+    </div>
+    <div class="card">
+      <h3>Уже в проде</h3>
+      <p>Живая усадьба, Grafana, Telegram-агент. Алиса и Home Assistant — следующий слой сверху.</p>
+    </div>
+  </div>
+</body>
+</html>

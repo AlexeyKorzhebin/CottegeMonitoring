@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<title>Принципы</title>
+<link rel="stylesheet" href="../shared/tokens.css">
+<style>
+  body { display: grid; grid-template-columns: 0.85fr 1.15fr; gap: 72px; padding: 100px 108px; align-items: center; }
+  h2 { font-size: 52px; }
+  .lead p { margin-top: 22px; font-size: 22px; line-height: 1.45; color: var(--muted); max-width: 440px; }
+  .rows { display: flex; flex-direction: column; gap: 12px; }
+  .row { padding: 22px 28px; }
+  .row h3 { font-size: 20px; font-weight: 600; letter-spacing: -0.02em; }
+  .row p { margin-top: 4px; font-size: 16px; color: var(--muted); }
+</style>
+</head>
+<body>
+  <div class="lead">
+    <div class="eyebrow">Принципы</div>
+    <h2>Дом автономен.<br>Облако — память.</h2>
+    <p>Новый канал не переписывает автоматику. Новый радиоузел не знает про Алису.</p>
+  </div>
+  <div class="rows">
+    <div class="card row">
+      <h3>MQTT — единственная связь</h3>
+      <p>Нет VPN к каждому дому и нет прямого HTTP на контроллер.</p>
+    </div>
+    <div class="card row">
+      <h3>KNX — каноническая модель</h3>
+      <p>На поле любой протокол. В облаке — нормализованные объекты.</p>
+    </div>
+    <div class="card row">
+      <h3>Команда с замкнутым циклом</h3>
+      <p>Ack, retry, таймаут. Валидация до публикации в брокер.</p>
+    </div>
+    <div class="card row">
+      <h3>Семантика поверх адресов</h3>
+      <p>Интегратор видит 1/2/15. Житель говорит «свет на кухне».</p>
+    </div>
+  </div>
+</body>
+</html>

@@ -1,0 +1,181 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<title>CottageMonitoring · Apple Keynote</title>
+<!--
+  Showcase D · Apple Keynote grammar
+  Feedback: C was in the neighborhood but not Apple enough —
+  too dense, gold pills, consulting kickers, IBM Plex.
+  This pass: SF via -apple-system, #F5F5F7, #1D1D1F / #86868B,
+  optical-center cover, one sentence, stacked feature rows.
+  Brand green #024538 is the only hue (from the live logo).
+-->
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { background: #000; }
+
+  deck-stage > section {
+    font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text",
+      "Helvetica Neue", "Segoe UI", sans-serif;
+    color: #1d1d1f;
+    background: #f5f5f7;
+    -webkit-font-smoothing: antialiased;
+  }
+  deck-stage > section.active {
+    display: flex !important;
+    flex-direction: column;
+  }
+
+  /* —— Cover —— */
+  .cover {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    padding: 80px;
+  }
+  .cover img {
+    width: 72px;
+    height: 72px;
+    border-radius: 18px;
+    margin-bottom: 48px;
+  }
+  .cover h1 {
+    font-size: 84px;
+    font-weight: 600;
+    letter-spacing: -0.038em;
+    line-height: 1.05;
+  }
+  .cover h1 span { color: #024538; }
+  .cover .sub {
+    margin-top: 28px;
+    font-size: 28px;
+    font-weight: 400;
+    letter-spacing: -0.02em;
+    line-height: 1.35;
+    color: #86868b;
+    max-width: 920px;
+  }
+
+  /* —— Architecture —— */
+  .inner {
+    flex: 1;
+    display: grid;
+    grid-template-columns: 0.92fr 1.08fr;
+    gap: 80px;
+    padding: 100px 108px 108px;
+    align-items: center;
+  }
+  .lead .eyebrow {
+    font-size: 17px;
+    font-weight: 600;
+    letter-spacing: -0.01em;
+    color: #024538;
+    margin-bottom: 18px;
+  }
+  .lead h2 {
+    font-size: 56px;
+    font-weight: 600;
+    letter-spacing: -0.035em;
+    line-height: 1.08;
+  }
+  .lead p {
+    margin-top: 22px;
+    font-size: 22px;
+    line-height: 1.45;
+    letter-spacing: -0.015em;
+    color: #86868b;
+    max-width: 480px;
+  }
+
+  .rows {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+  }
+  .row {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    align-items: center;
+    gap: 24px;
+    background: #fff;
+    border-radius: 22px;
+    padding: 28px 32px;
+    border: 1px solid #e8e8ed;
+  }
+  .row h3 {
+    font-size: 22px;
+    font-weight: 600;
+    letter-spacing: -0.025em;
+  }
+  .row .hint {
+    margin-top: 4px;
+    font-size: 17px;
+    color: #86868b;
+    letter-spacing: -0.01em;
+  }
+  .row .tag {
+    font-size: 15px;
+    font-weight: 500;
+    color: #6e6e73;
+    letter-spacing: -0.01em;
+    white-space: nowrap;
+  }
+</style>
+</head>
+<body>
+<deck-stage>
+  <section>
+    <div class="cover">
+      <img src="../assets/logo.png" alt="">
+      <h1>Облако для дома,<br>который уже <span>умный</span>.</h1>
+      <p class="sub">Автоматика остаётся на объекте. Мы даём память, команды и голос.</p>
+    </div>
+  </section>
+
+  <section>
+    <div class="inner">
+      <div class="lead">
+        <div class="eyebrow">Архитектура</div>
+        <h2>Один контур.<br>Несколько узлов.</h2>
+        <p>Контроллер не зависит от облака. Радио, Алиса и Home Assistant входят как слои — не как новые мозги дома.</p>
+      </div>
+      <div class="rows">
+        <div class="row">
+          <div>
+            <h3>LogicMachine и Raspberry</h3>
+            <div class="hint">KNX, Modbus, Zigbee, Bluetooth</div>
+          </div>
+          <div class="tag">Поле</div>
+        </div>
+        <div class="row">
+          <div>
+            <h3>MQTT v1 · TLS</h3>
+            <div class="hint">Телеметрия, команды, ack. Без прямого HTTP.</div>
+          </div>
+          <div class="tag">Связь</div>
+        </div>
+        <div class="row">
+          <div>
+            <h3>История, срез, REST, MCP</h3>
+            <div class="hint">Timescale, Redis, схема с версиями</div>
+          </div>
+          <div class="tag">Облако</div>
+        </div>
+        <div class="row">
+          <div>
+            <h3>Grafana, агент, Алиса, HA</h3>
+            <div class="hint">Оператор, чат, экосистемы — сверху</div>
+          </div>
+          <div class="tag">Интерфейсы</div>
+        </div>
+      </div>
+    </div>
+  </section>
+</deck-stage>
+<script src="../shared/deck_stage.js"></script>
+</body>
+</html>

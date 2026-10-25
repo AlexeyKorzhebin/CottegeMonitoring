@@ -1,0 +1,217 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<title>CottageMonitoring · Swiss</title>
+<!--
+  Showcase A · Swiss Institutional Minimal
+  Assumptions:
+  - Investor technical deck, 10m projector, light/airy/professional as requested
+  - Brand from live logo: forest #024538, gold #D2B152 on white
+  - Cover + architecture only — grammar check before full deck
+  - No third-party logos yet (Alice / HA) until you confirm
+-->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700&family=Source+Sans+3:ital,wght@0,400;0,500;0,600;1,400&display=swap" rel="stylesheet">
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { background: #111; }
+  deck-stage > section { font-family: "Source Sans 3", sans-serif; color: #1c1c1c; background: #fff; }
+  deck-stage > section.active {
+    display: flex !important;
+    flex-direction: column;
+  }
+
+  .top {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 56px 88px 0;
+  }
+  .brand {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+  }
+  .brand img { width: 48px; height: 48px; border-radius: 10px; }
+  .brand-name {
+    font-family: Manrope, sans-serif;
+    font-size: 15px;
+    font-weight: 600;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: #024538;
+  }
+  .meta {
+    font-size: 15px;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: #8a8a86;
+  }
+
+  .rule {
+    height: 1px;
+    background: #e6e4de;
+    margin: 28px 88px 0;
+  }
+
+  .cover-body {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-end;
+    padding: 0 88px 88px;
+  }
+  .kicker {
+    font-family: Manrope, sans-serif;
+    font-size: 13px;
+    font-weight: 600;
+    letter-spacing: 0.22em;
+    text-transform: uppercase;
+    color: #b8953a;
+    margin-bottom: 28px;
+  }
+  .cover-body h1 {
+    font-family: Manrope, sans-serif;
+    font-weight: 600;
+    font-size: 76px;
+    line-height: 1.08;
+    letter-spacing: -0.03em;
+    max-width: 1400px;
+  }
+  .cover-body h1 em {
+    font-style: normal;
+    color: #024538;
+  }
+  .lede {
+    margin-top: 36px;
+    font-size: 24px;
+    line-height: 1.45;
+    color: #5c5c58;
+    max-width: 920px;
+  }
+  .tags {
+    display: flex;
+    gap: 28px;
+    margin-top: 48px;
+    font-family: Manrope, sans-serif;
+    font-size: 14px;
+    font-weight: 600;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: #024538;
+  }
+
+  .arch {
+    flex: 1;
+    padding: 48px 88px 80px;
+    display: flex;
+    flex-direction: column;
+  }
+  .arch h2 {
+    font-family: Manrope, sans-serif;
+    font-weight: 600;
+    font-size: 42px;
+    letter-spacing: -0.03em;
+    margin: 36px 0 8px;
+  }
+  .arch .sub {
+    font-size: 20px;
+    color: #6a6a66;
+    margin-bottom: 48px;
+  }
+  .cols {
+    display: grid;
+    grid-template-columns: 1fr 1px 1fr 1px 1fr 1px 1fr;
+    gap: 0 40px;
+    flex: 1;
+    align-items: start;
+  }
+  .vline { background: #eceae4; }
+  .col .n {
+    font-family: Manrope, sans-serif;
+    font-size: 13px;
+    font-weight: 700;
+    letter-spacing: 0.18em;
+    color: #b8953a;
+    margin-bottom: 18px;
+  }
+  .col h3 {
+    font-family: Manrope, sans-serif;
+    font-size: 26px;
+    font-weight: 600;
+    margin-bottom: 16px;
+  }
+  .col p {
+    font-size: 18px;
+    line-height: 1.55;
+    color: #5a5a56;
+  }
+</style>
+</head>
+<body>
+<deck-stage>
+  <section>
+    <div class="top">
+      <div class="brand">
+        <img src="../assets/logo.png" alt="">
+        <span class="brand-name">CottageMonitoring</span>
+      </div>
+      <div class="meta">Технический обзор · 2026</div>
+    </div>
+    <div class="rule"></div>
+    <div class="cover-body">
+      <div class="kicker">Для потенциальных инвесторов</div>
+      <h1>Профессиональный дом<br>остаётся <em>автономным</em>.<br>Облако даёт память и голос.</h1>
+      <p class="lede">Платформа мониторинга и управления на LogicMachine и MQTT: телеметрия, история, команды с подтверждением, AI-агент. Радиослой и экосистемы — тот же контур.</p>
+      <div class="tags">
+        <span>Телеметрия</span>
+        <span>Команды</span>
+        <span>Агент</span>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <div class="top">
+      <div class="brand">
+        <img src="../assets/logo.png" alt="">
+        <span class="brand-name">CottageMonitoring</span>
+      </div>
+      <div class="meta">Архитектура</div>
+    </div>
+    <div class="rule"></div>
+    <div class="arch">
+      <h2>Четыре слоя, одна шина</h2>
+      <p class="sub">Облако не ходит на контроллер. Связь только через MQTT.</p>
+      <div class="cols">
+        <div class="col">
+          <div class="n">01</div>
+          <h3>Поле</h3>
+          <p>LogicMachine нормализует KNX, Modbus, Zigbee и BLE к объектам. Raspberry закрывает радио там, где нет шины.</p>
+        </div>
+        <div class="vline"></div>
+        <div class="col">
+          <div class="n">02</div>
+          <h3>Шина</h3>
+          <p>MQTT v1, TLS. Телеметрия, команды, ack, online/offline. Каждый адаптер — свой device_id.</p>
+        </div>
+        <div class="vline"></div>
+        <div class="col">
+          <div class="n">03</div>
+          <h3>Облако</h3>
+          <p>Ingest, Timescale-история, актуальный срез, REST и MCP. Схема дома версионируется.</p>
+        </div>
+        <div class="vline"></div>
+        <div class="col">
+          <div class="n">04</div>
+          <h3>Север</h3>
+          <p>Grafana для оператора. Агент в чате. Алиса и Home Assistant садятся сверху, не переписывают дом.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+</deck-stage>
+<script src="../shared/deck_stage.js"></script>
+</body>
+</html>

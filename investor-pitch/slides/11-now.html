@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<title>Сейчас</title>
+<link rel="stylesheet" href="../shared/tokens.css">
+<style>
+  body { padding: 92px 108px; display: flex; flex-direction: column; justify-content: center; }
+  h2 { font-size: 56px; max-width: 1200px; }
+  .grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 16px; margin-top: 56px; }
+  .card { padding: 32px 36px; min-height: 240px; }
+  .st { font-size: 13px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; margin-bottom: 14px; }
+  .live { color: var(--green); }
+  .plan { color: var(--muted); }
+  .card h3 { font-size: 22px; font-weight: 600; letter-spacing: -0.025em; margin-bottom: 10px; }
+  .card p { font-size: 17px; line-height: 1.45; color: var(--muted); }
+</style>
+</head>
+<body>
+  <div class="eyebrow">Доказательство</div>
+  <h2>Уже работает.<br>Дальше — покрытие и голос.</h2>
+  <div class="grid">
+    <div class="card">
+      <div class="st live">Прод</div>
+      <h3>Живой объект</h3>
+      <p>Усадьба, ~150 объектов. Grafana, Telegram-агент, Zigbee и BLE через LogicMachine.</p>
+    </div>
+    <div class="card">
+      <div class="st plan">Следом</div>
+      <h3>Raspberry на эфире</h3>
+      <p>Отдельный радиоузел для участка и объектов без KNX. Тот же MQTT v1.</p>
+    </div>
+    <div class="card">
+      <div class="st plan">Следом</div>
+      <h3>Алиса и Home Assistant</h3>
+      <p>Тонкие адаптеры на REST и MCP. Ядро дома не переписываем.</p>
+    </div>
+  </div>
+</body>
+</html>

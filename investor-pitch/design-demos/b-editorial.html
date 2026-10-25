@@ -1,0 +1,205 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<title>CottageMonitoring · Editorial</title>
+<!--
+  Showcase B · Editorial Longform (paper)
+  Cream field, serif display, magazine air. Gold used as a thin rule only.
+  Same two pages / same copy as A, different grammar.
+-->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Figtree:ital,wght@0,400;0,500;0,600;1,400&family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;0,6..72,600;1,6..72,400;1,6..72,500;1,6..72,650&display=swap" rel="stylesheet">
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { background: #1a1814; }
+  deck-stage > section {
+    font-family: Figtree, sans-serif;
+    color: #2b2924;
+    background: #f4f0e6;
+  }
+  deck-stage > section.active {
+    display: flex !important;
+    flex-direction: column;
+  }
+
+  .mast {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    padding: 64px 120px 0;
+    border-bottom: 1px solid #d9d2c4;
+    padding-bottom: 22px;
+    margin: 0 120px;
+  }
+  .mast-left {
+    display: flex;
+    align-items: center;
+    gap: 18px;
+  }
+  .mast img { width: 40px; height: 40px; border-radius: 8px; }
+  .issue {
+    font-family: Newsreader, serif;
+    font-style: italic;
+    font-size: 22px;
+    color: #024538;
+  }
+  .issue-meta {
+    font-size: 13px;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: #8b8578;
+  }
+
+  .cover {
+    flex: 1;
+    padding: 72px 120px 96px;
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-end;
+    max-width: 1680px;
+  }
+  .eyebrow {
+    font-size: 13px;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    color: #9a7a2f;
+    margin-bottom: 22px;
+  }
+  .cover h1 {
+    font-family: Newsreader, serif;
+    font-weight: 500;
+    font-size: 68px;
+    line-height: 1.14;
+    letter-spacing: -0.02em;
+    max-width: 1320px;
+  }
+  .cover h1 em {
+    font-style: italic;
+    font-weight: 400;
+    color: #024538;
+  }
+  .gold {
+    width: 72px;
+    height: 2px;
+    background: #c9a24a;
+    margin: 40px 0 28px;
+  }
+  .cover .lede {
+    font-size: 22px;
+    line-height: 1.6;
+    color: #5a564c;
+    max-width: 780px;
+  }
+
+  .arch {
+    flex: 1;
+    padding: 56px 120px 88px;
+    display: grid;
+    grid-template-columns: 1fr 1.15fr;
+    gap: 80px;
+    align-items: center;
+  }
+  .arch h2 {
+    font-family: Newsreader, serif;
+    font-weight: 500;
+    font-size: 48px;
+    line-height: 1.2;
+    letter-spacing: -0.02em;
+  }
+  .arch .essay {
+    margin-top: 24px;
+    font-size: 20px;
+    line-height: 1.7;
+    color: #5c584e;
+    max-width: 520px;
+  }
+  .flow {
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+  }
+  .step {
+    padding: 28px 0;
+    border-top: 1px solid #d9d2c4;
+  }
+  .step:last-child { border-bottom: 1px solid #d9d2c4; }
+  .step .lab {
+    font-size: 12px;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: #9a7a2f;
+    margin-bottom: 6px;
+  }
+  .step h3 {
+    font-family: Newsreader, serif;
+    font-size: 28px;
+    font-weight: 500;
+  }
+  .step p {
+    margin-top: 6px;
+    font-size: 17px;
+    color: #6a655c;
+    line-height: 1.45;
+  }
+</style>
+</head>
+<body>
+<deck-stage>
+  <section>
+    <div class="mast">
+      <div class="mast-left">
+        <img src="../assets/logo.png" alt="">
+        <span class="issue">CottageMonitoring</span>
+      </div>
+      <div class="issue-meta">Письмо инвесторам · лето 2026</div>
+    </div>
+    <div class="cover">
+      <div class="eyebrow">Технический контур</div>
+      <h1>Дом думает сам.<br>Облако <em>помнит</em> и отвечает.</h1>
+      <div class="gold"></div>
+      <p class="lede">Система для профессиональной автоматизации: LogicMachine на объекте, MQTT как единственная связь, облако с историей и командами, разговорный слой для жителя и оператора.</p>
+    </div>
+  </section>
+
+  <section>
+    <div class="mast">
+      <div class="mast-left">
+        <img src="../assets/logo.png" alt="">
+        <span class="issue">CottageMonitoring</span>
+      </div>
+      <div class="issue-meta">Слои системы</div>
+    </div>
+    <div class="arch">
+      <div>
+        <h2>Сначала поле.<br>Потом память.</h2>
+        <p class="essay">Контроллер не зависит от облака. Raspberry с Zigbee и Bluetooth расширяет эфир. Алиса и Home Assistant не входят в дом — они читают тот же API, что уже отдаёт агент.</p>
+      </div>
+      <div class="flow">
+        <div class="step">
+          <div class="lab">Поле</div>
+          <h3>LogicMachine и радио на Raspberry</h3>
+          <p>KNX, Modbus, Zigbee, BLE — один объектный язык.</p>
+        </div>
+        <div class="step">
+          <div class="lab">Шина</div>
+          <h3>MQTT v1 поверх TLS</h3>
+          <p>События, состояние, команды, ack, online.</p>
+        </div>
+        <div class="step">
+          <div class="lab">Облако</div>
+          <h3>История, срез, REST, MCP</h3>
+          <p>Timescale, Redis, схема дома с версиями.</p>
+        </div>
+        <div class="step">
+          <div class="lab">Север</div>
+          <h3>Оператор, агент, экосистемы</h3>
+          <p>Grafana сейчас. Алиса и HA — тонкие адаптеры.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+</deck-stage>
+<script src="../shared/deck_stage.js"></script>
+</body>
+</html>

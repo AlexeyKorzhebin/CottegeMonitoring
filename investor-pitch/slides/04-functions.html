@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<title>Функции</title>
+<link rel="stylesheet" href="../shared/tokens.css">
+<style>
+  body { padding: 92px 108px; }
+  h2 { font-size: 52px; margin-bottom: 48px; }
+  .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  .card { padding: 32px 36px; }
+  .card h3 { font-size: 22px; font-weight: 600; letter-spacing: -0.025em; margin-bottom: 8px; }
+  .card p { font-size: 18px; line-height: 1.45; color: var(--muted); }
+</style>
+</head>
+<body>
+  <div class="eyebrow">Возможности</div>
+  <h2>Что система делает сегодня.</h2>
+  <div class="grid">
+    <div class="card">
+      <h3>Телеметрия</h3>
+      <p>Поток событий с шины и актуальный срез каждого объекта. Схема дома версионируется по хешу.</p>
+    </div>
+    <div class="card">
+      <h3>Управление</h3>
+      <p>Команда с подтверждением: sent → ack / error / timeout. Retry и идемпотентность по request_id.</p>
+    </div>
+    <div class="card">
+      <h3>Наблюдаемость</h3>
+      <p>Online/offline через LWT. Grafana: энергия, климат, свет, батареи, нагрузка контроллера.</p>
+    </div>
+    <div class="card">
+      <h3>Голос и агенты</h3>
+      <p>MCP-tools с семантикой: «свет на первом этаже», не групповой адрес. Telegram уже в проде.</p>
+    </div>
+  </div>
+</body>
+</html>

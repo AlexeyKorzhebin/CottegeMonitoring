@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<title>Архитектура</title>
+<link rel="stylesheet" href="../shared/tokens.css">
+<style>
+  body { display: grid; grid-template-columns: 0.92fr 1.08fr; gap: 80px; padding: 100px 108px; align-items: center; }
+  h2 { font-size: 56px; }
+  .lead p { margin-top: 22px; font-size: 22px; line-height: 1.45; letter-spacing: -0.015em; color: var(--muted); max-width: 480px; }
+  .rows { display: flex; flex-direction: column; gap: 14px; }
+  .row { display: grid; grid-template-columns: 1fr auto; align-items: center; gap: 24px; padding: 28px 32px; }
+  .row h3 { font-size: 22px; font-weight: 600; letter-spacing: -0.025em; }
+  .hint { margin-top: 4px; font-size: 17px; color: var(--muted); }
+  .tag { font-size: 15px; font-weight: 500; color: var(--dim); white-space: nowrap; }
+</style>
+</head>
+<body>
+  <div class="lead">
+    <div class="eyebrow">Архитектура</div>
+    <h2>Один контур.<br>Несколько узлов.</h2>
+    <p>Облако не ходит на контроллер. Связь только через MQTT. Радио, Алиса и Home Assistant входят как слои — не как новые мозги дома.</p>
+  </div>
+  <div class="rows">
+    <div class="card row">
+      <div>
+        <h3>LogicMachine и Raspberry</h3>
+        <div class="hint">KNX, Modbus, Zigbee, Bluetooth</div>
+      </div>
+      <div class="tag">Поле</div>
+    </div>
+    <div class="card row">
+      <div>
+        <h3>MQTT v1 · TLS</h3>
+        <div class="hint">Телеметрия, команды, ack. Без прямого HTTP.</div>
+      </div>
+      <div class="tag">Связь</div>
+    </div>
+    <div class="card row">
+      <div>
+        <h3>История, срез, REST, MCP</h3>
+        <div class="hint">Timescale, Redis, схема с версиями</div>
+      </div>
+      <div class="tag">Облако</div>
+    </div>
+    <div class="card row">
+      <div>
+        <h3>Grafana, агент, Алиса, HA</h3>
+        <div class="hint">Оператор, чат, экосистемы — сверху</div>
+      </div>
+      <div class="tag">Интерфейсы</div>
+    </div>
+  </div>
+</body>
+</html>
