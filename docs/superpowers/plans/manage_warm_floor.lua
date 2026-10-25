@@ -53,7 +53,7 @@ local HYST_ON  = 0.3
 local HYST_OFF = 0.1
 
 -- Защита по температуре пола
-local FLOOR_MAX_TEMP = 34
+local FLOOR_MAX_TEMP = 32
 
 -- Пауза между реле
 local RELAY_DELAY_SEC = 0.2
