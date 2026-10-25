@@ -76,11 +76,11 @@
         </div>
         <div class="cm-field">
           <label for="cottage-monitoring-snapshot_interval">Snapshot interval (с, 0=выкл)</label>
-          <input type="number" id="cottage-monitoring-snapshot_interval" min="0" value="0">
+          <input type="number" id="cottage-monitoring-snapshot_interval" min="0" value="300">
         </div>
         <div class="cm-field">
           <label for="cottage-monitoring-throttle">Throttle (events/с, 0=без лимита)</label>
-          <input type="number" id="cottage-monitoring-throttle" min="0" value="20" title="20=снижает нагрузку">
+          <input type="number" id="cottage-monitoring-throttle" min="0" value="0" title="0=без отбрасывания groupwrite">
         </div>
         <div class="cm-field">
           <label for="cottage-monitoring-batch_interval">Batch interval (с, 0=сразу)</label>
@@ -96,7 +96,7 @@
         </div>
         <div class="cm-field">
           <label for="cottage-monitoring-event_sleep">Event sleep (с, 0=выкл)</label>
-          <input type="number" id="cottage-monitoring-event_sleep" min="0" max="1" step="0.01" value="0.03" title="Пауза после KNX-события">
+          <input type="number" id="cottage-monitoring-event_sleep" min="0" max="1" step="0.01" value="0" title="Пауза после KNX-события">
         </div>
         <div class="cm-field">
           <label for="cottage-monitoring-loop_sleep">Loop sleep (с)</label>
@@ -104,7 +104,7 @@
         </div>
         <div class="cm-field">
           <button type="button" id="apply-lowload-btn" class="cm-btn">Применить настройки для снижения нагрузки</button>
-          <span class="cm-help">throttle=20, batch=1.5s, event_sleep=0.03, loop_sleep=0.25</span>
+          <span class="cm-help">throttle=0, snapshot=300s, event_sleep=0, batch=1.5s</span>
         </div>
         <button type="button" id="config-save-btn" class="cm-btn cm-save">Сохранить</button>
       </form>
@@ -182,8 +182,9 @@ $(function() {
   }
 
   $('#apply-lowload-btn').on('click', function() {
-    $('#' + APP + '-throttle').val(20);
-    $('#' + APP + '-event_sleep').val(0.03);
+    $('#' + APP + '-throttle').val(0);
+    $('#' + APP + '-event_sleep').val(0);
+    $('#' + APP + '-snapshot_interval').val(300);
     $('#' + APP + '-loop_sleep').val(0.25);
     $('#' + APP + '-batch_interval').val(1.5);
     $('#' + APP + '-batch_max_size').val(50);
@@ -200,10 +201,10 @@ $(function() {
     var mqtt_password = $('#' + APP + '-mqtt_password').val();
     var snapshot_interval = parseInt($('#' + APP + '-snapshot_interval').val(), 10) || 0;
     var throttle = parseInt($('#' + APP + '-throttle').val(), 10);
-    if (isNaN(throttle)) throttle = 20;
+    if (isNaN(throttle)) throttle = 0;
     var buffer_size = parseInt($('#' + APP + '-buffer_size').val(), 10) || 0;
     var event_sleep = parseFloat($('#' + APP + '-event_sleep').val());
-    if (isNaN(event_sleep)) event_sleep = 0.03;
+    if (isNaN(event_sleep)) event_sleep = 0;
     var loop_sleep = parseFloat($('#' + APP + '-loop_sleep').val());
     if (isNaN(loop_sleep)) loop_sleep = 0.25;
     var batch_interval = parseFloat($('#' + APP + '-batch_interval').val());

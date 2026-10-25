@@ -593,11 +593,43 @@ Loadavg LM (`34/1/6` 1‑мин) вырос с ~0.85 avg (14–16.07) до ~1.58
 - После renew cert брокера (R-013): проверить handshake с LM; при `tlsv1 alert unknown ca` — `tls_verify_off.lp`.
 - Docker server deploy: pin `mcp>=1.0,<2` (mcp 2.0 убрал `mcp.server.fastmcp` — падение 0.2.7 при первой сборке).
 
+## R-028: Stale light status — localbus drops + no snapshot (2026-09-14)
+
+### Симптомы
+
+Grafana-плитки света по status `1/2/*` были **правильным** источником (не control `1/1/*`). Облако отставало от LM `grp`: кухня `1/2/7` и холл `1/2/3` на LM `false`, в `current_state` всё ещё `true` с **13.09 19:20–19:35**. Переключения шкафа почти без `1/2/14` в облаке.
+
+С **13.09 17:00** AI-SRV `35/1/*` ~**5500 events/h**; счётчик `32/1/*` за тот же час упал **2700→650/h** — localbus был забит повторами.
+
+### Дыры
+
+| Дыра | Эффект |
+|------|--------|
+| `mqtt_listen` `grp.update` на каждый MQTT repeat (Zigbee + AI-SRV) | flood `groupwrite`, голод свет/счётчик |
+| `event_sleep` в handler daemon | пропуск groupwrite во время `os.sleep` |
+| `throttle` > 0 без счётчика | тихие drop (кухня/холл OFF) |
+| `force_export` не читался | «Выгрузить в MQTT» не публиковала snapshot |
+| `snapshot_interval=0` | drift не лечился |
+| localbus только `groupwrite` | ответы `groupresponse` не уходили в облако |
+
+### Решение (код tasks 1–3)
+
+- **`mqtt_listen` id=4:** AI-SRV через `ai_knx` + `AI_SRV_MIN_INTERVAL=15` (skip unchanged; changed — не чаще 15 с/GA). Availability `35/1/1` и `apply_ai_srv_offline_numerics` — `force`, без 15 с. Топики и GA `35/1/1`–`19` без изменений. Zigbee JSON сначала перевели на `grp.checkupdate`, затем вернули `grp.update` (R-029): `checkupdate` не двигает `updatetime`.
+- **Daemon v1.1.4:** общий `handle_bus_event` на `groupwrite` **и** `groupresponse` (не `groupread`); defaults `throttle=0`, `event_sleep=0`, `snapshot_interval=300`; `event_sleep` только в health, **не** `os.sleep` в handler; throttle > 0 считает `dropped_throttle` / `dropped_nofind` (не silent); `force_export` → `publish_meta` и сброс флага; snapshot каждые 300 с пока MQTT online.
+- **Heal-профиль** (`apply_lowload.lp` / кнопка): `throttle=0`, `event_sleep=0`, `snapshot_interval=300`, batch 1.5 / loop 0.25. Старый lowload (`throttle=20`, `event_sleep=0.03`) как раз прятал OFF кухни/холла.
+- **Health:** `dropped_throttle`, `dropped_nofind`, `last_snapshot_ts` в `status/health` и `health_get.lp`.
+
+Grafana / `list_lights` / skip_unchanged остаются на status `1/2/*`. Fallback плиток на control **не** делать.
+
+### Операционно после деплоя
+
+`apply_lowload.lp` + restart daemon; «Выгрузить в MQTT» или ≤300 с snapshot. `mqtt_listen` id=4 — FTP + `db:update` + respawn (как watchdog, id **4**, не 73). Проверка: LM `1/2/3`,`1/2/7` = `current_state`; `35/1/*` << 5500/h; `dropped_throttle` = 0.
+
 ## R-029: Zigbee checkupdate stale → floor fallback heats (2026-09-16)
 
-`mqtt_listen` после R-028 писал Zigbee через `grp.checkupdate`. Одинаковая температура (и float, который не проходит `==`, но слишком близко для checkupdate) не обновляет `updatetime` объекта воздуха. Влажность гостиной приходит ~каждые 150 с, температура в том же JSON — нет. `manage warm floors` через 300 с считает Zigbee мёртвым и греет пол до `setpoint + k` (гостиная k=7, не погода: при Tout≥0 `kw_base=0`).
+`grp.checkupdate` не трогает `updatetime`, если значение то же (и если float MQTT ≠ DPT9, но дельта меньше порога — тоже не пишет). `manage warm floors` (scheduled id 39) считает Zigbee живым только при `age ≤ ZB_STALE_SEC`. Heartbeat 120 с не помог: JSON с влажностью гостиной идёт ~каждые 150 с, температура в нём та же → `==` не срабатывает / `checkupdate` пропускает запись → age температуры 10+ мин → fallback. Гостиная: воздух 26 °C, уставка 21, реле ON, потому что fallback греет пол до `setpoint + k` (21+7=28). Погодная `kw_base` при Tout≥0 уже 0; плюс 7 — это **k**, не погода.
 
-`knx_check` для Zigbee JSON снова `grp.update`. `ZB_STALE_SEC=1800`. Маппинг гостиной верный: `sensor_3_temp_hum_living_room_fl1` → `33/1/7`.
+`knx_check` для Zigbee JSON снова `grp.update` (как до R-028 на этой ветке). AI-SRV по-прежнему режется `ai_knx`. `ZB_STALE_SEC=1800`, чтобы после reboot LM не греть 5 минут до первого z2m. Маппинг `sensor_3_temp_hum_living_room_fl1` → `33/1/7` верный.
 
 ---
 
@@ -754,5 +786,6 @@ Resident (таблица `scripting`) **не** является App daemon:
 | R-015 | CPU / batching | v1.1.2: batch + hb 3s + softer sleeps |
 | R-016 | Watchdog gap / zombie daemon | heartbeat+MQTT OK ≠ телеметрия; TLS verify+YR2; см. инцидент 2026-08-02 |
 | R-017 | Деплой без Web UI | lftp + lm-apps.sh + lm-watchdog-update.sh; resident pidfile respawn |
-| R-029 | Zigbee stale fallback heat | checkupdate+float глотает temp; knx_check=grp.update; ZB_STALE=1800 |
+| R-028 | Stale light status | daemon v1.1.4: snapshot, groupresponse, counted drops; AI-SRV 15 с; свет остаётся на `1/2/*` |
+| R-029 | Zigbee stale fallback heat | checkupdate+float глотает temp; knx_check=grp.update; ZB_STALE=1800; k≠погода |
 | R-030 | SSH/SFTP Dropbear | ключ через System Config; SFTP/WinSCP да, scp нет; карта путей; Lua/db gotchas |

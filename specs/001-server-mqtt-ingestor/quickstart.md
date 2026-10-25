@@ -577,6 +577,7 @@ Grafana на elion — OSS. Для агента: MCP `user-grafana` →
 - Instant-плитки **света**: Canvas, SQL format `table`, колонка = URL иконки
   (`public/img/cottage/light-on-128.png` / `light-off-128.png`). Stat PNG не показывает.
   URL в запросе — абсолютный `https://…` (иначе Grafana клеит `build/`).
+  Плитки читают `current_state` status `1/2/*`; пропущенный groupwrite лечит snapshot LM (R-028), не fallback на control `1/1/*`.
 - История света: **state-timeline** (строб), сырые `events` + last-state на `$__timeFrom()`
   (иначе первая полоса без длительности). Не `$__timeGroupAlias`.
 - Instant-плитки **ТП** (Stat, format `time_series`): `now() AS time` и

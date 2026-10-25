@@ -20,12 +20,12 @@
 | mqtt_use_tls | checkbox | ✓ | всегда включён (disabled) |
 | client_id | text | | 0–64 символа (пусто = auto) |
 | debug | checkbox | | |
-| snapshot_interval | number | | ≥ 0, 0 = off |
-| throttle | number | | ≥ 0, 0 = без ограничения; default **20** |
+| snapshot_interval | number | | ≥ 0, 0 = off; default **300** |
+| throttle | number | | ≥ 0, 0 = без ограничения; default **0** |
 | buffer_size | number | | ≥ 0, 0 = буфер отключён |
 | batch_interval | number | | ≥ 0, с; 0 = immediate dual-publish; default **1.5** |
 | batch_max_size | number | | ≥ 0; сброс буфера по размеру; default **50** |
-| event_sleep | number | | 0–1, пауза (с) после каждого KNX groupwrite, 0 = off. Default **0.03** |
+| event_sleep | number | | 0–1, пауза (с) после каждого KNX groupwrite, 0 = off. Default **0**. Daemon **v1.1.4** поле читает (health), но **не** спит в `handle_bus_event` |
 | loop_sleep | number | | 0.01–0.5, пауза (с) в главном цикле. Default **0.25** |
 
 ---
@@ -44,12 +44,12 @@
   "mqtt_use_tls": true,
   "client_id": "auto",
   "debug": false,
-  "snapshot_interval": 0,
-  "throttle": 20,
+  "snapshot_interval": 300,
+  "throttle": 0,
   "buffer_size": 1000,
   "batch_interval": 1.5,
   "batch_max_size": 50,
-  "event_sleep": 0.03,
+  "event_sleep": 0,
   "loop_sleep": 0.25
 }
 ```

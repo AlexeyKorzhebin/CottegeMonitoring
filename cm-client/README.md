@@ -17,10 +17,10 @@
 | debug_level | 0=выкл, 1=логи сброса буфера, 2=все отладочные логи |
 | batch_interval | Интервал отправки буфера (с), 0 = немедленно (default 1.5) |
 | batch_max_size | Сброс буфера при достижении размера, 0 = без лимита (default 50) |
-| snapshot_interval | Периодический snapshot (с), 0 = выкл |
-| throttle | Макс. events/с, 0 = без ограничения (default 20) |
+| snapshot_interval | Периодический snapshot (с), 0 = выкл (default 300) |
+| throttle | Макс. events/с, 0 = без ограничения (default 0) |
 | buffer_size | Размер буфера при offline |
-| event_sleep | Пауза после KNX-события (с), default 0.03 |
+| event_sleep | Пауза после KNX-события (с), default 0 (daemon 1.1.4 не спит в handler) |
 | loop_sleep | Пауза главного цикла (с), default 0.25 |
 
 ## Установка
