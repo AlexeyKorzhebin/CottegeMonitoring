@@ -351,7 +351,7 @@ bye
 
 ### Альтернативы
 
-- SCP — не поддерживается контроллером. Отвергнуто.
+- Классический OpenSSH `scp` на Dropbear часто не работает — **не** использовать как основной деплой. SFTP / WinSCP при включённом Dropbear — см. **R-030**. Автоматизация по-прежнему **lftp/FTP**.
 - OTA через MQTT — не предусмотрено в LM Apps. Отвергнуто.
 
 ---
@@ -552,7 +552,7 @@ Loadavg LM (`34/1/6` 1‑мин) вырос с ~0.85 avg (14–16.07) до ~1.58
 
 ### Контекст
 
-Операции на контроллере (деплой daemon, обновление Resident watchdog, TLS flags, health) должны выполняться из CI/терминала без входа в браузер LM. SCP не поддерживается.
+Операции на контроллере (деплой daemon, обновление Resident watchdog, TLS flags, health) должны выполняться из CI/терминала без входа в браузер LM. Классический `scp` на Dropbear ненадёжен; файлы — lftp/FTP, процессы — SSH/SFTP (R-030).
 
 ### Решение
 
@@ -601,6 +601,138 @@ Loadavg LM (`34/1/6` 1‑мин) вырос с ~0.85 avg (14–16.07) до ~1.58
 
 ---
 
+## R-030: SSH/SFTP на LM (Dropbear) и операторские приёмы (2026-09-17)
+
+### Контекст
+
+Источник: внутренний архив производителя LM MCP (`all mcp.zip`, PDF `creating_apps_20251008.pdf` + KB dump / AI-manual). Их MCP-сервер (Go exe на ПК + `mcp.lp` на контроллере) **не используем** — у нас свой стек. Полезны инструкции по доступу к самой LM и Lua/БД-ловушки.
+
+Ранние спеки (R-010) писали «SCP не поддерживается». Это верно для **классического OpenSSH `scp`**. На LM стоит **Dropbear**; с ключом работает **SSH shell** (мы уже так respawn'им resident) и **SFTP / WinSCP**. Автодеплой приложения по-прежнему **lftp (FTP user `apps`)**.
+
+### Dropbear: включить SSH и положить ключ
+
+Сервис спрятан в System Config. Пункт меню `#menu-services-dropbear` (Services → Dropbear). UI на MooTools: `.set('value', …)`, не jQuery `.val()`.
+
+Из браузера на странице System Config (F12 → Console), **только публичный** ключ:
+
+```javascript
+(function(k) {
+  document.querySelector('#menu-services-dropbear').click();
+  setTimeout(function() {
+    document.querySelector('select[name=enable]').set('value', 1);
+    document.querySelector('input[name=cfgid]').set('value', k);
+    document.querySelector('.FSFormSubmit').click();
+  }, 2000);
+})('ssh-ed25519 AAAA… comment');
+```
+
+После Submit **не кликать** ~2–3 с — иначе форма падает с ошибкой. Поле `cfgid` = authorized_keys (ed25519). Приватный ключ в UI **не** вставлять.
+
+У нас: `root@192.168.100.130`, alias `lm_estate` / `~/.ssh/id_ed25519_lm_estate`. Пароль — только как fallback (`LM_SSH_PASSWORD`).
+
+**Не коммитить** ключи из вендорского архива (`lm-16.ppk`, фрагменты PPK в PDF) — это чужой приватный ключ.
+
+### Файлы: SFTP / WinSCP vs scp vs FTP
+
+| Канал | Когда | Кто |
+|-------|--------|-----|
+| **lftp / FTP** | штатный деплой `cm-client` и daemon | user `apps` |
+| **SFTP** (`sftp`, WinSCP protocol=SFTP) | точечное редактирование на FS, просмотр `/tmp`, бэкапы | `root` |
+| **OpenSSH `scp`** | часто ломается на Dropbear | не использовать как основной путь |
+| **HTTP Apps** | `stop`/`start`/`health`, `.lp` | `admin` + Referer |
+| **SSH command** | `ps`, pidfile, spawn resident, ручной `lua …` | `root` |
+
+macOS / OpenSSH:
+
+```bash
+sftp -o IdentityFile=~/.ssh/id_ed25519_lm_estate root@192.168.100.130
+# WinSCP: протокол SFTP, ключ .ppk (puttygen из OpenSSH) или Pageant
+```
+
+PuTTY/SSH — запуск Lua вручную (daemon, backup worker), когда Apps supervisor не подхватил процесс:
+
+```bash
+ssh lm_estate 'lua /home/apps/store/daemon/cottage-monitoring/daemon.lua'
+# на LM нет nohup; фон: (lua … </dev/null &)
+```
+
+### Карта путей (это одни и те же деревья, разные «корни»)
+
+| Вид | App data | Daemon | Cron |
+|-----|----------|--------|------|
+| SSH / WinSCP (PDF производителя) | `/data/apps/store/data/<app>/` | `/data/apps/store/daemon/<app>/daemon.lua` | `/data/apps/store/cron/<app>/minutely.lua` |
+| Runtime (наши пробы) | `/home/apps/store/data/<app>/` | `/home/apps/store/daemon/<app>/daemon.lua` | `/home/apps/store/cron/<app>/` |
+| HTTP document root | `/www/apps/data/<app>/` или `/apps/data/<app>/` | — | — |
+| FTP (user `apps`) | `data/<app>/` | `daemon/<app>/` | `cron/<app>/` |
+| Глобальные `.lp` | `/www/public/` → `http://IP/<file>.lp` | | |
+| FTP-бэкапы | `/home/ftp/backups/` (каталог появляется, если FTP включён) | | |
+
+Для cottage-monitoring деплой **только** в FTP `daemon/cottage-monitoring/` + `data/cottage-monitoring/` (R-011). Копировать daemon в `data/…/daemon/` бесполезно.
+
+IPK для чужих инсталляций: на LM лежит сборщик `/data/apps/store/data/packager_v02` (Apps → packager → unsigned IPK). Наш штатный путь — lftp, не IPK.
+
+### Управление процессами с самой LM
+
+После `require('apps')` (или `require('apps.daemon')`):
+
+```lua
+daemon.status('cottage-monitoring')
+daemon.start('cottage-monitoring')
+daemon.stop('cottage-monitoring')
+daemon.restart('cottage-monitoring')
+daemon.reload('cottage-monitoring')  -- SIGUSR1; имеет смысл, только если daemon читает USR1 (signalfd)
+```
+
+HTTP-эквивалент: `/apps/request.lp?action=restart&name=cottage-monitoring` (R-001). Наш цикл деплоя — **stop → put → start**, не `reload`.
+
+Resident (таблица `scripting`) **не** является App daemon:
+
+| | App daemon | Resident script |
+|--|------------|-----------------|
+| Где код | файл `/daemon/<app>/daemon.lua` | колонка `scripting.script` |
+| Цикл | `while true` + `os.sleep` **нужен** | runtime крутит сам; `while true` = двойной цикл |
+| sleep param | в коде | param ≥ 1 сек; `0` = 100% CPU |
+| Respawn после kill | Apps supervisor | **нет** — pidfile + ручной spawn (R-017) |
+
+Обновление resident: `db:update('scripting', { script = code }, { id = N })`, затем `rm -f /var/run/gs-resident-N.pid` и `lua /lib/genohm-scada/core/scripting-resident.lua N`.
+
+### Lua / БД: что ломается на LM (из вендорского antipatterns)
+
+Нужно, когда правим объекты/скрипты через `.lp` или SSH Lua:
+
+- `db:getone('… WHERE id=?', id)` на части прошивок **всегда nil**. Использовать `db:getall('… WHERE id=' .. tonumber(id))[1]`.
+- `db:insert` / `db:update` **не бросают** exception: смотреть `local res, err = db:insert(...)`. `pcall` вокруг них маскирует ошибку (`ok` всегда true).
+- Плейсхолдер `?` в SQL ненадёжен — конкатенация после `tonumber`.
+- `grp.create` принимает **только таблицу**, позиционные аргументы игнорируются. `forcename = true` если имя занято.
+- Строки DPT 16 = 14 ASCII; внутренние длинные строки — datatype **255** (`dt.text`), не 250. В `objects.datatype` хранить 255.
+- `scriptsave()` / `webrequest` из handler часто молча no-op; код скриптов писать через `db:insert`/`db:update` в `scripting`.
+- `io.readfile` / `io.writefile` / `io.exists` / `io.ls` доступны в `.lp` и с SSH `lua`.
+- Event-скрипты: `event.getvalue()`, не `event.value` (это CANx). В event-логике предпочитать `grp.checkwrite` / `grp.checkupdate`, чтобы не флудить шину.
+- `alert('…')` — в UI Alerts (и в watchdog мы уже так пишем).
+
+`execmode` у event-скриптов: `""` = очередь параллельно, `"first"` = скип если уже бежит, `"last"` = убить предыдущий инстанс.
+
+### Что из архива сознательно не берём
+
+- Windows `lm-mcp-server-go.exe` + Chatbox / OpenRouter.
+- `mcp.lp` / `libs/mcp/*.lua` на контроллере (JSON-RPC MCP).
+- Их backup-worker в `/www/public/mcp_backup.lua` — идея «ZIP в `/home/ftp/backups/`» полезна, свой код не копируем.
+- Приватные ключи и `lm-16.ppk` из архива.
+
+### Решение
+
+- Штатный деплой: lftp + `lm-apps.sh` (без изменений).
+- Диагностика и respawn: SSH Dropbear + SFTP при необходимости.
+- Классический `scp` не считать рабочим каналом.
+- Ключ Dropbear — свой ed25519, не из вендорского PDF.
+
+### Альтернативы
+
+- Только FTP: достаточно для файлов, недостаточно для spawn resident (нужен SSH или reboot).
+- Вендорский MCP для управления LM: отвергнуто, дублирует и расширяет attack surface.
+
+---
+
 ## Сводка решений
 
 | ID | Тема | Решение |
@@ -623,3 +755,4 @@ Loadavg LM (`34/1/6` 1‑мин) вырос с ~0.85 avg (14–16.07) до ~1.58
 | R-016 | Watchdog gap / zombie daemon | heartbeat+MQTT OK ≠ телеметрия; TLS verify+YR2; см. инцидент 2026-08-02 |
 | R-017 | Деплой без Web UI | lftp + lm-apps.sh + lm-watchdog-update.sh; resident pidfile respawn |
 | R-029 | Zigbee stale fallback heat | checkupdate+float глотает temp; knx_check=grp.update; ZB_STALE=1800 |
+| R-030 | SSH/SFTP Dropbear | ключ через System Config; SFTP/WinSCP да, scp нет; карта путей; Lua/db gotchas |

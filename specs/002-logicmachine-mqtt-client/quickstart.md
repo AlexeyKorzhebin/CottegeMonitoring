@@ -8,7 +8,7 @@
 ## Предварительные требования
 
 - LogicMachine с поддержкой Apps и MQTT (mosquitto library)
-- **Доступ к контроллеру**: FTP `ftp://apps@192.168.100.130`, рабочая директория `/data/apps/store/data/cottage-monitoring` (SCP не поддерживается)
+- **Доступ к контроллеру**: FTP `ftp://apps@192.168.100.130` (штатный деплой); SSH/SFTP `root@192.168.100.130` (Dropbear, ключ `lm_estate`). Классический `scp` на Dropbear часто не работает — брать **SFTP** или lftp. Подробно **R-030**.
 - **FTP / веб LM**: учётки `apps` / `admin`; пароли в локальном `secrets/lm.env` (gitignore), см. `secrets/lm.env.example` и **001 R-012**
 - **Рестарт daemon**: надёжнее **stop → upload → start**:
   ```bash
@@ -27,7 +27,7 @@
 
 ### 1. Копирование файлов на контроллер
 
-Контроллер не поддерживает SCP, используется **lftp** (FTP).
+Контроллер для автодеплоя — **lftp** (FTP). OpenSSH `scp` на Dropbear ненадёжен; точечные правки с ключом — `sftp` / WinSCP (R-030).
 
 **Критично:** runtime daemon читается из **`/daemon/cottage-monitoring/daemon.lua`**, не из `data/cottage-monitoring/daemon/`. Заливать нужно в FTP-путь `daemon/cottage-monitoring`.
 
@@ -169,14 +169,23 @@ curl -X POST https://monitoring.black-castle.ru/api/v1/houses/house/restart-daem
 |------|--------|------------------|
 | FTP (заливка файлов) | `apps` | `LM_FTP_PASSWORD` в `secrets/lm.env` |
 | HTTP Apps API (stop/start/health, `.lp`) | `admin` | `LM_ADMIN_PASSWORD` в `secrets/lm.env` |
-| SSH (respawn Resident, опционально) | `root` | ключ `~/.ssh/config` → `lm_estate` или `LM_SSH_PASSWORD` |
+| SSH / SFTP (respawn, диагностика) | `root` | ключ `~/.ssh/config` → `lm_estate` или `LM_SSH_PASSWORD` |
 
-| Что | FTP-путь | Runtime на LM |
+| Что | FTP-путь | Runtime / SSH |
 |-----|----------|---------------|
-| UI, `.lp`, health | `data/cottage-monitoring/` | `/home/apps/store/data/cottage-monitoring/` |
+| UI, `.lp`, health | `data/cottage-monitoring/` | `/home/apps/store/data/cottage-monitoring/` (то же дерево, что `/data/apps/store/data/…`) |
 | Daemon (обязательно сюда) | `daemon/cottage-monitoring/daemon.lua` | `/home/apps/store/daemon/cottage-monitoring/daemon.lua` |
 
-**SCP на LM не работает** — только lftp/FTP.
+**Файлы в автоматизации — lftp/FTP.** `scp` не использовать. SFTP:
+
+```bash
+sftp -o IdentityFile=~/.ssh/id_ed25519_lm_estate root@192.168.100.130
+ssh lm_estate 'ps w | grep -E "cottage-monitoring|scripting-resident"'
+```
+
+WinSCP: протокол **SFTP** (не SCP), ключ `.ppk`. Включить Dropbear и залить **свой** публичный ed25519 — JS в консоли System Config, см. **R-030**. Чужие ключи из вендорских PDF/PPK не брать.
+
+Если SSH «Permission denied»: проверить, что Dropbear enabled и в `cfgid` лежит **наш** pubkey; после Submit подождать 2–3 с, не кликать повторно.
 
 ### Daemon + приложение (полный цикл)
 
@@ -292,6 +301,7 @@ ssh elion "sudo -u postgres psql -d cottage_monitoring -t -c \
 | health в MQTT «живой», events нет | retained `status/health` со старым ts | смотреть `last_event_age` / `events/batch` |
 | watchdog hard restart не помогает | TLS/не тот сценарий | не путать с «зомби» localbus |
 | Resident не стартует после kill | stale `gs-resident-N.pid` | `rm` pidfile + manual spawn (R-017) |
+| `scp: not supported` / protocol error | Dropbear без классического SCP | `sftp` / WinSCP(SFTP) или lftp (R-030) |
 | Деплой в `data/.../daemon/` | неверный путь | только `daemon/cottage-monitoring/` |
 
 ---
