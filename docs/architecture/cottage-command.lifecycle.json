@@ -1,0 +1,56 @@
+{
+  "schema_version": 1,
+  "diagram_type": "lifecycle",
+  "meta": {
+    "title": "CottageMonitoring — жизнь команды",
+    "quality_profile": "showcase",
+    "viewBox": [1180, 720],
+    "views": [
+      {
+        "id": "main-lifecycle",
+        "label": "Основной путь",
+        "focus": ["accepted", "validated", "sent", "awaiting", "applied"],
+        "note": "От REST/MCP до ack: sent в БД, публикация v1/cmd, grp.write, status=ok."
+      },
+      {
+        "id": "recovery",
+        "label": "Retry",
+        "focus": ["awaiting", "retrying", "sent"],
+        "note": "Пока status=sent и retry_count < max, планировщик публикует v1/cmd снова."
+      },
+      {
+        "id": "exit",
+        "label": "Timeout",
+        "focus": ["retrying", "timeout"],
+        "note": "Исчерпание ретраев ставит timeout. Поздний ack всё равно пишется."
+      }
+    ]
+  },
+  "lanes": [
+    { "id": "main", "label": "Фазы команды" },
+    { "id": "waiting", "label": "Ожидание ack" },
+    { "id": "exceptions", "label": "Восстановление" },
+    { "id": "terminal", "label": "Выходы" }
+  ],
+  "states": [
+    { "id": "accepted", "type": "start", "label": "Принята", "lane": "main", "col": 0, "step": "01", "tag": "entry" },
+    { "id": "validated", "type": "active", "label": "Валидация", "lane": "main", "col": 1, "step": "02", "tag": "check" },
+    { "id": "sent", "type": "active", "label": "sent", "lane": "main", "col": 2, "step": "03", "tag": "MQTT" },
+    { "id": "awaiting", "type": "decision", "label": "Ждём ack", "lane": "main", "col": 3, "step": "04", "tag": "wait" },
+    { "id": "applied", "type": "success", "label": "ok", "lane": "main", "col": 4, "step": "05", "tag": "done" },
+    { "id": "paused", "type": "waiting", "label": "Нет ack", "lane": "waiting", "col": 1, "tag": "pause" },
+    { "id": "retrying", "type": "failure", "label": "Retry", "lane": "exceptions", "col": 0, "yOffset": 78, "tag": "retryable" },
+    { "id": "timeout", "type": "failure", "label": "timeout", "lane": "terminal", "col": 1, "tag": "terminal" }
+  ],
+  "transitions": [
+    { "id": "still-waiting", "from": "awaiting", "to": "paused", "variant": "default", "route": "drop" },
+    { "id": "no-ack", "from": "sent", "to": "retrying", "label": "нет ack", "variant": "security", "fromSide": "left", "toSide": "left", "via": [[320, 157], [320, 385]] },
+    { "id": "retry-publish", "from": "retrying", "to": "sent", "label": "retry", "variant": "emphasis", "fromSide": "left", "toSide": "top", "via": [[20, 385], [20, 80], [402, 80]] },
+    { "id": "retries-exhausted", "from": "paused", "to": "timeout", "label": "max retries", "variant": "security", "fromSide": "bottom", "toSide": "top", "route": "straight", "labelDy": 24 }
+  ],
+  "cards": [
+    { "dot": "emerald", "title": "Статусы в БД", "items": ["sent — опубликована, ждёт ack", "ok из payload ack — применена", "timeout — ретраи кончились"] },
+    { "dot": "amber", "title": "Не на рельсе", "items": ["Неактивный дом → 400 до строки commands", "dry_run пишет status=dry_run и не трогает MQTT"] },
+    { "dot": "rose", "title": "Восстановление", "items": ["Планировщик смотрит только status=sent", "Поздний ack после timeout всё равно обновляет строку"] }
+  ]
+}

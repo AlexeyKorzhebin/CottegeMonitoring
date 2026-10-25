@@ -1,0 +1,70 @@
+{
+  "schema_version": 1,
+  "diagram_type": "sequence",
+  "meta": {
+    "title": "CottageMonitoring — set_light roundtrip",
+    "quality_profile": "showcase",
+    "column_fit": "spread",
+    "viewBox": [1180, 700],
+    "views": [
+      {
+        "id": "intake",
+        "label": "Вход и запись",
+        "focus": ["agent", "nord", "postgres"],
+        "note": "MCP/REST создаёт Command со status=sent до публикации."
+      },
+      {
+        "id": "downlink",
+        "label": "Команда в дом",
+        "focus": ["nord", "mqtt", "lm", "knx"],
+        "note": "v1/cmd доходит до LogicMachine и grp.write на шину KNX."
+      },
+      {
+        "id": "ack",
+        "label": "Ack обратно",
+        "focus": ["knx", "lm", "mqtt", "nord", "postgres", "agent"],
+        "note": "Ack обновляет commands и возвращает результат агенту."
+      }
+    ]
+  },
+  "participants": [
+    { "id": "agent", "type": "external", "label": "Агент" },
+    { "id": "nord", "type": "backend", "label": "Nord", "brand": "fastapi" },
+    { "id": "postgres", "type": "database", "label": "PostgreSQL", "brand": "postgresql" },
+    { "id": "mqtt", "type": "messagebus", "label": "Mosquitto" },
+    { "id": "lm", "type": "backend", "label": "LogicMachine" },
+    { "id": "knx", "type": "external", "label": "KNX" }
+  ],
+  "segments": [
+    { "from": 150, "to": 280, "label": "Приём" },
+    { "from": 300, "to": 460, "label": "Downlink" },
+    { "from": 480, "to": 620, "label": "Ack" }
+  ],
+  "messages": [
+    { "id": "op-call", "from": "agent", "to": "nord", "y": 185, "label": "set_light", "variant": "emphasis" },
+    { "id": "insert-cmd", "from": "nord", "to": "postgres", "y": 220, "label": "INSERT sent", "variant": "default" },
+    { "id": "row-ok", "from": "postgres", "to": "nord", "y": 252, "label": "request_id", "variant": "return" },
+    { "id": "publish-cmd", "from": "nord", "to": "mqtt", "y": 330, "label": "v1/cmd QoS1", "variant": "emphasis" },
+    { "id": "deliver-lm", "from": "mqtt", "to": "lm", "y": 365, "label": "TLS :8883", "variant": "emphasis" },
+    { "id": "grp-write", "from": "lm", "to": "knx", "y": 405, "label": "grp.write", "variant": "emphasis" },
+    { "id": "bus-ok", "from": "knx", "to": "lm", "y": 442, "label": "шина", "variant": "return" },
+    { "id": "publish-ack", "from": "lm", "to": "mqtt", "y": 490, "label": "v1/cmd/ack", "variant": "dashed" },
+    { "id": "ack-nord", "from": "mqtt", "to": "nord", "y": 525, "label": "status=ok", "variant": "return" },
+    { "id": "update-cmd", "from": "nord", "to": "postgres", "y": 560, "label": "ts_ack + status", "variant": "dashed" },
+    { "id": "op-result", "from": "nord", "to": "agent", "y": 598, "label": "результат Op", "variant": "return" }
+  ],
+  "activations": [
+    { "participant": "nord", "from": 185, "to": 605, "type": "backend" },
+    { "participant": "postgres", "from": 215, "to": 258, "type": "database" },
+    { "participant": "mqtt", "from": 325, "to": 375, "type": "messagebus" },
+    { "participant": "lm", "from": 360, "to": 500, "type": "backend" },
+    { "participant": "knx", "from": 400, "to": 448, "type": "external" },
+    { "participant": "mqtt", "from": 485, "to": 532, "type": "messagebus" },
+    { "participant": "postgres", "from": 555, "to": 575, "type": "database" }
+  ],
+  "cards": [
+    { "dot": "emerald", "title": "Запись", "items": ["Command пишется в БД до MQTT, чтобы retry знал request_id"] },
+    { "dot": "cyan", "title": "Шина", "items": ["Ack привязан к request_id, не к GA"] },
+    { "dot": "rose", "title": "Сбой", "items": ["Нет ack при status=sent → retry; поздний ack после timeout применяется"] }
+  ]
+}

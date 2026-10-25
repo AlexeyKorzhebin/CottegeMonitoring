@@ -1,0 +1,71 @@
+{
+  "schema_version": 1,
+  "diagram_type": "workflow",
+  "meta": {
+    "title": "CottageMonitoring — команда в дом",
+    "quality_profile": "showcase",
+    "viewBox": [1180, 680],
+    "views": [
+      {
+        "id": "happy-path",
+        "label": "Успешная команда",
+        "focus": ["agent", "nginx", "ops", "mqtt", "lm", "knx"],
+        "note": "Write-Op проходит nginx и Nord, публикуется в v1/cmd и доходит до grp.write."
+      },
+      {
+        "id": "policy-gate",
+        "label": "Ключ и scope",
+        "focus": ["ops", "denied"],
+        "note": "Без write-scope или при неактивном доме команда не уходит в MQTT."
+      },
+      {
+        "id": "retry-ack",
+        "label": "Ack и retry",
+        "focus": ["lm", "mqtt", "ops", "timeout"],
+        "note": "Ack обновляет commands; без ответа Nord ретраит, затем timeout."
+      }
+    ]
+  },
+  "lanes": [
+    { "id": "client", "label": "Агент" },
+    { "id": "nord", "label": "Nord / MQTT" },
+    { "id": "house", "label": "Коттедж" },
+    { "id": "exceptions", "label": "Отказы", "variant": "exception" }
+  ],
+  "phases": [
+    { "id": "intake", "label": "Вход", "fromCol": 0, "toCol": 1 },
+    { "id": "execute", "label": "Исполнение", "fromCol": 2, "toCol": 4, "variant": "emphasis" },
+    { "id": "confirm", "label": "Подтверждение", "fromCol": 5, "toCol": 5, "variant": "dashed" }
+  ],
+  "groups": [
+    { "id": "policy", "label": "API key + Ops", "lane": "nord", "fromCol": 1, "toCol": 2, "variant": "security" },
+    { "id": "bus-work", "label": "v1/cmd + ack", "lane": "nord", "fromCol": 3, "toCol": 5, "variant": "dashed" }
+  ],
+  "mainPath": ["agent", "nginx", "ops", "mqtt", "lm", "knx"],
+  "nodes": [
+    { "id": "agent", "lane": "client", "col": 0, "type": "external", "label": "Telegram / MCP" },
+    { "id": "nginx", "lane": "client", "col": 1, "type": "security", "label": "nginx" },
+    { "id": "ops", "lane": "nord", "col": 2, "type": "backend", "label": "Nord Ops", "tag": "FastAPI" },
+    { "id": "denied", "lane": "exceptions", "col": 2, "type": "security", "label": "Отказ" },
+    { "id": "mqtt", "lane": "nord", "col": 3, "type": "messagebus", "label": "Mosquitto" },
+    { "id": "lm", "lane": "house", "col": 4, "type": "backend", "label": "LogicMachine" },
+    { "id": "timeout", "lane": "exceptions", "col": 4, "type": "messagebus", "label": "timeout" },
+    { "id": "knx", "lane": "house", "col": 5, "type": "external", "label": "KNX" },
+    { "id": "ack", "lane": "nord", "col": 5, "type": "messagebus", "label": "v1/cmd/ack" }
+  ],
+  "edges": [
+    { "id": "agent-nginx", "from": "agent", "to": "nginx", "variant": "emphasis" },
+    { "id": "nginx-ops", "from": "nginx", "to": "ops", "label": "REST / MCP", "variant": "emphasis" },
+    { "id": "ops-denied", "from": "ops", "to": "denied", "label": "нет права", "variant": "security", "role": "error", "fromSide": "bottom", "toSide": "top", "route": "drop" },
+    { "id": "ops-mqtt", "from": "ops", "to": "mqtt", "variant": "emphasis" },
+    { "id": "mqtt-lm", "from": "mqtt", "to": "lm", "label": "TLS :8883", "variant": "emphasis" },
+    { "id": "lm-timeout", "from": "lm", "to": "timeout", "label": "нет ack", "variant": "dashed", "role": "error" },
+    { "id": "lm-knx", "from": "lm", "to": "knx", "label": "grp.write", "variant": "emphasis", "labelDy": -20 },
+    { "id": "lm-ack", "from": "lm", "to": "ack", "label": "ack", "variant": "dashed", "role": "return" }
+  ],
+  "cards": [
+    { "dot": "cyan", "title": "Вход", "items": ["Один каталог Ops: MCP для Telegram, REST для остальных", "/mcp снаружи закрыт, только loopback и RFC1918"] },
+    { "dot": "emerald", "title": "Исполнение", "items": ["Nord пишет commands.status=sent и публикует cm/.../v1/cmd", "LogicMachine делает grp.write по GA"] },
+    { "dot": "rose", "title": "Сбой", "items": ["Пока status=sent — retry до cmd_max_retries", "Исчерпание ретраев → timeout; поздний ack всё равно применяется"] }
+  ]
+}

@@ -1,0 +1,62 @@
+{
+  "schema_version": 1,
+  "diagram_type": "dataflow",
+  "meta": {
+    "title": "CottageMonitoring — поток телеметрии",
+    "quality_profile": "showcase",
+    "viewBox": [1180, 560],
+    "views": [
+      {
+        "id": "events",
+        "label": "Журнал событий",
+        "focus": ["knx", "events", "ingestor", "timescale", "grafana"],
+        "note": "KNX-события батчатся в events/batch и оседают в TimescaleDB для Grafana."
+      },
+      {
+        "id": "state",
+        "label": "Актуальный срез",
+        "focus": ["lm", "state", "ingestor", "redis", "ops"],
+        "note": "state/batch обновляет Redis current_state для Ops и MCP."
+      },
+      {
+        "id": "observe",
+        "label": "Потребители",
+        "focus": ["timescale", "grafana", "redis", "ops"],
+        "note": "Grafana читает историю SQL; агенты читают срез из Redis."
+      }
+    ]
+  },
+  "stages": [
+    { "label": "Источники" },
+    { "label": "MQTT" },
+    { "label": "Ingest" },
+    { "label": "Состояние" },
+    { "label": "Потребители" }
+  ],
+  "nodes": [
+    { "id": "knx", "type": "external", "label": "KNX / Zigbee", "stage": 0, "row": 0 },
+    { "id": "lm", "type": "backend", "label": "LogicMachine", "stage": 0, "row": 2, "tag": "Lua" },
+    { "id": "events", "type": "messagebus", "label": "events/batch", "stage": 1, "row": 0, "tag": "QoS 0/1" },
+    { "id": "state", "type": "messagebus", "label": "state/batch", "stage": 1, "row": 2, "tag": "QoS 1" },
+    { "id": "ingestor", "type": "backend", "label": "Nord ingest", "stage": 2, "row": 1, "tag": "FastAPI", "brand": "fastapi" },
+    { "id": "timescale", "type": "database", "label": "TimescaleDB", "stage": 3, "row": 0, "tag": "hypertable", "brand": "postgresql" },
+    { "id": "redis", "type": "database", "label": "Redis", "stage": 3, "row": 2, "brand": "redis" },
+    { "id": "grafana", "type": "frontend", "label": "Grafana", "stage": 4, "row": 0, "brand": "grafana" },
+    { "id": "ops", "type": "backend", "label": "Ops / MCP", "stage": 4, "row": 2 }
+  ],
+  "flows": [
+    { "from": "knx", "to": "events", "label": "groupwrite", "classification": "KNX event", "variant": "emphasis", "route": "straight" },
+    { "from": "lm", "to": "state", "label": "snapshot", "classification": "state/batch", "variant": "emphasis", "route": "straight" },
+    { "from": "events", "to": "ingestor", "label": "ingest", "classification": "cm/#", "variant": "emphasis", "route": "vertical-channel" },
+    { "from": "state", "to": "ingestor", "label": "срез", "classification": "current_state", "variant": "emphasis", "route": "vertical-channel" },
+    { "from": "ingestor", "to": "timescale", "label": "append", "classification": "events", "variant": "emphasis", "route": "vertical-channel" },
+    { "from": "ingestor", "to": "redis", "label": "HSET", "classification": "state:{house_id}", "variant": "emphasis", "route": "vertical-channel" },
+    { "from": "timescale", "to": "grafana", "label": "SQL", "classification": "read-only", "variant": "emphasis", "route": "straight" },
+    { "from": "redis", "to": "ops", "label": "read", "classification": "Ops snapshot", "variant": "emphasis", "route": "straight" }
+  ],
+  "cards": [
+    { "dot": "cyan", "title": "Шина", "items": ["Префикс prod пустой: cm/<house>/<device>/v1/…", "LWT status/online кормит алерт house-stale — в карточке, не отдельным топиком"] },
+    { "dot": "emerald", "title": "Два актива", "items": ["История — hypertable events", "Срез — Redis; Grafana читает PG, агенты — Redis"] },
+    { "dot": "rose", "title": "Dev", "items": ["Dev сидит на префиксе dev/ на том же Mosquitto"] }
+  ]
+}

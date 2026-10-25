@@ -1,0 +1,60 @@
+{
+  "schema_version": 1,
+  "diagram_type": "architecture",
+  "meta": {
+    "title": "CottageMonitoring — runtime",
+    "quality_profile": "showcase",
+    "views": [
+      {
+        "id": "ingest-path",
+        "label": "Телеметрия в облако",
+        "focus": ["knx", "lm", "mqtt", "nord", "postgres"],
+        "note": "KNX-события идут через LogicMachine и MQTT TLS в Nord, затем в TimescaleDB."
+      },
+      {
+        "id": "command-path",
+        "label": "Команды в дом",
+        "focus": ["agents", "nginx", "nord", "mqtt", "lm"],
+        "note": "REST и MCP входят через nginx; Nord публикует v1/cmd обратно на LogicMachine."
+      },
+      {
+        "id": "observe-path",
+        "label": "Наблюдение",
+        "focus": ["grafana", "postgres", "nord", "redis"],
+        "note": "Grafana читает PostgreSQL; актуальный срез живёт в Redis."
+      }
+    ]
+  },
+  "components": [
+    { "id": "agents", "type": "external", "label": "Операторы", "sublabel": "MCP / REST / UI", "pos": [48, 88], "size": [140, 64] },
+    { "id": "nginx", "type": "security", "label": "nginx", "sublabel": "HTTPS :443", "pos": [500, 88], "size": [140, 64], "tag": "edge" },
+    { "id": "grafana", "type": "frontend", "label": "Grafana", "sublabel": "дашборды Cottage", "brand": "grafana", "pos": [960, 88], "size": [150, 64] },
+    { "id": "redis", "type": "database", "label": "Redis", "sublabel": "current_state", "brand": "redis", "pos": [720, 220], "size": [150, 64] },
+    { "id": "knx", "type": "external", "label": "Устройства", "sublabel": "KNX / Zigbee", "pos": [48, 420], "size": [140, 64] },
+    { "id": "lm", "type": "backend", "label": "LogicMachine", "sublabel": "Lua daemon", "pos": [250, 420], "size": [150, 64] },
+    { "id": "mqtt", "type": "messagebus", "label": "Mosquitto", "sublabel": "MQTT TLS :8883", "pos": [500, 420], "size": [140, 64] },
+    { "id": "nord", "type": "backend", "label": "Nord", "sublabel": "FastAPI :8321", "brand": "fastapi", "pos": [720, 420], "size": [150, 64], "tag": "ingest + API" },
+    { "id": "postgres", "type": "database", "label": "PostgreSQL", "sublabel": "TimescaleDB", "brand": "postgresql", "pos": [960, 420], "size": [150, 64] }
+  ],
+  "boundaries": [
+    { "kind": "region", "label": "Коттедж / LAN", "wraps": ["knx", "lm"] },
+    { "kind": "region", "label": "elion.black-castle.ru", "wraps": ["nginx", "mqtt", "nord", "redis", "postgres", "grafana"] },
+    { "kind": "security-group", "label": "private data :5432/:6379", "wraps": ["nord", "redis", "postgres"] }
+  ],
+  "connections": [
+    { "id": "knx-to-lm", "from": "knx", "to": "lm", "label": "KNX", "variant": "emphasis" },
+    { "id": "lm-to-mqtt", "from": "lm", "to": "mqtt", "label": "TLS :8883", "variant": "emphasis", "labelDy": -28 },
+    { "id": "mqtt-to-nord", "from": "mqtt", "to": "nord", "label": "cm/# ingest", "variant": "emphasis", "labelDy": 52 },
+    { "id": "nord-to-postgres", "from": "nord", "to": "postgres", "label": "SQL", "variant": "emphasis" },
+    { "id": "nord-to-redis", "from": "nord", "to": "redis", "label": "срез", "labelDy": -48 },
+    { "id": "nord-cmd", "from": "nord", "to": "mqtt", "label": "v1/cmd", "variant": "dashed", "fromSide": "bottom", "toSide": "bottom" },
+    { "id": "agents-to-nginx", "from": "agents", "to": "nginx", "label": "HTTPS" },
+    { "id": "nginx-to-nord", "from": "nginx", "to": "nord", "label": "REST / MCP", "fromSide": "right", "toSide": "top" },
+    { "id": "grafana-sql", "from": "grafana", "to": "postgres", "label": "SQL", "labelDy": 24 }
+  ],
+  "cards": [
+    { "dot": "cyan", "title": "Коттедж", "items": ["LogicMachine сводит протоколы к объектам KNX", "Lua daemon публикует events/state/meta и принимает команды"] },
+    { "dot": "emerald", "title": "Nord", "items": ["Один FastAPI-процесс: MQTT ingest, REST /api/v1, MCP /mcp", "Актуальный срез в Redis, история в PostgreSQL + TimescaleDB"] },
+    { "dot": "amber", "title": "Наблюдение", "items": ["Grafana читает TimescaleDB; алерты уходят в Telegram", "Home Assistant — отдельный план витрины, не текущий runtime"] }
+  ]
+}
