@@ -261,7 +261,7 @@ AI-SRV `35/1/*`: `ai_knx` + `AI_SRV_MIN_INTERVAL=15` (skip unchanged; changed �
 
 Обновление resident 4 без Web UI — тот же паттерн, что `./deploy/lm-watchdog-update.sh` (FTP + `db:update('scripting', { script = code }, { id = 4 })` + respawn), источник `mqtt_listen.lua`, id **4** (не 73). После `db:update` нужен respawn `lua /lib/genohm-scada/core/scripting-resident.lua 4`. Daemon cottage-monitoring не рестартовать: новые GA подхватит schema/groupwrite.
 
-Снимок включённых скриптов LM на 2026-10-24 без вшитых секретов: `cm-client/scripts/lm-live/2026-10-24/`. Вне git остались light control и Setup watch dog timers (пароль admin в URL), `mqtt_listen` и zigbee send (пароль MQTT), погода Яндекса (API key), `telegram_listner` (токен бота). id 39 в снимке — текст до общей блокировки гостиной; на LM `docs/superpowers/plans/manage_warm_floor.lua`: потолок пола для всех комнат 32°C; пик датчиков гостиной 1/2 гасит оба её реле с 32°C; нет числа с любого из двух датчиков — оба реле OFF.
+Снимок включённых скриптов LM на 2026-10-24 без вшитых секретов: `cm-client/scripts/lm-live/2026-10-24/`. Вне git остались light control и Setup watch dog timers (пароль admin в URL), `mqtt_listen` и zigbee send (пароль MQTT), погода Яндекса (API key), `telegram_listner` (токен бота). id 39 в снимке — текст до общей блокировки гостиной; на LM `docs/superpowers/plans/manage_warm_floor.lua`: потолок пола для всех комнат 32°C; пик датчиков гостиной 1/2 гасит оба её реле с 32°C; нет числа с любого из двух датчиков — оба реле OFF. С 2026-10-26 resident 71 меняет местами входы гостиной: IR14 → `1/3/6` (темп. гостиная 2), IR15 → `1/3/5` (темп. гостиная 1). Раньше зонд под плёнкой гостиной 1 публиковался как гостиная 2.
 
 ### Конфиг и TLS без Web UI
 
