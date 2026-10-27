@@ -542,7 +542,7 @@
         "defaults": {
           "custom": {
             "fillOpacity": 10,
-            "spanNulls": false,
+            "spanNulls": 43200000,
             "insertNulls": 172800000,
             "lineInterpolation": "linear"
           },
@@ -588,7 +588,7 @@
         "defaults": {
           "custom": {
             "fillOpacity": 10,
-            "spanNulls": false,
+            "spanNulls": 43200000,
             "insertNulls": 172800000,
             "lineInterpolation": "linear"
           },
@@ -646,7 +646,7 @@
         "defaults": {
           "custom": {
             "fillOpacity": 10,
-            "spanNulls": false,
+            "spanNulls": 43200000,
             "insertNulls": 172800000,
             "lineInterpolation": "linear"
           },
@@ -692,7 +692,7 @@
         "defaults": {
           "custom": {
             "fillOpacity": 10,
-            "spanNulls": false,
+            "spanNulls": 43200000,
             "insertNulls": 172800000,
             "lineInterpolation": "linear"
           },
@@ -750,7 +750,7 @@
         "defaults": {
           "custom": {
             "fillOpacity": 10,
-            "spanNulls": false,
+            "spanNulls": 43200000,
             "insertNulls": 172800000,
             "lineInterpolation": "linear"
           },

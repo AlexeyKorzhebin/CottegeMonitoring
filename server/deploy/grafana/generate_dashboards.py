@@ -58,6 +58,28 @@ LIGHTS_OUT = [
     ("Балкон", "1/2/10"),
 ]
 
+# Тёплые полы: все зоны из manage_warm_floor.lua (floor 1/3/*, status 1/5/*).
+# (label, floor_temp_ga, relay_status_ga) — GA совпадают по последнему октету.
+HEAT_ZONES = [
+    ("Тамбур", "1/3/2", "1/5/2"),
+    ("Холл 1", "1/3/3", "1/5/3"),
+    ("Спальня", "1/3/4", "1/5/4"),
+    ("Гостиная 1", "1/3/5", "1/5/5"),
+    ("Гостиная 2", "1/3/6", "1/5/6"),
+    ("Кухня", "1/3/7", "1/5/7"),
+    ("Ванная 1", "1/3/8", "1/5/8"),
+    ("Холл 2", "1/3/10", "1/5/10"),
+    ("Гостевая", "1/3/11", "1/5/11"),
+    ("Настя", "1/3/12", "1/5/12"),
+    ("Тим", "1/3/13", "1/5/13"),
+    ("Ванная 2", "1/3/14", "1/5/14"),
+    ("Кабинет", "1/3/15", "1/5/15"),
+]
+HEAT_RELAY_HISTORY_DESC = (
+    "Строб как у света: жёлтый = реле ВКЛ (греет), тёмный = выкл. "
+    "Ширина полосы = сколько грело. Status 1/5/*, сырые events."
+)
+
 # Cross-links between cottage dashboards (root_url includes /grafana/).
 DASH_LINKS = [
     {
@@ -189,20 +211,26 @@ def nav_panel(y: int):
     return p
 
 
+# Connect sparse telemetry across empty $__timeGroup buckets (skip-unchanged MQTT).
+# 12h is a common home-IoT default: hides traffic-optimization gaps, still breaks
+# on half-day+ sensor/outage silence. Binary panels use state-timeline instead.
+SPAN_NULLS_MS = 12 * 60 * 60 * 1000  # 12 hours
+INSERT_NULLS_MS = 2 * 24 * 60 * 60 * 1000  # 2 days between raw points
+
+
 def timeseries(title, x, y, w, h, sql, unit=None, fill_opacity=10, description=None):
     p = panel_common(title, "timeseries", x, y, w, h)
     p["targets"] = [sql_target("A", sql)]
     # Do NOT use $__timeGroupAlias(..., NULL) over long ranges — it can allocate
     # huge null arrays and crash the browser (RangeError: Invalid array length).
-    # insertNulls = gap threshold in ms: break the line if points are farther apart.
     field_cfg = {
         "defaults": {
             "custom": {
                 "fillOpacity": fill_opacity,
-                "spanNulls": False,
-                # Break line if gap between points > 2 days (shows multi-day outages
-                # on long ranges without exploding arrays via SQL NULL gapfill).
-                "insertNulls": 172800000,
+                # Connect null buckets if the gap to the next point is ≤ 12h.
+                "spanNulls": SPAN_NULLS_MS,
+                # Also break if consecutive raw points are > 2 days apart.
+                "insertNulls": INSERT_NULLS_MS,
                 "lineInterpolation": "linear",
             }
         }
@@ -420,7 +448,15 @@ ORDER BY time, metric
 """.strip()
 
 
-def light_history(title, x, y, w, h, rooms: list[tuple[str, str]]):
+def light_history(
+    title,
+    x,
+    y,
+    w,
+    h,
+    rooms: list[tuple[str, str]],
+    description: str | None = None,
+):
     """State timeline (strobe): yellow = on, dark = off, bar width = duration."""
     p = panel_common(title, "state-timeline", x, y, w, h)
     p["targets"] = [sql_target("A", _light_history_sql(rooms), fmt="time_series")]
@@ -465,8 +501,27 @@ def light_history(title, x, y, w, h, rooms: list[tuple[str, str]]):
         "tooltip": {"mode": "single", "sort": "none"},
         "perPage": 20,
     }
-    p["description"] = LIGHTS_HISTORY_DESC
+    p["description"] = description or LIGHTS_HISTORY_DESC
     return p
+
+
+def _floor_temp_history_sql(zones: list[tuple[str, str, str]]) -> str:
+    """Wide timeseries: one column per floor-temp GA (1/3/*)."""
+    cols = ",\n  ".join(
+        f'avg({NUM}) FILTER (WHERE e.ga = \'{floor_ga}\') AS "{name}"'
+        for name, floor_ga, _relay in zones
+    )
+    gas = ", ".join(f"'{floor_ga}'" for _name, floor_ga, _relay in zones)
+    return f"""
+SELECT
+  $__timeGroupAlias(e.ts, $__interval),
+  {cols}
+FROM events e
+WHERE e.house_id = 'house'
+  AND e.ga IN ({gas})
+  AND $__timeFilter(e.ts)
+GROUP BY 1 ORDER BY 1
+""".strip()
 
 
 def heat_tiles(title, x, y, w, h, description=None):
@@ -1205,50 +1260,28 @@ ORDER BY f.zone
             y,
             10,
             10,
-            f"""
-SELECT
-  $__timeGroupAlias(e.ts, $__interval),
-  avg({NUM}) FILTER (WHERE e.ga = '1/3/7') AS "Кухня",
-  avg({NUM}) FILTER (WHERE e.ga = '1/3/5') AS "Гостиная 1",
-  avg({NUM}) FILTER (WHERE e.ga = '1/3/6') AS "Гостиная 2",
-  avg({NUM}) FILTER (WHERE e.ga = '1/3/4') AS "Спальня",
-  avg({NUM}) FILTER (WHERE e.ga = '1/3/12') AS "Настя",
-  avg({NUM}) FILTER (WHERE e.ga = '1/3/13') AS "Тим"
-FROM events e
-WHERE e.house_id = 'house'
-  AND e.ga IN ('1/3/7','1/3/5','1/3/6','1/3/4','1/3/12','1/3/13')
-  AND $__timeFilter(e.ts)
-GROUP BY 1 ORDER BY 1
-""".strip(),
+            _floor_temp_history_sql(HEAT_ZONES),
             unit="celsius",
+            description=(
+                "Все зоны ТП из manage_warm_floor (1/3/*), не только комнаты с картой. "
+                "В т.ч. тамбур, холлы, ванные, кабинет, гостевая."
+            ),
         )
     )
     y += 10
 
     panels.append(row("Реле отопления (история)", y))
     y += 1
+    heat_relays = [(name, relay_ga) for name, _floor, relay_ga in HEAT_ZONES]
     panels.append(
-        timeseries(
-            "Реле ТП (0/1)",
+        light_history(
+            "Реле ТП",
             0,
             y,
             24,
-            7,
-            f"""
-SELECT
-  $__timeGroupAlias(e.ts, $__interval),
-  max({BOOL01}) FILTER (WHERE e.ga = '1/5/7') AS "Кухня",
-  max({BOOL01}) FILTER (WHERE e.ga = '1/5/5') AS "Гостиная1",
-  max({BOOL01}) FILTER (WHERE e.ga = '1/5/6') AS "Гостиная2",
-  max({BOOL01}) FILTER (WHERE e.ga = '1/5/4') AS "Спальня",
-  max({BOOL01}) FILTER (WHERE e.ga = '1/5/12') AS "Настя",
-  max({BOOL01}) FILTER (WHERE e.ga = '1/5/13') AS "Тим"
-FROM events e
-WHERE e.house_id = 'house'
-  AND e.ga IN ('1/5/7','1/5/5','1/5/6','1/5/4','1/5/12','1/5/13')
-  AND $__timeFilter(e.ts)
-GROUP BY 1 ORDER BY 1
-""".strip(),
+            12,
+            heat_relays,
+            description=HEAT_RELAY_HISTORY_DESC,
         )
     )
 
@@ -2163,7 +2196,7 @@ def ai_srv():
     ]
     widths = [5, 5, 4, 4, 6]
     x = 0
-    for (title, sql, extra), w in zip(accident, widths, strict=True):
+    for (title, sql, extra), w in zip(accident, widths):  # noqa: B905 — Py<3.10
         kwargs = dict(extra)
         desc = kwargs.pop("description", "last_shutdown из current_state.")
         panels.append(

@@ -904,8 +904,10 @@ FR-045 оставлял Grafana-дашборды **метрик приложен
 ### Решение
 
 1. **Источник данных:** PostgreSQL datasource UID `cottage-monitoring-pg`, роль `cottage_grafana` (SELECT-only), БД `cottage_monitoring`.
-2. **Дашборды (file provisioning):** генератор `server/deploy/grafana/generate_dashboards.py` → JSON в `/var/lib/grafana/dashboards/cottage`. Папка **Cottage**.
+2. **Дашборды (file provisioning):** генератор `server/deploy/grafana/generate_dashboards.py` → JSON в git `server/deploy/grafana/dashboards/` и на elion `/var/lib/grafana/dashboards/cottage`. Папка **Cottage**.
    - Overview, Electricity, Climate, Lights, Batteries, **LM Load** (`cottage-lm-load`), **AI-SRV** (`cottage-ai-srv`, GA `35/1/1`–`19`).
+   - **SoT / backup:** весь каталог `server/deploy/grafana/` в git/GitHub; секреты только на elion.
+   - Timeseries: `spanNulls=12h` (дыры от skip-unchanged MQTT), `insertNulls=2d`. Climate: все зоны ТП `HEAT_ZONES`; реле ТП — state-timeline как свет.
 3. **Деплой:** `./server/deploy/grafana/deploy.sh` (не править JSON вручную на сервере).
 4. **Алерты:** Grafana Alerting → contact point `cottage-telegram`, route `team=cottage`.
    - `cottage-house-stale` — дом offline / stale >15m (critical, for 5m).

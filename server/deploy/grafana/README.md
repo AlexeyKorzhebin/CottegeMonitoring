@@ -3,6 +3,23 @@
 Provisioned dashboards for house telemetry from PostgreSQL/TimescaleDB
 (`cottage_monitoring.events` + `current_state` + `objects`).
 
+## Source of truth (backup)
+
+Всё восстанавливаемое лежит в **этом git-репозитории** (GitHub `CottegeMonitoring`):
+
+| Что | Путь |
+|-----|------|
+| Генератор панелей / SQL | `generate_dashboards.py` |
+| JSON дашбордов (артефакт генератора) | `dashboards/cottage_*.json` |
+| Provisioning | `provisioning/` |
+| Деплой на elion | `deploy.sh`, `deploy_alerts.sh` |
+| Иконки света | `icons/` |
+
+На сервере править JSON **нельзя** — источник = git → `./deploy.sh`.
+Секреты (`grafana-db.password`, `grafana-mcp.token`, telegram.env) только на elion, не в git.
+
+Timeseries: `spanNulls` = **12 ч** (редкие MQTT-апдейты без «рваных» дыр); разрыв линии при тишине &gt; 12 ч или между сырыми точками &gt; 2 суток. Реле/свет — state-timeline, не timeseries.
+
 ## Dashboards (folder **Cottage**)
 
 | UID | Title | Contents |
@@ -33,7 +50,7 @@ Kept the curated / high-signal set; dropped raw meter internals and unused stubs
 
 - **Energy:** `32/1/35` Total P, per-phase P/U/I, PF, Hz, hour/daily/total kWh
 - **Air:** Zigbee `33/1/*` temperature & humidity (main rooms) + outdoor `32/5/*`
-- **Heat:** floor temps `1/3/*`, setpoints `1/6/*`, relay status `1/5/*`, auto `1/7/1`
+- **Heat:** все зоны ТП из `manage_warm_floor` (floor `1/3/*`, setpoint `1/6/*`, relay `1/5/*`, auto `1/7/1`); история реле — state-timeline как у света (жёлтый строб)
 - **Lights:** status GAs `1/2/*` (instant + history)
 
 - **LM / monitoring:** loadavg `34/1/6` (1м), `34/1/7` (5м), `34/1/8` (15м) — дашборд `cottage-lm-load`, алерт load15 > 2.0

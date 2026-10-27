@@ -513,6 +513,12 @@ mosquitto_sub -h localhost -t "cm/+/+/v1/#" -v
 данным MQTT→БД (`events` / `current_state` / `objects`). Код и runbook:
 `server/deploy/grafana/` (генератор JSON + provisioning). Решение: **R-015**.
 
+**Backup / SoT:** весь генератор, JSON (`dashboards/cottage_*.json`), provisioning и
+скрипты деплоя — в git (`server/deploy/grafana/`). Восстановление: checkout +
+`./server/deploy/grafana/deploy.sh`. Секреты БД/MCP/Telegram на elion, не в git.
+Timeseries соединяют пустые бакеты до **12 ч** (`spanNulls`) — дыры от skip-unchanged
+MQTT, не от offline; реле/свет — state-timeline.
+
 ### URL
 
 База: `https://elion.black-castle.ru/grafana/` (за nginx).
