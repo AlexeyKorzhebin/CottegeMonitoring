@@ -18,7 +18,7 @@ Provisioned dashboards for house telemetry from PostgreSQL/TimescaleDB
 На сервере править JSON **нельзя** — источник = git → `./deploy.sh`.
 Секреты (`grafana-db.password`, `grafana-mcp.token`, telegram.env) только на elion, не в git.
 
-Timeseries: `spanNulls` = **12 ч** (редкие MQTT-апдейты без «рваных» дыр); разрыв линии при тишине &gt; 12 ч или между сырыми точками &gt; 2 суток. Реле/свет — state-timeline, не timeseries.
+Timeseries: `spanNulls` = **1 ч** (редкие MQTT-апдейты без «рваных» дыр); разрыв линии при тишине &gt; 1 ч или между сырыми точками &gt; 2 суток. Реле/свет — state-timeline, не timeseries.
 
 ## Dashboards (folder **Cottage**)
 

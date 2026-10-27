@@ -212,9 +212,9 @@ def nav_panel(y: int):
 
 
 # Connect sparse telemetry across empty $__timeGroup buckets (skip-unchanged MQTT).
-# 12h is a common home-IoT default: hides traffic-optimization gaps, still breaks
-# on half-day+ sensor/outage silence. Binary panels use state-timeline instead.
-SPAN_NULLS_MS = 12 * 60 * 60 * 1000  # 12 hours
+# 1h: glue short traffic-optimization gaps; longer silence still shows as a break.
+# Binary panels use state-timeline instead.
+SPAN_NULLS_MS = 60 * 60 * 1000  # 1 hour
 INSERT_NULLS_MS = 2 * 24 * 60 * 60 * 1000  # 2 days between raw points
 
 
@@ -227,7 +227,7 @@ def timeseries(title, x, y, w, h, sql, unit=None, fill_opacity=10, description=N
         "defaults": {
             "custom": {
                 "fillOpacity": fill_opacity,
-                # Connect null buckets if the gap to the next point is ≤ 12h.
+                # Connect null buckets if the gap to the next point is ≤ 1h.
                 "spanNulls": SPAN_NULLS_MS,
                 # Also break if consecutive raw points are > 2 days apart.
                 "insertNulls": INSERT_NULLS_MS,

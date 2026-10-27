@@ -292,7 +292,7 @@
         "defaults": {
           "custom": {
             "fillOpacity": 10,
-            "spanNulls": 43200000,
+            "spanNulls": 3600000,
             "insertNulls": 172800000,
             "lineInterpolation": "linear"
           },
