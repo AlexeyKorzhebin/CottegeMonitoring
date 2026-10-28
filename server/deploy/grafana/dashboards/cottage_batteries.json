@@ -137,7 +137,7 @@
           "refId": "A",
           "rawQuery": true,
           "format": "table",
-          "rawSql": "SELECT\n  CASE\n    WHEN (cs.value #>> '{}')::double precision < 20 THEN '🔴'\n    WHEN (cs.value #>> '{}')::double precision < 50 THEN '🟡'\n    ELSE '🟢'\n  END AS lvl,\n  CASE\n    WHEN o.ga = '33/1/3' THEN 'Серверная'\n    WHEN o.ga = '33/1/6' THEN 'Спальня 1эт'\n    WHEN o.ga = '33/1/9' THEN 'Гостиная'\n    WHEN o.ga = '33/1/12' THEN 'Ванная 1эт'\n    WHEN o.ga = '33/1/15' THEN 'Кухня'\n    WHEN o.ga = '33/1/18' THEN 'Кабинет'\n    WHEN o.ga = '33/1/21' THEN 'Тим'\n    WHEN o.ga = '33/1/24' THEN 'Настя'\n    WHEN o.ga = '33/1/27' THEN 'Холл 2эт'\n    WHEN o.ga = '33/1/30' THEN 'Холл 1эт'\n    WHEN o.ga = '33/1/33' THEN 'Ванная 2эт'\n    WHEN o.ga = '33/1/36' THEN 'Спальня 2эт'\n    WHEN o.ga = '32/7/15' THEN 'PIR sensor 1'\n    ELSE replace(replace(o.name, 'zb_sensor_', ''), '_battery', '')\n  END AS sensor,\n  round((cs.value #>> '{}')::double precision::numeric, 0) AS battery_pct,\n  cs.ts AS updated,\n  o.ga\nFROM objects o\nJOIN current_state cs ON cs.house_id = o.house_id AND replace(cs.ga, '-', '/') = o.ga\nWHERE o.house_id = 'house'\n  AND o.tags LIKE '%battery%'\nORDER BY battery_pct ASC, sensor"
+          "rawSql": "SELECT\n  CASE\n    WHEN (cs.value #>> '{}')::double precision < 20 THEN '🔴'\n    WHEN (cs.value #>> '{}')::double precision < 50 THEN '🟡'\n    ELSE '🟢'\n  END AS lvl,\n  CASE\n    WHEN o.ga = '33/1/3' THEN 'Серверная'\n    WHEN o.ga = '33/1/6' THEN 'Спальня 1эт'\n    WHEN o.ga = '33/1/9' THEN 'Гостиная'\n    WHEN o.ga = '33/1/12' THEN 'Ванная 1эт'\n    WHEN o.ga = '33/1/15' THEN 'Кухня'\n    WHEN o.ga = '33/1/18' THEN 'Кабинет'\n    WHEN o.ga = '33/1/21' THEN 'Тим'\n    WHEN o.ga = '33/1/24' THEN 'Настя'\n    WHEN o.ga = '33/1/27' THEN 'Холл 2эт'\n    WHEN o.ga = '33/1/30' THEN 'Холл 1эт'\n    WHEN o.ga = '33/1/33' THEN 'Ванная 2эт'\n    WHEN o.ga = '33/1/36' THEN 'Гостевая'\n    WHEN o.ga = '32/7/15' THEN 'PIR sensor 1'\n    ELSE replace(replace(o.name, 'zb_sensor_', ''), '_battery', '')\n  END AS sensor,\n  round((cs.value #>> '{}')::double precision::numeric, 0) AS battery_pct,\n  cs.ts AS updated,\n  o.ga\nFROM objects o\nJOIN current_state cs ON cs.house_id = o.house_id AND replace(cs.ga, '-', '/') = o.ga\nWHERE o.house_id = 'house'\n  AND o.tags LIKE '%battery%'\nORDER BY battery_pct ASC, sensor"
         }
       ],
       "description": "🟢 ≥50% · 🟡 20–49% · 🔴 <20%. Zigbee датчики температуры/влажности + PIR.",
@@ -213,7 +213,7 @@
           "refId": "A",
           "rawQuery": true,
           "format": "table",
-          "rawSql": "SELECT\n  CASE\n    WHEN (cs.value #>> '{}')::double precision < 20 THEN '🔴'\n    ELSE '🟡'\n  END AS lvl,\n  CASE\n    WHEN o.ga = '33/1/3' THEN 'Серверная'\n    WHEN o.ga = '33/1/6' THEN 'Спальня 1эт'\n    WHEN o.ga = '33/1/9' THEN 'Гостиная'\n    WHEN o.ga = '33/1/12' THEN 'Ванная 1эт'\n    WHEN o.ga = '33/1/15' THEN 'Кухня'\n    WHEN o.ga = '33/1/18' THEN 'Кабинет'\n    WHEN o.ga = '33/1/21' THEN 'Тим'\n    WHEN o.ga = '33/1/24' THEN 'Настя'\n    WHEN o.ga = '33/1/27' THEN 'Холл 2эт'\n    WHEN o.ga = '33/1/30' THEN 'Холл 1эт'\n    WHEN o.ga = '33/1/33' THEN 'Ванная 2эт'\n    WHEN o.ga = '33/1/36' THEN 'Спальня 2эт'\n    WHEN o.ga = '32/7/15' THEN 'PIR sensor 1'\n    ELSE o.name\n  END AS sensor,\n  round((cs.value #>> '{}')::double precision::numeric, 0) AS battery_pct\nFROM objects o\nJOIN current_state cs ON cs.house_id = o.house_id AND replace(cs.ga, '-', '/') = o.ga\nWHERE o.house_id = 'house'\n  AND o.tags LIKE '%battery%'\n  AND (cs.value #>> '{}')::double precision < 50\nORDER BY battery_pct ASC"
+          "rawSql": "SELECT\n  CASE\n    WHEN (cs.value #>> '{}')::double precision < 20 THEN '🔴'\n    ELSE '🟡'\n  END AS lvl,\n  CASE\n    WHEN o.ga = '33/1/3' THEN 'Серверная'\n    WHEN o.ga = '33/1/6' THEN 'Спальня 1эт'\n    WHEN o.ga = '33/1/9' THEN 'Гостиная'\n    WHEN o.ga = '33/1/12' THEN 'Ванная 1эт'\n    WHEN o.ga = '33/1/15' THEN 'Кухня'\n    WHEN o.ga = '33/1/18' THEN 'Кабинет'\n    WHEN o.ga = '33/1/21' THEN 'Тим'\n    WHEN o.ga = '33/1/24' THEN 'Настя'\n    WHEN o.ga = '33/1/27' THEN 'Холл 2эт'\n    WHEN o.ga = '33/1/30' THEN 'Холл 1эт'\n    WHEN o.ga = '33/1/33' THEN 'Ванная 2эт'\n    WHEN o.ga = '33/1/36' THEN 'Гостевая'\n    WHEN o.ga = '32/7/15' THEN 'PIR sensor 1'\n    ELSE o.name\n  END AS sensor,\n  round((cs.value #>> '{}')::double precision::numeric, 0) AS battery_pct\nFROM objects o\nJOIN current_state cs ON cs.house_id = o.house_id AND replace(cs.ga, '-', '/') = o.ga\nWHERE o.house_id = 'house'\n  AND o.tags LIKE '%battery%'\n  AND (cs.value #>> '{}')::double precision < 50\nORDER BY battery_pct ASC"
         }
       ],
       "description": "Сенсоры с зарядом ниже 50%.",
@@ -269,23 +269,23 @@
     {
       "id": 5,
       "type": "timeseries",
-      "title": "Заряд во времени (основные)",
+      "title": "Заряд во времени",
       "datasource": {
         "type": "postgres",
         "uid": "cottage-monitoring-pg"
       },
       "gridPos": {
-        "h": 7,
-        "w": 10,
-        "x": 14,
-        "y": 10
+        "h": 9,
+        "w": 24,
+        "x": 0,
+        "y": 17
       },
       "targets": [
         {
           "refId": "A",
           "rawQuery": true,
           "format": "time_series",
-          "rawSql": "SELECT\n  $__timeGroupAlias(e.ts, $__interval),\n  avg((e.value #>> '{}')::double precision) FILTER (WHERE e.ga = '33/1/9') AS \"Гостиная\",\n  avg((e.value #>> '{}')::double precision) FILTER (WHERE e.ga = '33/1/15') AS \"Кухня\",\n  avg((e.value #>> '{}')::double precision) FILTER (WHERE e.ga = '33/1/24') AS \"Настя\",\n  avg((e.value #>> '{}')::double precision) FILTER (WHERE e.ga = '33/1/21') AS \"Тим\",\n  avg((e.value #>> '{}')::double precision) FILTER (WHERE e.ga = '33/1/12') AS \"Ванная 1эт\"\nFROM events e\nWHERE e.house_id = 'house'\n  AND e.ga IN ('33/1/9','33/1/15','33/1/24','33/1/21','33/1/12')\n  AND $__timeFilter(e.ts)\nGROUP BY 1 ORDER BY 1"
+          "rawSql": "SELECT\n  $__timeGroupAlias(e.ts, $__interval),\n  avg((e.value #>> '{}')::double precision) FILTER (WHERE e.ga = '33/1/3') AS \"Серверная\",\n  avg((e.value #>> '{}')::double precision) FILTER (WHERE e.ga = '33/1/6') AS \"Спальня 1эт\",\n  avg((e.value #>> '{}')::double precision) FILTER (WHERE e.ga = '33/1/9') AS \"Гостиная\",\n  avg((e.value #>> '{}')::double precision) FILTER (WHERE e.ga = '33/1/12') AS \"Ванная 1эт\",\n  avg((e.value #>> '{}')::double precision) FILTER (WHERE e.ga = '33/1/15') AS \"Кухня\",\n  avg((e.value #>> '{}')::double precision) FILTER (WHERE e.ga = '33/1/18') AS \"Кабинет\",\n  avg((e.value #>> '{}')::double precision) FILTER (WHERE e.ga = '33/1/21') AS \"Тим\",\n  avg((e.value #>> '{}')::double precision) FILTER (WHERE e.ga = '33/1/24') AS \"Настя\",\n  avg((e.value #>> '{}')::double precision) FILTER (WHERE e.ga = '33/1/27') AS \"Холл 2эт\",\n  avg((e.value #>> '{}')::double precision) FILTER (WHERE e.ga = '33/1/30') AS \"Холл 1эт\",\n  avg((e.value #>> '{}')::double precision) FILTER (WHERE e.ga = '33/1/33') AS \"Ванная 2эт\",\n  avg((e.value #>> '{}')::double precision) FILTER (WHERE e.ga = '33/1/36') AS \"Гостевая\"\nFROM events e\nWHERE e.house_id = 'house'\n  AND e.ga IN ('33/1/3', '33/1/6', '33/1/9', '33/1/12', '33/1/15', '33/1/18', '33/1/21', '33/1/24', '33/1/27', '33/1/30', '33/1/33', '33/1/36')\n  AND $__timeFilter(e.ts)\nGROUP BY 1 ORDER BY 1"
         }
       ],
       "fieldConfig": {
@@ -310,7 +310,7 @@
           "sort": "none"
         }
       },
-      "description": "История заряда (часто обновляется редко)."
+      "description": "Все Zigbee battery 33/1/* (обновляется редко)."
     }
   ]
 }

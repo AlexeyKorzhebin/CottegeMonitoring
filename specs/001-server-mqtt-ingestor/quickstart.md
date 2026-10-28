@@ -527,7 +527,7 @@ MQTT, не от offline; реле/свет — state-timeline.
 |-----|-------|------------|---------|
 | `cottage-overview` | Overview | Online, мощность, kWh, свет Canvas / ТП снимки | 30s |
 | `cottage-energy` | Electricity | P/Q/U/I/PF/Hz, суточные/часовые kWh | 30s |
-| `cottage-climate` | Climate | Воздух/влажность, погода, полы | 30s |
+| `cottage-climate` | Climate | Воздух/влажность (все 12 Zigbee + улица), погода, все зоны ТП | 30s |
 | `cottage-lights` | Lights | Canvas сейчас + state-timeline история `1/2/*` | 30s |
 | `cottage-batteries` | Batteries | Zigbee battery % | 1m |
 | `cottage-lm-load` | LM Load | loadavg LM: GA `34/1/6` (1м), `34/1/7` (5м), `34/1/8` (15м) | 1m |

@@ -128,7 +128,7 @@
         "uid": "cottage-monitoring-pg"
       },
       "gridPos": {
-        "h": 9,
+        "h": 11,
         "w": 24,
         "x": 0,
         "y": 3
@@ -138,7 +138,7 @@
           "refId": "A",
           "rawQuery": true,
           "format": "time_series",
-          "rawSql": "SELECT\n  $__timeGroupAlias(e.ts, $__interval),\n  avg((e.value #>> '{}')::double precision) FILTER (WHERE e.ga = '32/5/1') AS \"Улица\",\n  avg((e.value #>> '{}')::double precision) FILTER (WHERE e.ga = '33/1/7') AS \"Гостиная\",\n  avg((e.value #>> '{}')::double precision) FILTER (WHERE e.ga = '33/1/13') AS \"Кухня\",\n  avg((e.value #>> '{}')::double precision) FILTER (WHERE e.ga = '33/1/4') AS \"Спальня 1эт\",\n  avg((e.value #>> '{}')::double precision) FILTER (WHERE e.ga = '33/1/22') AS \"Настя\",\n  avg((e.value #>> '{}')::double precision) FILTER (WHERE e.ga = '33/1/19') AS \"Тим\",\n  avg((e.value #>> '{}')::double precision) FILTER (WHERE e.ga = '33/1/16') AS \"Кабинет\",\n  avg((e.value #>> '{}')::double precision) FILTER (WHERE e.ga = '33/1/34') AS \"Спальня 2эт\"\nFROM events e\nWHERE e.house_id = 'house'\n  AND e.ga IN (\n    '32/5/1','33/1/7','33/1/13','33/1/4','33/1/22','33/1/19','33/1/16','33/1/34'\n  )\n  AND $__timeFilter(e.ts)\nGROUP BY 1 ORDER BY 1"
+          "rawSql": "SELECT\n  $__timeGroupAlias(e.ts, $__interval),\n  avg((e.value #>> '{}')::double precision) FILTER (WHERE e.ga = '32/5/1') AS \"Улица\",\n  avg((e.value #>> '{}')::double precision) FILTER (WHERE e.ga = '33/1/1') AS \"Серверная\",\n  avg((e.value #>> '{}')::double precision) FILTER (WHERE e.ga = '33/1/4') AS \"Спальня 1эт\",\n  avg((e.value #>> '{}')::double precision) FILTER (WHERE e.ga = '33/1/7') AS \"Гостиная\",\n  avg((e.value #>> '{}')::double precision) FILTER (WHERE e.ga = '33/1/10') AS \"Ванная 1эт\",\n  avg((e.value #>> '{}')::double precision) FILTER (WHERE e.ga = '33/1/13') AS \"Кухня\",\n  avg((e.value #>> '{}')::double precision) FILTER (WHERE e.ga = '33/1/16') AS \"Кабинет\",\n  avg((e.value #>> '{}')::double precision) FILTER (WHERE e.ga = '33/1/19') AS \"Тим\",\n  avg((e.value #>> '{}')::double precision) FILTER (WHERE e.ga = '33/1/22') AS \"Настя\",\n  avg((e.value #>> '{}')::double precision) FILTER (WHERE e.ga = '33/1/25') AS \"Холл 2эт\",\n  avg((e.value #>> '{}')::double precision) FILTER (WHERE e.ga = '33/1/28') AS \"Холл 1эт\",\n  avg((e.value #>> '{}')::double precision) FILTER (WHERE e.ga = '33/1/31') AS \"Ванная 2эт\",\n  avg((e.value #>> '{}')::double precision) FILTER (WHERE e.ga = '33/1/34') AS \"Гостевая\"\nFROM events e\nWHERE e.house_id = 'house'\n  AND e.ga IN ('32/5/1', '33/1/1', '33/1/4', '33/1/7', '33/1/10', '33/1/13', '33/1/16', '33/1/19', '33/1/22', '33/1/25', '33/1/28', '33/1/31', '33/1/34')\n  AND $__timeFilter(e.ts)\nGROUP BY 1 ORDER BY 1"
         }
       ],
       "fieldConfig": {
@@ -162,7 +162,8 @@
           "mode": "multi",
           "sort": "none"
         }
-      }
+      },
+      "description": "Все Zigbee-датчики воздуха 33/1/* + улица 32/5/1. Тамбура отдельного воздуха нет (только пол)."
     },
     {
       "id": 4,
@@ -172,7 +173,7 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 12
+        "y": 14
       },
       "collapsed": false
     },
@@ -185,17 +186,17 @@
         "uid": "cottage-monitoring-pg"
       },
       "gridPos": {
-        "h": 7,
+        "h": 11,
         "w": 16,
         "x": 0,
-        "y": 13
+        "y": 15
       },
       "targets": [
         {
           "refId": "A",
           "rawQuery": true,
           "format": "time_series",
-          "rawSql": "SELECT\n  $__timeGroupAlias(e.ts, $__interval),\n  avg((e.value #>> '{}')::double precision) FILTER (WHERE e.ga = '33/1/8') AS \"Гостиная\",\n  avg((e.value #>> '{}')::double precision) FILTER (WHERE e.ga = '33/1/14') AS \"Кухня\",\n  avg((e.value #>> '{}')::double precision) FILTER (WHERE e.ga = '33/1/11') AS \"Ванная 1эт\",\n  avg((e.value #>> '{}')::double precision) FILTER (WHERE e.ga = '33/1/32') AS \"Ванная 2эт\",\n  avg((e.value #>> '{}')::double precision) FILTER (WHERE e.ga = '32/5/3') AS \"Улица\"\nFROM events e\nWHERE e.house_id = 'house'\n  AND e.ga IN ('33/1/8','33/1/14','33/1/11','33/1/32','32/5/3')\n  AND $__timeFilter(e.ts)\nGROUP BY 1 ORDER BY 1"
+          "rawSql": "SELECT\n  $__timeGroupAlias(e.ts, $__interval),\n  avg((e.value #>> '{}')::double precision) FILTER (WHERE e.ga = '32/5/3') AS \"Улица\",\n  avg((e.value #>> '{}')::double precision) FILTER (WHERE e.ga = '33/1/2') AS \"Серверная\",\n  avg((e.value #>> '{}')::double precision) FILTER (WHERE e.ga = '33/1/5') AS \"Спальня 1эт\",\n  avg((e.value #>> '{}')::double precision) FILTER (WHERE e.ga = '33/1/8') AS \"Гостиная\",\n  avg((e.value #>> '{}')::double precision) FILTER (WHERE e.ga = '33/1/11') AS \"Ванная 1эт\",\n  avg((e.value #>> '{}')::double precision) FILTER (WHERE e.ga = '33/1/14') AS \"Кухня\",\n  avg((e.value #>> '{}')::double precision) FILTER (WHERE e.ga = '33/1/17') AS \"Кабинет\",\n  avg((e.value #>> '{}')::double precision) FILTER (WHERE e.ga = '33/1/20') AS \"Тим\",\n  avg((e.value #>> '{}')::double precision) FILTER (WHERE e.ga = '33/1/23') AS \"Настя\",\n  avg((e.value #>> '{}')::double precision) FILTER (WHERE e.ga = '33/1/26') AS \"Холл 2эт\",\n  avg((e.value #>> '{}')::double precision) FILTER (WHERE e.ga = '33/1/29') AS \"Холл 1эт\",\n  avg((e.value #>> '{}')::double precision) FILTER (WHERE e.ga = '33/1/32') AS \"Ванная 2эт\",\n  avg((e.value #>> '{}')::double precision) FILTER (WHERE e.ga = '33/1/35') AS \"Гостевая\"\nFROM events e\nWHERE e.house_id = 'house'\n  AND e.ga IN ('32/5/3', '33/1/2', '33/1/5', '33/1/8', '33/1/11', '33/1/14', '33/1/17', '33/1/20', '33/1/23', '33/1/26', '33/1/29', '33/1/32', '33/1/35')\n  AND $__timeFilter(e.ts)\nGROUP BY 1 ORDER BY 1"
         }
       ],
       "fieldConfig": {
@@ -219,7 +220,8 @@
           "mode": "multi",
           "sort": "none"
         }
-      }
+      },
+      "description": "Все Zigbee humidity 33/1/* + улица 32/5/3."
     },
     {
       "id": 6,
@@ -233,7 +235,7 @@
         "h": 7,
         "w": 8,
         "x": 16,
-        "y": 13
+        "y": 15
       },
       "targets": [
         {
@@ -252,7 +254,7 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 20
+        "y": 26
       },
       "collapsed": false
     },
@@ -268,7 +270,7 @@
         "h": 10,
         "w": 14,
         "x": 0,
-        "y": 21
+        "y": 27
       },
       "targets": [
         {
@@ -292,7 +294,7 @@
         "h": 10,
         "w": 10,
         "x": 14,
-        "y": 21
+        "y": 27
       },
       "targets": [
         {
@@ -334,7 +336,7 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 31
+        "y": 37
       },
       "collapsed": false
     },
@@ -350,7 +352,7 @@
         "h": 12,
         "w": 24,
         "x": 0,
-        "y": 32
+        "y": 38
       },
       "targets": [
         {

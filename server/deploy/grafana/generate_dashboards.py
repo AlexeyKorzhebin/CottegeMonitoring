@@ -80,6 +80,53 @@ HEAT_RELAY_HISTORY_DESC = (
     "Ширина полосы = сколько грело. Status 1/5/*, сырые events."
 )
 
+# Zigbee воздух 33/1/* — все комнатные датчики (без чайника 33/1/37+).
+# Тамбура отдельного воздуха нет (только пол 1/3/2). Гостевая = fl2_bedroom.
+AIR_TEMP = [
+    ("Улица", "32/5/1"),
+    ("Серверная", "33/1/1"),
+    ("Спальня 1эт", "33/1/4"),
+    ("Гостиная", "33/1/7"),
+    ("Ванная 1эт", "33/1/10"),
+    ("Кухня", "33/1/13"),
+    ("Кабинет", "33/1/16"),
+    ("Тим", "33/1/19"),
+    ("Настя", "33/1/22"),
+    ("Холл 2эт", "33/1/25"),
+    ("Холл 1эт", "33/1/28"),
+    ("Ванная 2эт", "33/1/31"),
+    ("Гостевая", "33/1/34"),
+]
+AIR_HUMIDITY = [
+    ("Улица", "32/5/3"),
+    ("Серверная", "33/1/2"),
+    ("Спальня 1эт", "33/1/5"),
+    ("Гостиная", "33/1/8"),
+    ("Ванная 1эт", "33/1/11"),
+    ("Кухня", "33/1/14"),
+    ("Кабинет", "33/1/17"),
+    ("Тим", "33/1/20"),
+    ("Настя", "33/1/23"),
+    ("Холл 2эт", "33/1/26"),
+    ("Холл 1эт", "33/1/29"),
+    ("Ванная 2эт", "33/1/32"),
+    ("Гостевая", "33/1/35"),
+]
+BATTERIES = [
+    ("Серверная", "33/1/3"),
+    ("Спальня 1эт", "33/1/6"),
+    ("Гостиная", "33/1/9"),
+    ("Ванная 1эт", "33/1/12"),
+    ("Кухня", "33/1/15"),
+    ("Кабинет", "33/1/18"),
+    ("Тим", "33/1/21"),
+    ("Настя", "33/1/24"),
+    ("Холл 2эт", "33/1/27"),
+    ("Холл 1эт", "33/1/30"),
+    ("Ванная 2эт", "33/1/33"),
+    ("Гостевая", "33/1/36"),
+]
+
 # Cross-links between cottage dashboards (root_url includes /grafana/).
 DASH_LINKS = [
     {
@@ -505,13 +552,12 @@ def light_history(
     return p
 
 
-def _floor_temp_history_sql(zones: list[tuple[str, str, str]]) -> str:
-    """Wide timeseries: one column per floor-temp GA (1/3/*)."""
+def _wide_avg_sql(series: list[tuple[str, str]]) -> str:
+    """Wide timeseries: one avg() column per (label, ga)."""
     cols = ",\n  ".join(
-        f'avg({NUM}) FILTER (WHERE e.ga = \'{floor_ga}\') AS "{name}"'
-        for name, floor_ga, _relay in zones
+        f'avg({NUM}) FILTER (WHERE e.ga = \'{ga}\') AS "{name}"' for name, ga in series
     )
-    gas = ", ".join(f"'{floor_ga}'" for _name, floor_ga, _relay in zones)
+    gas = ", ".join(f"'{ga}'" for _name, ga in series)
     return f"""
 SELECT
   $__timeGroupAlias(e.ts, $__interval),
@@ -522,6 +568,11 @@ WHERE e.house_id = 'house'
   AND $__timeFilter(e.ts)
 GROUP BY 1 ORDER BY 1
 """.strip()
+
+
+def _floor_temp_history_sql(zones: list[tuple[str, str, str]]) -> str:
+    """Wide timeseries: one column per floor-temp GA (1/3/*)."""
+    return _wide_avg_sql([(name, floor_ga) for name, floor_ga, _relay in zones])
 
 
 def heat_tiles(title, x, y, w, h, description=None):
@@ -816,7 +867,7 @@ SELECT
     WHEN '33/1/28' THEN 'Холл 1эт'
     WHEN '33/1/10' THEN 'Ванная 1эт'
     WHEN '33/1/1' THEN 'Серверная'
-    WHEN '33/1/34' THEN 'Спальня 2эт'
+    WHEN '33/1/34' THEN 'Гостевая'
     WHEN '33/1/22' THEN 'Настя'
     WHEN '33/1/19' THEN 'Тим'
     WHEN '33/1/16' THEN 'Кабинет'
@@ -852,7 +903,7 @@ SELECT
     WHEN '33/1/29' THEN 'Холл 1эт'
     WHEN '33/1/11' THEN 'Ванная 1эт'
     WHEN '33/1/2' THEN 'Серверная'
-    WHEN '33/1/35' THEN 'Спальня 2эт'
+    WHEN '33/1/35' THEN 'Гостевая'
     WHEN '33/1/23' THEN 'Настя'
     WHEN '33/1/20' THEN 'Тим'
     WHEN '33/1/17' THEN 'Кабинет'
@@ -1118,30 +1169,16 @@ def climate():
             0,
             y,
             24,
-            9,
-            f"""
-SELECT
-  $__timeGroupAlias(e.ts, $__interval),
-  avg({NUM}) FILTER (WHERE e.ga = '32/5/1') AS "Улица",
-  avg({NUM}) FILTER (WHERE e.ga = '33/1/7') AS "Гостиная",
-  avg({NUM}) FILTER (WHERE e.ga = '33/1/13') AS "Кухня",
-  avg({NUM}) FILTER (WHERE e.ga = '33/1/4') AS "Спальня 1эт",
-  avg({NUM}) FILTER (WHERE e.ga = '33/1/22') AS "Настя",
-  avg({NUM}) FILTER (WHERE e.ga = '33/1/19') AS "Тим",
-  avg({NUM}) FILTER (WHERE e.ga = '33/1/16') AS "Кабинет",
-  avg({NUM}) FILTER (WHERE e.ga = '33/1/34') AS "Спальня 2эт"
-FROM events e
-WHERE e.house_id = 'house'
-  AND e.ga IN (
-    '32/5/1','33/1/7','33/1/13','33/1/4','33/1/22','33/1/19','33/1/16','33/1/34'
-  )
-  AND $__timeFilter(e.ts)
-GROUP BY 1 ORDER BY 1
-""".strip(),
+            11,
+            _wide_avg_sql(AIR_TEMP),
             unit="celsius",
+            description=(
+                "Все Zigbee-датчики воздуха 33/1/* + улица 32/5/1. "
+                "Тамбура отдельного воздуха нет (только пол)."
+            ),
         )
     )
-    y += 9
+    y += 11
 
     panels.append(row("Влажность в помещениях (33/1/*)", y))
     y += 1
@@ -1151,22 +1188,10 @@ GROUP BY 1 ORDER BY 1
             0,
             y,
             16,
-            7,
-            f"""
-SELECT
-  $__timeGroupAlias(e.ts, $__interval),
-  avg({NUM}) FILTER (WHERE e.ga = '33/1/8') AS "Гостиная",
-  avg({NUM}) FILTER (WHERE e.ga = '33/1/14') AS "Кухня",
-  avg({NUM}) FILTER (WHERE e.ga = '33/1/11') AS "Ванная 1эт",
-  avg({NUM}) FILTER (WHERE e.ga = '33/1/32') AS "Ванная 2эт",
-  avg({NUM}) FILTER (WHERE e.ga = '32/5/3') AS "Улица"
-FROM events e
-WHERE e.house_id = 'house'
-  AND e.ga IN ('33/1/8','33/1/14','33/1/11','33/1/32','32/5/3')
-  AND $__timeFilter(e.ts)
-GROUP BY 1 ORDER BY 1
-""".strip(),
+            11,
+            _wide_avg_sql(AIR_HUMIDITY),
             unit="humidity",
+            description="Все Zigbee humidity 33/1/* + улица 32/5/3.",
         )
     )
     panels.append(
@@ -1198,7 +1223,7 @@ ORDER BY o.ga
 """.strip(),
         )
     )
-    y += 7
+    y += 11
 
     panels.append(row("Тёплые полы: температура В ПОЛУ (1/3/*) vs уставка", y))
     y += 1
@@ -1368,7 +1393,7 @@ SELECT
     WHEN o.ga = '33/1/27' THEN 'Холл 2эт'
     WHEN o.ga = '33/1/30' THEN 'Холл 1эт'
     WHEN o.ga = '33/1/33' THEN 'Ванная 2эт'
-    WHEN o.ga = '33/1/36' THEN 'Спальня 2эт'
+    WHEN o.ga = '33/1/36' THEN 'Гостевая'
     WHEN o.ga = '32/7/15' THEN 'PIR sensor 1'
     ELSE replace(replace(o.name, 'zb_sensor_', ''), '_battery', '')
   END AS sensor,
@@ -1432,7 +1457,7 @@ SELECT
     WHEN o.ga = '33/1/27' THEN 'Холл 2эт'
     WHEN o.ga = '33/1/30' THEN 'Холл 1эт'
     WHEN o.ga = '33/1/33' THEN 'Ванная 2эт'
-    WHEN o.ga = '33/1/36' THEN 'Спальня 2эт'
+    WHEN o.ga = '33/1/36' THEN 'Гостевая'
     WHEN o.ga = '32/7/15' THEN 'PIR sensor 1'
     ELSE o.name
   END AS sensor,
@@ -1463,29 +1488,17 @@ ORDER BY battery_pct ASC
             },
         )
     )
+    y += 14
     panels.append(
         timeseries(
-            "Заряд во времени (основные)",
-            14,
-            y + 7,
-            10,
-            7,
-            f"""
-SELECT
-  $__timeGroupAlias(e.ts, $__interval),
-  avg({NUM}) FILTER (WHERE e.ga = '33/1/9') AS "Гостиная",
-  avg({NUM}) FILTER (WHERE e.ga = '33/1/15') AS "Кухня",
-  avg({NUM}) FILTER (WHERE e.ga = '33/1/24') AS "Настя",
-  avg({NUM}) FILTER (WHERE e.ga = '33/1/21') AS "Тим",
-  avg({NUM}) FILTER (WHERE e.ga = '33/1/12') AS "Ванная 1эт"
-FROM events e
-WHERE e.house_id = 'house'
-  AND e.ga IN ('33/1/9','33/1/15','33/1/24','33/1/21','33/1/12')
-  AND $__timeFilter(e.ts)
-GROUP BY 1 ORDER BY 1
-""".strip(),
+            "Заряд во времени",
+            0,
+            y,
+            24,
+            9,
+            _wide_avg_sql(BATTERIES),
             unit="percent",
-            description="История заряда (часто обновляется редко).",
+            description="Все Zigbee battery 33/1/* (обновляется редко).",
         )
     )
 

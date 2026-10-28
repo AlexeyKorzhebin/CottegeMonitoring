@@ -49,7 +49,7 @@ HA Lovelace «Графики» (`ha.black-castle.ru`) встраивает Elect
 Kept the curated / high-signal set; dropped raw meter internals and unused stubs.
 
 - **Energy:** `32/1/35` Total P, per-phase P/U/I, PF, Hz, hour/daily/total kWh
-- **Air:** Zigbee `33/1/*` temperature & humidity (main rooms) + outdoor `32/5/*`
+- **Air:** все Zigbee `33/1/*` temp/humidity (12 комнат) + улица `32/5/*`; тамбура воздуха нет
 - **Heat:** все зоны ТП из `manage_warm_floor` (floor `1/3/*`, setpoint `1/6/*`, relay `1/5/*`, auto `1/7/1`); история реле — state-timeline как у света (жёлтый строб)
 - **Lights:** status GAs `1/2/*` (instant + history)
 
