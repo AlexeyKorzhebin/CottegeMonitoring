@@ -144,7 +144,7 @@
       "fieldConfig": {
         "defaults": {
           "custom": {
-            "fillOpacity": 10,
+            "fillOpacity": 0,
             "spanNulls": 3600000,
             "insertNulls": 172800000,
             "lineInterpolation": "linear"
@@ -202,7 +202,7 @@
       "fieldConfig": {
         "defaults": {
           "custom": {
-            "fillOpacity": 10,
+            "fillOpacity": 0,
             "spanNulls": 3600000,
             "insertNulls": 172800000,
             "lineInterpolation": "linear"
@@ -307,7 +307,7 @@
       "fieldConfig": {
         "defaults": {
           "custom": {
-            "fillOpacity": 10,
+            "fillOpacity": 0,
             "spanNulls": 3600000,
             "insertNulls": 172800000,
             "lineInterpolation": "linear"

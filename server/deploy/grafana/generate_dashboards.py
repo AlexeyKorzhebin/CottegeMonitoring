@@ -265,7 +265,8 @@ SPAN_NULLS_MS = 60 * 60 * 1000  # 1 hour
 INSERT_NULLS_MS = 2 * 24 * 60 * 60 * 1000  # 2 days between raw points
 
 
-def timeseries(title, x, y, w, h, sql, unit=None, fill_opacity=10, description=None):
+def timeseries(title, x, y, w, h, sql, unit=None, fill_opacity=0, description=None):
+    """Line chart. Default fill_opacity=0 — area fills under multi-series (°C/%) are noise."""
     p = panel_common(title, "timeseries", x, y, w, h)
     p["targets"] = [sql_target("A", sql)]
     # Do NOT use $__timeGroupAlias(..., NULL) over long ranges — it can allocate
