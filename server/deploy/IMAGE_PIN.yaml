@@ -1,7 +1,7 @@
 version: "0.3.6"
 git_ref: "main"
 image_tag: "cottage-monitoring:0.3.6"
-image_digest: ""
+image_digest: "sha256:9dab3b018247126e6523dc38d26d133db606e2abb40f84d0b8db39d29b1ae743"
 overlay_retired: true
 replaces_overlay: "cottage-monitoring:0.3.5"
 notes: |
