@@ -569,7 +569,7 @@
         "defaults": {
           "custom": {
             "fillOpacity": 0,
-            "spanNulls": 3600000,
+            "spanNulls": 86400000,
             "insertNulls": 172800000,
             "lineInterpolation": "linear"
           }
@@ -776,7 +776,7 @@
         "defaults": {
           "custom": {
             "fillOpacity": 0,
-            "spanNulls": 3600000,
+            "spanNulls": 86400000,
             "insertNulls": 172800000,
             "lineInterpolation": "linear"
           }
@@ -835,7 +835,7 @@
           "sort": "none"
         }
       },
-      "description": "GA 35/1/8…10. −1 = просадка / offline. 0% GPU = idle."
+      "description": "GA 35/1/8…10. −1 = просадка / offline. 0% GPU = idle. VRAM шлётся редко (skip-unchanged) — линия тянется до 24 ч без новой точки."
     },
     {
       "id": 12,
@@ -863,7 +863,7 @@
         "defaults": {
           "custom": {
             "fillOpacity": 0,
-            "spanNulls": 3600000,
+            "spanNulls": 86400000,
             "insertNulls": 172800000,
             "lineInterpolation": "linear"
           }

@@ -262,10 +262,23 @@ def nav_panel(y: int):
 # 1h: glue short traffic-optimization gaps; longer silence still shows as a break.
 # Binary panels use state-timeline instead.
 SPAN_NULLS_MS = 60 * 60 * 1000  # 1 hour
+# AI-SRV VRAM (35/1/9) often silent many hours when unchanged (live max gap ~16h).
+SPAN_NULLS_AI_SRV_MS = 24 * 60 * 60 * 1000  # 24 hours
 INSERT_NULLS_MS = 2 * 24 * 60 * 60 * 1000  # 2 days between raw points
 
 
-def timeseries(title, x, y, w, h, sql, unit=None, fill_opacity=0, description=None):
+def timeseries(
+    title,
+    x,
+    y,
+    w,
+    h,
+    sql,
+    unit=None,
+    fill_opacity=0,
+    description=None,
+    span_nulls_ms: int | None = None,
+):
     """Line chart. Default fill_opacity=0 — area fills under multi-series (°C/%) are noise."""
     p = panel_common(title, "timeseries", x, y, w, h)
     p["targets"] = [sql_target("A", sql)]
@@ -275,8 +288,7 @@ def timeseries(title, x, y, w, h, sql, unit=None, fill_opacity=0, description=No
         "defaults": {
             "custom": {
                 "fillOpacity": fill_opacity,
-                # Connect null buckets if the gap to the next point is ≤ 1h.
-                "spanNulls": SPAN_NULLS_MS,
+                "spanNulls": SPAN_NULLS_MS if span_nulls_ms is None else span_nulls_ms,
                 # Also break if consecutive raw points are > 2 days apart.
                 "insertNulls": INSERT_NULLS_MS,
                 "lineInterpolation": "linear",
@@ -2059,6 +2071,7 @@ def ai_srv():
             "Температура: <60 зелёный, 60–75 жёлтый, 75–80 оранжевый, >80 красный. "
             "Защита GPU 84 °C — без Telegram-алерта в этой волне."
         ),
+        span_nulls_ms=SPAN_NULLS_AI_SRV_MS,
     )
     ts_cool["fieldConfig"]["overrides"] = [
         {
@@ -2106,7 +2119,11 @@ def ai_srv():
                 ("35/1/10", "Мощность"),
             ]
         ),
-        description="GA 35/1/8…10. −1 = просадка / offline. 0% GPU = idle.",
+        description=(
+            "GA 35/1/8…10. −1 = просадка / offline. 0% GPU = idle. "
+            "VRAM шлётся редко (skip-unchanged) — линия тянется до 24 ч без новой точки."
+        ),
+        span_nulls_ms=SPAN_NULLS_AI_SRV_MS,
     )
     ts_gpu["fieldConfig"]["overrides"] = [
         {
@@ -2142,6 +2159,7 @@ def ai_srv():
             ]
         ),
         description="GA 35/1/11…13. −1 = просадка / offline.",
+        span_nulls_ms=SPAN_NULLS_AI_SRV_MS,
     )
     ts_host["fieldConfig"]["overrides"] = [
         {

@@ -520,8 +520,9 @@ mosquitto_sub -h localhost -t "cm/+/+/v1/#" -v
 **Backup / SoT:** весь генератор, JSON (`dashboards/cottage_*.json`), provisioning и
 скрипты деплоя — в git (`server/deploy/grafana/`). Восстановление: checkout +
 `./server/deploy/grafana/deploy.sh`. Секреты БД/MCP/Telegram на elion, не в git.
-Timeseries соединяют пустые бакеты до **1 ч** (`spanNulls`) — дыры от skip-unchanged
-MQTT, не от offline; реле/свет — state-timeline.
+Timeseries соединяют пустые бакеты до **1 ч** (`spanNulls`; на AI-SRV истории —
+**24 ч**, т.к. VRAM шлётся только при изменении) — дыры от skip-unchanged MQTT,
+не от offline; реле/свет — state-timeline.
 
 ### URL
 
