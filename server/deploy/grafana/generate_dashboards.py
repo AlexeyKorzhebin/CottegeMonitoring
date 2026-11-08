@@ -1886,6 +1886,12 @@ LIMIT 1
 
 
 def _ai_events_ts_sql(series: list[tuple[str, str]], *, expr_by_ga: dict | None = None) -> str:
+    """Wide history with hold: seed last value at range start/end.
+
+    VRAM (and other skip-unchanged GAs) can have no points inside a short window;
+    without boundary seeds Grafana drops the series entirely. Same idea as lights
+    state-timeline last_before, plus last_at_end so the line reaches \"now\".
+    """
     expr_by_ga = expr_by_ga or {}
     avgs = ",\n  ".join(
         f'avg({expr_by_ga.get(ga, NUM)}) FILTER (WHERE e.ga = \'{ga}\') AS "{alias}"'
@@ -1893,13 +1899,51 @@ def _ai_events_ts_sql(series: list[tuple[str, str]], *, expr_by_ga: dict | None 
     )
     gas = ",".join(f"'{ga}'" for ga, _ in series)
     return f"""
+WITH bounds AS (
+  SELECT $__timeFrom()::timestamptz AS t0, $__timeTo()::timestamptz AS t1
+),
+last_before AS (
+  SELECT DISTINCT ON (e.ga)
+    b.t0 AS ts,
+    e.ga,
+    e.value
+  FROM events e
+  CROSS JOIN bounds b
+  WHERE e.house_id = 'house'
+    AND e.ga IN ({gas})
+    AND e.ts < b.t0
+  ORDER BY e.ga, e.ts DESC
+),
+in_range AS (
+  SELECT e.ts, e.ga, e.value
+  FROM events e
+  CROSS JOIN bounds b
+  WHERE e.house_id = 'house'
+    AND e.ga IN ({gas})
+    AND e.ts >= b.t0 AND e.ts <= b.t1
+),
+last_at_end AS (
+  SELECT DISTINCT ON (e.ga)
+    b.t1 AS ts,
+    e.ga,
+    e.value
+  FROM events e
+  CROSS JOIN bounds b
+  WHERE e.house_id = 'house'
+    AND e.ga IN ({gas})
+    AND e.ts <= b.t1
+  ORDER BY e.ga, e.ts DESC
+)
 SELECT
   $__timeGroupAlias(e.ts, $__interval),
   {avgs}
-FROM events e
-WHERE e.house_id = 'house'
-  AND e.ga IN ({gas})
-  AND $__timeFilter(e.ts)
+FROM (
+  SELECT ts, ga, value FROM last_before
+  UNION ALL
+  SELECT ts, ga, value FROM in_range
+  UNION ALL
+  SELECT ts, ga, value FROM last_at_end
+) e
 GROUP BY 1 ORDER BY 1
 """.strip()
 
@@ -2121,7 +2165,8 @@ def ai_srv():
         ),
         description=(
             "GA 35/1/8…10. −1 = просадка / offline. 0% GPU = idle. "
-            "VRAM шлётся редко (skip-unchanged) — линия тянется до 24 ч без новой точки."
+            "VRAM шлётся редко (skip-unchanged): держим последнее значение "
+            "на границах окна + spanNulls 24 ч, иначе серия пропадает."
         ),
         span_nulls_ms=SPAN_NULLS_AI_SRV_MS,
     )

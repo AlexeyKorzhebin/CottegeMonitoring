@@ -88,6 +88,18 @@ def test_ai_srv_text_stats_avoid_grafana_nodata() -> None:
     assert crash_temp["fieldConfig"]["defaults"]["mappings"] == mod.AI_MISSING_NUM_MAPPINGS
 
 
+def test_ai_srv_history_holds_sparse_series_across_range() -> None:
+    """VRAM may have zero points in a short window — seed start/end or series vanishes."""
+    mod = _load_generate_dashboards()
+    dash = mod.ai_srv()
+    gpu = next(p for p in dash["panels"] if p.get("title") == "GPU % / VRAM / мощность")
+    sql = gpu["targets"][0]["rawSql"]
+    assert "last_before" in sql
+    assert "last_at_end" in sql
+    assert "35/1/9" in sql
+    assert gpu["fieldConfig"]["defaults"]["custom"]["spanNulls"] == mod.SPAN_NULLS_AI_SRV_MS
+
+
 def test_ai_srv_online_follows_fresh_measurements() -> None:
     mod = _load_generate_dashboards()
     dash = mod.ai_srv()
