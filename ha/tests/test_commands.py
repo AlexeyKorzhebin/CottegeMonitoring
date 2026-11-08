@@ -33,11 +33,33 @@ def _imported_modules(path: Path) -> list[str]:
     return names
 
 
-def test_climate_body_has_no_force_relay() -> None:
-    name, body = climate_set_temp_body("кухня", 22)
+def test_climate_body_requires_ga() -> None:
+    try:
+        climate_set_temp_body("кухня", 22, ga="")
+    except ValueError as exc:
+        assert "ga" in str(exc).lower()
+    else:
+        raise AssertionError("expected ValueError without ga")
+
+
+def test_climate_body_includes_ga() -> None:
+    name, body = climate_set_temp_body("кухня", 22, ga="1/6/7")
     assert name == "set_climate"
     assert "force_relay" not in body
-    assert body == {"query": "кухня", "setpoint_c": 22}
+    assert body == {"query": "кухня", "setpoint_c": 22, "ga": "1/6/7"}
+
+
+def test_climate_entity_requires_setpoint_ga() -> None:
+    climate_py = (
+        Path(__file__).resolve().parents[1]
+        / "custom_components"
+        / "cottage_monitoring"
+        / "climate.py"
+    )
+    src = climate_py.read_text(encoding="utf-8")
+    assert "setpoint_ga" in src
+    assert "refusing name-based write" in src
+    assert "ga=ga" in src
 
 
 def test_light_uses_set_lights_not_set_light() -> None:
@@ -98,8 +120,8 @@ class FakeCoordinator:
     def __init__(self) -> None:
         self.client = FakeClient()
 
-    async def send(self, helper, *args):
-        name, body = helper(*args)
+    async def send(self, helper, *args, **kwargs):
+        name, body = helper(*args, **kwargs)
         await self.client.call_op(name, body)
         return name, body
 
@@ -109,7 +131,7 @@ def test_fake_coordinator_call_op_bodies() -> None:
 
     async def _run() -> None:
         await coord.send(lights_turn_on_body, "Свет - кухня")
-        await coord.send(climate_set_temp_body, "гостиная 1", 23.0)
+        await coord.send(climate_set_temp_body, "гостиная 1", 23.0, ga="1/6/5")
         await coord.send(auto_heating_body, False)
         await coord.send(kettle_on_body)
         await coord.send(kettle_setpoint_body, 80.0)
@@ -117,7 +139,7 @@ def test_fake_coordinator_call_op_bodies() -> None:
     asyncio.run(_run())
     assert coord.client.ops == [
         ("set_lights", {"query": "Свет - кухня", "on": True, "skip_unchanged": False}),
-        ("set_climate", {"query": "гостиная 1", "setpoint_c": 23.0}),
+        ("set_climate", {"query": "гостиная 1", "setpoint_c": 23.0, "ga": "1/6/5"}),
         ("set_auto_heating", {"on": False}),
         ("set_kettle", {"on": True}),
         ("set_kettle", {"setpoint_c": 80.0}),

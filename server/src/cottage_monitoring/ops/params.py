@@ -85,9 +85,16 @@ class SetCommandsParams(OpParams):
 
 
 class SetClimateParams(OpParams):
-    query: str
+    query: str | None = None
     setpoint_c: float
     force_relay: bool | None = None
+    ga: str | None = None
+
+    @model_validator(mode="after")
+    def query_or_ga(self) -> SetClimateParams:
+        if not self.query and not self.ga:
+            raise ValueError("either query or ga is required")
+        return self
 
 
 class SetAutoHeatingParams(OpParams):

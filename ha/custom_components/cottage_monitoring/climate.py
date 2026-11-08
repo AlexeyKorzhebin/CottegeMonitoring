@@ -7,6 +7,7 @@ from homeassistant.components.climate import (
     HVACMode,
 )
 from homeassistant.const import ATTR_TEMPERATURE, UnitOfTemperature
+from homeassistant.exceptions import HomeAssistantError
 
 from .commands import climate_set_temp_body
 from .const import DOMAIN
@@ -47,9 +48,17 @@ class CottageClimate(CottageEntity, ClimateEntity):
             floors_by_area=floors,
         )
         self._room = zone.room
+        # Canonical identity for writes — never resolve by room name from the UI path.
+        self._setpoint_ga = zone.setpoint_ga
 
     def _zone(self) -> ClimateZone:
-        return next(z for z in self.coordinator.data.climates if z.room == self._room)
+        climates = self.coordinator.data.climates
+        if self._setpoint_ga:
+            for zone in climates:
+                if zone.setpoint_ga == self._setpoint_ga:
+                    self._room = zone.room
+                    return zone
+        return next(z for z in climates if z.room == self._room)
 
     def _actual_setpoint(self) -> float | None:
         return self._zone().setpoint
@@ -69,6 +78,8 @@ class CottageClimate(CottageEntity, ClimateEntity):
     def extra_state_attributes(self) -> dict:
         zone = self._zone()
         attrs: dict = {}
+        if zone.setpoint_ga:
+            attrs["setpoint_ga"] = zone.setpoint_ga
         if zone.floor_temp is not None:
             attrs["floor_temperature"] = zone.floor_temp
         if zone.room_temp is not None:
@@ -96,6 +107,17 @@ class CottageClimate(CottageEntity, ClimateEntity):
         temp = kwargs.get(ATTR_TEMPERATURE)
         if temp is None:
             return
+        zone = self._zone()
+        ga = zone.setpoint_ga or self._setpoint_ga
+        if not ga:
+            raise HomeAssistantError(
+                f"No setpoint_ga for climate zone {zone.room!r}; refusing name-based write"
+            )
+        self._setpoint_ga = ga
         await self.async_call_op(
-            climate_set_temp_body, self._room, float(temp), pending_setpoint=float(temp)
+            climate_set_temp_body,
+            zone.room,
+            float(temp),
+            ga=ga,
+            pending_setpoint=float(temp),
         )

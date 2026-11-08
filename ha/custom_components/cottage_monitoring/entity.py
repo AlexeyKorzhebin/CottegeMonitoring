@@ -8,6 +8,7 @@ from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
 from .const import DOMAIN, HOUSE_AREA_NAME
+from .nord_client import NordError
 from .snapshot import area_name_for, place_device_name, slug
 
 __all__ = ["CottageEntity", "area_name_for"]
@@ -128,15 +129,26 @@ class CottageEntity(CoordinatorEntity):
         *args,
         pending_on: bool | None = None,
         pending_setpoint: float | None = None,
+        **kwargs,
     ) -> None:
-        if pending_on is not None:
+        set_on = pending_on is not None
+        set_sp = pending_setpoint is not None
+        if set_on:
             self._pending_on = pending_on
-        if pending_setpoint is not None:
+        if set_sp:
             self._pending_setpoint = pending_setpoint
-        if pending_on is not None or pending_setpoint is not None:
+        if set_on or set_sp:
             self.async_write_ha_state()
-        op, body = helper(*args)
-        await self.coordinator.client.call_op(op, body)
+        op, body = helper(*args, **kwargs)
+        try:
+            await self.coordinator.client.call_op(op, body)
+        except NordError:
+            if set_on:
+                self._pending_on = None
+            if set_sp:
+                self._pending_setpoint = None
+            self.async_write_ha_state()
+            raise
 
         async def _later() -> None:
             await asyncio.sleep(_REFRESH_AFTER_WRITE_SEC)

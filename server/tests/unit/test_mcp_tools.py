@@ -284,6 +284,61 @@ def test_set_climate_tool_calls_service() -> None:
     assert set_sp.await_args.kwargs["query"] == "кухня"
 
 
+def test_set_climate_tool_passes_ga() -> None:
+    from cottage_monitoring.mcp import server as mcp_server
+
+    load_catalog()
+    session = MagicMock()
+    set_sp = AsyncMock(return_value={"request_id": "r1", "ga": "1/6/7", "status": "sent"})
+
+    async def _run() -> str:
+        with (
+            patch.object(mcp_server, "get_current_api_key_context", return_value=_ctx("house1")),
+            patch.object(agent_actions, "check_write_rate_limit", AsyncMock()),
+            patch.object(mcp_server, "async_session_factory", return_value=_session_cm(session)),
+            patch.object(agent_actions, "set_climate_setpoint", set_sp),
+        ):
+            return await mcp_server._op_tools["set_climate"](ga="1/6/7", setpoint_c=28.0)
+
+    payload = json.loads(asyncio.run(_run()))
+    assert payload["status"] == "sent"
+    set_sp.assert_awaited_once()
+    assert set_sp.await_args.kwargs["ga"] == "1/6/7"
+    assert set_sp.await_args.kwargs["setpoint_c"] == 28.0
+
+
+def test_set_climate_tool_returns_ambiguous_without_http_error() -> None:
+    from cottage_monitoring.mcp import server as mcp_server
+
+    load_catalog()
+    session = MagicMock()
+
+    async def _run() -> str:
+        with (
+            patch.object(mcp_server, "get_current_api_key_context", return_value=_ctx("house1")),
+            patch.object(agent_actions, "check_write_rate_limit", AsyncMock()),
+            patch.object(mcp_server, "async_session_factory", return_value=_session_cm(session)),
+            patch.object(
+                agent_actions,
+                "set_climate_setpoint",
+                AsyncMock(
+                    return_value={
+                        "status": "ambiguous",
+                        "candidates": [
+                            {"name": "Уставка ТП - гостиная 1", "ga": "1/6/5"},
+                            {"name": "Уставка ТП - гостиная 2", "ga": "1/6/6"},
+                        ],
+                    }
+                ),
+            ),
+        ):
+            return await mcp_server._op_tools["set_climate"](query="гостиная", setpoint_c=22.0)
+
+    payload = json.loads(asyncio.run(_run()))
+    assert payload["status"] == "ambiguous"
+    assert len(payload["candidates"]) == 2
+
+
 def test_list_houses_tool_uses_key_grants() -> None:
     from cottage_monitoring.mcp import server as mcp_server
     from cottage_monitoring.ops import houses as houses_ops

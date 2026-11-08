@@ -119,6 +119,10 @@ def test_mcp_tool_schema_keeps_existing_arguments() -> None:
     kettle_req = set(tools["set_kettle"].inputSchema.get("required", []))
     assert "house_id" not in kettle_req
     assert kettle_req <= {"on", "setpoint_c"}
+    climate_props = set(tools["set_climate"].inputSchema["properties"])
+    assert {"query", "setpoint_c", "force_relay", "ga", "house_id"} <= climate_props
+    climate_req = set(tools["set_climate"].inputSchema.get("required", []))
+    assert climate_req == {"setpoint_c"}
 
 
 # --- REST face --------------------------------------------------------------

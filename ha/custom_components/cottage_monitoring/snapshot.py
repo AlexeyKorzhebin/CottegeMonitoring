@@ -343,6 +343,7 @@ class ClimateZone:
     area: str | None
     floor: str | None
     setpoint: float | None
+    setpoint_ga: str | None
     room_temp: float | None
     floor_temp: float | None
     relay_on: bool | None
@@ -489,6 +490,7 @@ class HouseSnapshot:
                     area=zone.get("area"),
                     floor=zone.get("floor"),
                     setpoint=_as_float(zone.get("setpoint")),
+                    setpoint_ga=zone.get("setpoint_ga") or None,
                     room_temp=room_temp,
                     floor_temp=match_zone_floor_temp(
                         room=zone["room"],

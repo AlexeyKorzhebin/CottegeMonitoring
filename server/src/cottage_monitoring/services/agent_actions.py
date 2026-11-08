@@ -29,6 +29,7 @@ from cottage_monitoring.services.object_resolver import (
     DiscoverKind,
     ObjectRole,
     _is_zone_query,
+    classify_object,
     resolve_objects,
 )
 from cottage_monitoring.services.placement import placement
@@ -696,33 +697,54 @@ async def set_climate_setpoint(
     session: AsyncSession,
     house_id: str,
     *,
-    query: str,
+    query: str | None = None,
     setpoint_c: float,
     force_relay: bool | None = None,
+    ga: str | None = None,
 ) -> dict[str, Any]:
-    result = await resolve_objects(
-        session,
-        house_id,
-        query=query,
-        kind=DiscoverKind.CLIMATE,
-        role=ObjectRole.CLIMATE_SETPOINT,
-    )
-    if result.status == "not_found":
-        raise HTTPException(status_code=404, detail=f"No setpoint found for: {query}")
-    if result.status == "ambiguous":
-        return {
-            "status": "ambiguous",
-            "candidates": [{"name": m.name, "ga": m.ga} for m in result.matches],
-        }
-    obj = result.single
-    if obj is None:
-        raise HTTPException(status_code=500, detail="Resolver returned ok without a match")
-    out = await _resolve_device_and_send(
-        session, house_id, obj.ga, setpoint_c, comment=f"mcp set_climate {query}"
-    )
+    if ga:
+        obj_result = await session.execute(
+            select(Object).where(
+                Object.house_id == house_id,
+                Object.ga == ga,
+                Object.is_active.is_(True),
+            )
+        )
+        obj = obj_result.scalar_one_or_none()
+        if obj is None:
+            raise HTTPException(status_code=404, detail=f"No setpoint found for GA: {ga}")
+        role = classify_object(obj)
+        if role != ObjectRole.CLIMATE_SETPOINT and not ga.startswith("1/6/"):
+            raise HTTPException(status_code=400, detail=f"GA {ga} is not a climate setpoint")
+        out = await _resolve_device_and_send(
+            session, house_id, ga, setpoint_c, comment=f"mcp set_climate {query or ga}"
+        )
+    else:
+        result = await resolve_objects(
+            session,
+            house_id,
+            query=query,
+            kind=DiscoverKind.CLIMATE,
+            role=ObjectRole.CLIMATE_SETPOINT,
+        )
+        if result.status == "not_found":
+            raise HTTPException(status_code=404, detail=f"No setpoint found for: {query}")
+        if result.status == "ambiguous":
+            candidates = [{"name": m.name, "ga": m.ga} for m in result.matches]
+            logger.warning("set_climate_ambiguous", query=query, candidates=candidates)
+            return {
+                "status": "ambiguous",
+                "candidates": candidates,
+            }
+        resolved = result.single
+        if resolved is None:
+            raise HTTPException(status_code=500, detail="Resolver returned ok without a match")
+        out = await _resolve_device_and_send(
+            session, house_id, resolved.ga, setpoint_c, comment=f"mcp set_climate {query}"
+        )
     out["note"] = "Setpoint updated; relay state is controlled by auto algorithm unless force_relay is used."
 
-    if force_relay is not None:
+    if force_relay is not None and query:
         relay_result = await resolve_objects(
             session, house_id, query=query, role=ObjectRole.HEAT_RELAY_CONTROL
         )

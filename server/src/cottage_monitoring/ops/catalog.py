@@ -150,9 +150,11 @@ def _catalog() -> tuple[OpSpec, ...]:
         _op(
             "set_climate",
             "write",
-            "Set underfloor heating setpoint (°C) for a room. Does not force relay on. "
-            "Use force_relay only for debug manual override.",
-            _handler(agent_actions, "set_climate_setpoint"),
+            "Set underfloor heating setpoint (°C). Prefer ga=zones[].setpoint_ga from "
+            "get_climate (unique, no name resolution). query alone is a fallback for unique "
+            "room labels; ambiguous returns candidates with ga for a retry. Does not force "
+            "relay on. Use force_relay only for debug manual override.",
+            _handler(agent_actions, "set_climate_setpoint", blank_to_none=("query", "ga")),
             params_model=params.SetClimateParams,
         ),
         _op(

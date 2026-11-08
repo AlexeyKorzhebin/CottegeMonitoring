@@ -947,6 +947,22 @@ Stat-плитки (`time_series` + колонка `metric`): Grafana Postgres lo
 
 ---
 
+## R-030: Уставки ТП — room-label resolve + HA пишет GA (2026-11-08)
+
+**Инцидент 2026-11-06 ~12:30 МСК:** из HA выставили пачку уставок пола; ~половина (гостиные, холлы, ванные с «этаж» в имени) не дошла до LM. В `commands` их не было; в access-логе были `POST …/set_climate` 200 без `command_sent`. Причина — не MQTT/LM, а резолвер + молчаливый HTTP 200.
+
+`set_climate` шёл с `query` из `get_climate.room` (`гостиная 1`, `холл 1 этаж`). Exact match сравнивал полное имя объекта (`Уставка ТП - гостиная 1`) с query → не срабатывал. Цифра зоны отбрасывалась (`len < 2` / `< 3`). Для `… 1 этаж` в expanded попадал тег `1floor`, и `_query_matches` принимал **все** объекты 1 этажа. Ответ `{status: ambiguous, candidates}` при HTTP 200; HA `NordClient` смотрел только `status >= 400` и держал optimistic setpoint.
+
+**Решение (канонический ключ = KNX GA):**
+1. **HA:** сущность климата держит `setpoint_ga`; атрибут `setpoint_ga` виден в UI; `async_set_temperature` **только** с `ga` (без GA — `HomeAssistantError`, имя комнаты не резолвится). Новые зоны появляются из `get_climate` со своим GA — коллизий имён нет.
+2. **`set_climate`:** `ga` минует резолвер; `query` — fallback для MCP на уникальных лейблах; ambiguous → `logger.warning` + `{status: ambiguous, candidates:[{name,ga}]}` (агент повторяет с `ga`).
+3. **Resolver:** room-label exact после префиксов; `Nfloor` не матчит в одиночку при комнатных леммах; короткие query (`спальня`) не схлопываются, если есть более длинные siblings.
+4. **HA NordClient:** soft-fail только на `set_*`; optimistic pending откатывается.
+
+Алгоритм навсегда: `get_climate` → взять `setpoint_ga` → `set_climate(ga=…)`. Имена — только UX/агентский текст.
+
+---
+
 ## Сводка решений
 
 | ID | Тема | Решение | Альтернатива |
@@ -980,3 +996,4 @@ Stat-плитки (`time_series` + колонка `metric`): Grafana Postgres lo
 | R-027 | HA energy/batteries | 6 GA в snapshot; battery poll; Grafana iframe+ссылки; LTS backfill | сужать Nord ENERGY_SUMMARY / анонимный Grafana |
 | R-028 | MCP SDK 2.x | оставить `mcp>=1.0,<2` до боли на клиенте / реплик / CVE; native MCP агента, не generate-cli | апгрейд Nord первым / CLI как путь Telegram |
 | R-029 | House offline | `status/offline` + тишина 180 с; плитка ещё и по `last_seen` | только Grafana SQL / сверка `ts` внутри LWT |
+| R-030 | Climate setpoint resolve | room-label exact + floor-tag guard; HA `set_climate` с `ga`; soft-fail только на `set_*` | только HTTP 409 / только словарь комнат |

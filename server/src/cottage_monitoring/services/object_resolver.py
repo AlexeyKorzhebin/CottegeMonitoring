@@ -228,7 +228,11 @@ def _morph() -> MorphAnalyzer:
 
 
 def _tokens(text: str) -> list[str]:
-    return [t for t in _TOKEN_RE.findall(text.lower().replace("ё", "е")) if len(t) >= 2]
+    return [
+        t
+        for t in _TOKEN_RE.findall(text.lower().replace("ё", "е"))
+        if len(t) >= 2 or t.isdigit()
+    ]
 
 
 @lru_cache(maxsize=4096)
@@ -257,15 +261,51 @@ def _normalized_lemmas(text: str) -> set[str]:
 
 
 def _significant_lemmas(text: str) -> set[str]:
-    return {
-        lemma
-        for lemma in _normalized_lemmas(text)
-        if lemma not in _STOP_LEMMAS and len(lemma) >= 3
-    }
+    out: set[str] = set()
+    for lemma in _normalized_lemmas(text):
+        if lemma in _STOP_LEMMAS or _lemma(lemma) in _STOP_LEMMAS:
+            continue
+        if len(lemma) >= 3 or lemma.isdigit():
+            out.add(lemma)
+    return out
 
 
 def _norm_query_name(s: str) -> str:
     return " ".join((s or "").lower().replace("ё", "е").split())
+
+
+# Stripped from object names so HA room queries like "гостиная 1" can exact-match.
+_ROLE_PREFIXES = (
+    "уставка тп -",
+    "температура -",
+    "темп -",
+    "свет -",
+    "реле -",
+    "тп -",
+)
+
+_FLOOR_TOKEN_RE = re.compile(r"^[12]floor$")
+
+
+def _room_label_from_name(name: str) -> str:
+    n = _norm_query_name(name)
+    prefixes = sorted((_norm_query_name(p) for p in _ROLE_PREFIXES), key=len, reverse=True)
+    for prefix in prefixes:
+        if n.startswith(prefix):
+            return n[len(prefix) :].strip(" -")
+    return n
+
+
+def _is_floor_related_lemma(lemma: str) -> bool:
+    if lemma in {"1", "2", "1floor", "2floor"}:
+        return True
+    return lemma.startswith(("перв", "втор", "этаж", "floor"))
+
+
+def _query_has_room_lemmas(query: str) -> bool:
+    return any(
+        not _is_floor_related_lemma(lemma) for lemma in _significant_lemmas(query)
+    )
 
 
 def _query_matches(query: str | None, obj: Object) -> bool:
@@ -302,7 +342,12 @@ def _query_matches(query: str | None, obj: Object) -> bool:
             expanded.add("1floor")
         elif "втор" in q:
             expanded.add("2floor")
+    has_room_lemmas = _query_has_room_lemmas(q)
     for token in expanded:
+        if _FLOOR_TOKEN_RE.fullmatch(token) and has_room_lemmas:
+            if token in name:
+                return True
+            continue
         if token in name or token in tags:
             return True
 
@@ -377,6 +422,17 @@ async def resolve_objects(
         exact = [m for m in matches if _norm_query_name(m.name) == qn]
         if exact:
             matches = exact
+        else:
+            # Prefer exact room label ("гостиная 1", "гостиная торшер"), but do not
+            # collapse short queries ("спальня", "гостиная") when longer siblings exist.
+            room_label = [m for m in matches if _room_label_from_name(m.name) == qn]
+            if room_label:
+                prefix = f"{qn} "
+                has_longer_sibling = any(
+                    _room_label_from_name(m.name).startswith(prefix) for m in matches
+                )
+                if not has_longer_sibling:
+                    matches = room_label
 
     if not matches:
         return ResolveResult(status="not_found", matches=[])

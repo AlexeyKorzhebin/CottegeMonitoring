@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+_SOFT_FAIL_STATUSES = frozenset({"ambiguous", "not_found", "error"})
+
 
 class NordError(Exception):
     def __init__(self, status: int, body: str):
@@ -24,4 +26,6 @@ class NordClient:
             raise NordError(status, str(payload))
         if not isinstance(payload, dict):
             raise NordError(status, str(payload))
+        if name.startswith("set_") and payload.get("status") in _SOFT_FAIL_STATUSES:
+            raise NordError(409, str(payload))
         return payload

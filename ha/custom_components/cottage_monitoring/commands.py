@@ -9,8 +9,11 @@ def lights_turn_off_body(name: str) -> tuple[str, dict]:
     return "set_lights", {"query": name, "on": False, "skip_unchanged": False}
 
 
-def climate_set_temp_body(room: str, temp: float) -> tuple[str, dict]:
-    return "set_climate", {"query": room, "setpoint_c": temp}
+def climate_set_temp_body(room: str, temp: float, *, ga: str) -> tuple[str, dict]:
+    """HA climate writes by KNX GA only — room query is comment/telemetry, not the key."""
+    if not ga:
+        raise ValueError("setpoint ga is required for set_climate from Home Assistant")
+    return "set_climate", {"query": room, "setpoint_c": temp, "ga": ga}
 
 
 def auto_heating_body(on: bool) -> tuple[str, dict]:

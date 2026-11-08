@@ -201,7 +201,11 @@ ssh elion '/opt/cottage-monitoring/wait_http_health.sh http://127.0.0.1:8321/hea
 
 Сеть: **bridge** + `host.docker.internal:host-gateway` (не `--network=host`).
 
-Текущий pin: **`cottage-monitoring:0.3.5`** (`server/deploy/IMAGE_PIN.yaml`).
+Текущий pin: **`cottage-monitoring:0.3.6`** (`server/deploy/IMAGE_PIN.yaml`).
+
+### Сделано в 0.3.6 (2026-11-08)
+
+- Уставки ТП: HA пишет только по `setpoint_ga`; резолвер room-label + защита от floor-tag; `set_climate` принимает `ga` (R-030). Миграции нет.
 
 ### Сделано в 0.3.5 (2026-10-09)
 
@@ -644,3 +648,5 @@ Onboarding владельца на `https://ha.black-castle.ru`; Settings → Pe
 Чайник: вкл/выкл и текущая T; слайдер уставки только если `get_kettle.appliance.setpoint_c` не `null` (объект LM `ble_teapot_RK-M173S_setpoint` отложен оператором). Домен `water_heater`, поэтому встроенный экран Климат забирает его вместе с полами. Сущность скрыта интеграцией (`hidden_by: integration`) и не попадает в авто-экраны; карточка — в боковом разделе «Бытовая техника».
 
 Режим **Климат** (`/climate`): у комнаты с уставкой тёплого пола карточка «Полы» показывает температуру пола этой зоны (`current_temperature`) рядом с уставкой. Датчик берётся по имени зоны (`Темп - гостиная 2`), а не из `get_climate.floor_temp` — резолвер путает соседние комнаты. Воздух комнаты пишется в `temperature_entity_id` зоны, влажность — в `humidity_entity_id`, поэтому на той же странице есть карточки температуры и влажности. Нет датчика — слот пустой (тамбур без Zigbee). Чужой ручной выбор сенсора зоны не перезаписывается.
+
+**Уставка пола из HA (R-030):** канонический ключ — KNX `setpoint_ga` (атрибут сущности). Карточка **отказывается** писать без GA; текстовый `query` уходит только как комментарий. Новая зона на LM → schema → `get_climate` → новая climate-сущность со своим GA, без ручного словаря. MCP: `get_climate` → `set_climate(ga=…)`; `query` — fallback; ambiguous даёт `candidates[].ga` для повтора. Soft-fail NordClient только на `set_*`.

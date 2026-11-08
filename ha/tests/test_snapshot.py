@@ -16,6 +16,7 @@ OPS = {
                 "area": "гостиная",
                 "floor": "1",
                 "setpoint": 23,
+                "setpoint_ga": "1/6/5",
                 "room_temp": 21.5,
                 "floor_temp": 26.0,
                 "relay_on": True,
@@ -58,6 +59,7 @@ def test_areas_and_two_climates_share_guest_area() -> None:
     assert snap.lights[0].floor == "1"
     assert snap.climates[0].area == "гостиная"
     assert snap.climates[0].room == "гостиная 1"
+    assert snap.climates[0].setpoint_ga == "1/6/5"
     assert snap.climates[0].humidity == 44
     kinds = {s.kind for s in snap.sensors}
     assert {"air", "floor", "humidity", "outdoor"} <= kinds

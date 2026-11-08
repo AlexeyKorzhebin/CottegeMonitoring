@@ -112,7 +112,8 @@ def test_resolve_ambiguous_with_explicit_light_role(monkeypatch) -> None:
 
     monkeypatch.setattr(object_resolver, "load_active_objects", fake_load)
 
-    result = asyncio.run(
+    # Room-label exact match ("свет - …") uniquely resolves the floor lamp.
+    lamp = asyncio.run(
         resolve_objects(
             None,  # type: ignore[arg-type]
             "h1",
@@ -121,8 +122,104 @@ def test_resolve_ambiguous_with_explicit_light_role(monkeypatch) -> None:
             role=ObjectRole.LIGHT_CONTROL,
         )
     )
-    assert result.status == "ambiguous"
-    assert len(result.matches) == 2
+    assert lamp.status == "ok"
+    assert [m.ga for m in lamp.matches] == ["1/1/8"]
+
+    # Morphological overlap without an exact room-label still stays ambiguous.
+    overlap = asyncio.run(
+        resolve_objects(
+            None,  # type: ignore[arg-type]
+            "h1",
+            query="свет гостиная",
+            kind="light",
+            role=ObjectRole.LIGHT_CONTROL,
+        )
+    )
+    assert overlap.status == "ambiguous"
+    assert len(overlap.matches) == 2
+
+    # Short room query must not collapse onto the short light when longer siblings exist.
+    short = asyncio.run(
+        resolve_objects(
+            None,  # type: ignore[arg-type]
+            "h1",
+            query="гостиная",
+            kind="light",
+            role=ObjectRole.LIGHT_CONTROL,
+        )
+    )
+    assert short.status == "ambiguous"
+    assert {m.ga for m in short.matches} == {"1/1/3", "1/1/8"}
+
+
+def _climate_setpoint_objects() -> list[Object]:
+    return [
+        _obj("1/6/5", "Уставка ТП - гостиная 1 ", "1floor,heat,setpoint,temp"),
+        _obj("1/6/6", "Уставка ТП - гостиная 2", "1floor,heat,setpoint,temp"),
+        _obj("1/6/3", "Уставка ТП - холл 1 этаж", "1floor,heat,setpoint,temp"),
+        _obj("1/6/10", "Уставка ТП - холл 2 этаж", "2floor,heat,setpoint,temp"),
+        _obj("1/6/8", "Уставка ТП - ванная 1 этаж", "1floor,heat,setpoint,temp"),
+        _obj("1/6/14", "Уставка ТП - ванна 2 этаж", "2floor,heat,setpoint,temp"),
+        _obj("1/6/7", "Уставка ТП - кухня", "1floor,heat,setpoint,temp"),
+        _obj("1/6/2", "Уставка ТП - серверная", "1floor,heat,setpoint,temp"),
+        _obj("1/6/4", "Уставка ТП - тамбур", "1floor,heat,setpoint,temp"),
+        _obj("1/6/9", "Уставка ТП - спальня", "2floor,heat,setpoint,temp"),
+    ]
+
+
+def test_query_matches_floor_tag_not_when_room_lemmas_present() -> None:
+    from cottage_monitoring.services.object_resolver import _query_matches
+
+    kitchen_sp = _obj("1/6/7", "Уставка ТП - кухня", "1floor,heat,setpoint,temp")
+    hall_sp = _obj("1/6/3", "Уставка ТП - холл 1 этаж", "1floor,heat,setpoint,temp")
+    assert _query_matches("холл 1 этаж", kitchen_sp) is False
+    assert _query_matches("холл 1 этаж", hall_sp) is True
+    assert _query_matches("1 этаж", kitchen_sp) is True
+
+
+def test_resolve_climate_setpoint_room_queries_unique(monkeypatch) -> None:
+    import asyncio
+
+    from cottage_monitoring.services import object_resolver
+
+    objects = _climate_setpoint_objects()
+
+    async def fake_load(_session, _house_id: str) -> list[Object]:
+        return objects
+
+    monkeypatch.setattr(object_resolver, "load_active_objects", fake_load)
+
+    cases = [
+        ("гостиная 1", "ok", ["1/6/5"]),
+        ("гостиная 2", "ok", ["1/6/6"]),
+        ("холл 1 этаж", "ok", ["1/6/3"]),
+        ("холл 2 этаж", "ok", ["1/6/10"]),
+        ("ванная 1 этаж", "ok", ["1/6/8"]),
+        ("ванна 2 этаж", "ok", ["1/6/14"]),
+        ("кухня", "ok", ["1/6/7"]),
+    ]
+    for query, status, gas in cases:
+        result = asyncio.run(
+            resolve_objects(
+                None,  # type: ignore[arg-type]
+                "h1",
+                query=query,
+                role=ObjectRole.CLIMATE_SETPOINT,
+            )
+        )
+        assert result.status == status, query
+        assert [m.ga for m in result.matches] == gas, query
+
+    ambiguous = asyncio.run(
+        resolve_objects(
+            None,  # type: ignore[arg-type]
+            "h1",
+            query="гостиная",
+            role=ObjectRole.CLIMATE_SETPOINT,
+        )
+    )
+    assert ambiguous.status == "ambiguous"
+    assert {m.ga for m in ambiguous.matches} == {"1/6/5", "1/6/6"}
 
 
 def test_exact_knx_light_name_wins_over_prefix(monkeypatch) -> None:
@@ -165,6 +262,21 @@ def test_exact_knx_light_name_wins_over_prefix(monkeypatch) -> None:
     assert office_r.status == "ok"
     assert [m.name for m in office_r.matches] == ["Свет - кабинет"]
 
+    short_bedroom = asyncio.run(
+        resolve_objects(
+            None,  # type: ignore[arg-type]
+            "h1",
+            query="спальня",
+            kind="light",
+            role=ObjectRole.LIGHT_CONTROL,
+        )
+    )
+    assert short_bedroom.status == "ambiguous"
+    assert {m.name for m in short_bedroom.matches} == {
+        "Свет - спальня",
+        "Свет - спальня Тима",
+        "Свет - спальня Насти",
+    }
 
 
 @pytest.mark.integration
