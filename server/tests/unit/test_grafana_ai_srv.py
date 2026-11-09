@@ -88,6 +88,19 @@ def test_ai_srv_text_stats_avoid_grafana_nodata() -> None:
     assert crash_temp["fieldConfig"]["defaults"]["mappings"] == mod.AI_MISSING_NUM_MAPPINGS
 
 
+def test_ai_srv_vram_free_stat() -> None:
+    mod = _load_generate_dashboards()
+    dash = mod.ai_srv()
+    free = next(p for p in dash["panels"] if p.get("title") == "VRAM свободно")
+    used = next(p for p in dash["panels"] if p.get("title") == "VRAM занято")
+    sql = free["targets"][0]["rawSql"]
+    assert "35/1/9" in sql
+    assert str(int(mod.AI_VRAM_TOTAL_GIB)) in sql or "64" in sql
+    assert free["fieldConfig"]["defaults"]["thresholds"] == mod.AI_VRAM_FREE_THRESHOLDS
+    assert free["fieldConfig"]["defaults"]["unit"] == "suffix:GiB"
+    assert used["targets"][0]["rawSql"]
+
+
 def test_ai_srv_history_holds_sparse_series_across_range() -> None:
     """VRAM may have zero points in a short window — seed start/end or series vanishes."""
     mod = _load_generate_dashboards()

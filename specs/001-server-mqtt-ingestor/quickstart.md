@@ -536,7 +536,7 @@ Timeseries соединяют пустые бакеты до **1 ч** (`spanNull
 | `cottage-lights` | Lights | Canvas сейчас + state-timeline история `1/2/*` | 30s |
 | `cottage-batteries` | Batteries | Zigbee battery % | 1m |
 | `cottage-lm-load` | LM Load | loadavg LM: GA `34/1/6` (1м), `34/1/7` (5м), `34/1/8` (15м) | 1m |
-| `cottage-ai-srv` | AI-SRV | GPU-хост `35/1/1`–`19`: сейчас (online только если events температуры/RPM/PWM/GPU/мощности моложе 3 мин; иначе offline, снимок KNX не считается), °C / RPM / PWM % как раньше, авария хранится | 30s |
+| `cottage-ai-srv` | AI-SRV | GPU-хост `35/1/1`–`19`: сейчас (online только если events температуры/RPM/PWM/GPU/мощности моложе 3 мин; иначе offline); плашки VRAM занято / свободно (`64 − 35/1/9`); °C / RPM / PWM; авария | 30s |
 
 Папка Grafana: **Cottage** (`folderUid=ffsa6lrlntse8b`).
 Datasource: PostgreSQL UID `cottage-monitoring-pg` → БД `cottage_monitoring`,

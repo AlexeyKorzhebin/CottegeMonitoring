@@ -533,18 +533,131 @@
     },
     {
       "id": 9,
+      "type": "stat",
+      "title": "VRAM занято",
+      "datasource": {
+        "type": "postgres",
+        "uid": "cottage-monitoring-pg"
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 0,
+        "y": 7
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "rawQuery": true,
+          "format": "table",
+          "rawSql": "SELECT now() AS time,\n  CASE\n    WHEN (\n  SELECT max(e.ts) FROM events e\n  WHERE e.house_id = 'house' AND e.ga IN ('35/1/2', '35/1/3', '35/1/4', '35/1/8', '35/1/10')\n) > now() - interval '3 minutes'\n    THEN (\n      SELECT (e.value #>> '{}')::double precision\n      FROM events e\n      WHERE e.house_id = 'house' AND e.ga = '35/1/9'\n      ORDER BY e.ts DESC\n      LIMIT 1\n    )\n    ELSE NULL\n  END AS value"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "decimals": 2,
+          "color": {
+            "mode": "thresholds"
+          },
+          "unit": "suffix:GiB",
+          "noValue": "offline"
+        }
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ]
+        },
+        "colorMode": "background",
+        "graphMode": "area",
+        "textMode": "auto"
+      },
+      "description": "GA 35/1/9 used. Всего на карте 64 GiB."
+    },
+    {
+      "id": 10,
+      "type": "stat",
+      "title": "VRAM свободно",
+      "datasource": {
+        "type": "postgres",
+        "uid": "cottage-monitoring-pg"
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 6,
+        "y": 7
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "rawQuery": true,
+          "format": "table",
+          "rawSql": "SELECT now() AS time,\n  CASE\n    WHEN (\n  SELECT max(e.ts) FROM events e\n  WHERE e.house_id = 'house' AND e.ga IN ('35/1/2', '35/1/3', '35/1/4', '35/1/8', '35/1/10')\n) > now() - interval '3 minutes'\n    THEN (\n      SELECT CASE\n        WHEN (e.value #>> '{}')::double precision < 0 THEN NULL\n        ELSE round((64.0 - (e.value #>> '{}')::double precision)::numeric, 2)\n      END\n      FROM events e\n      WHERE e.house_id = 'house' AND e.ga = '35/1/9'\n      ORDER BY e.ts DESC\n      LIMIT 1\n    )\n    ELSE NULL\n  END AS value"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "decimals": 2,
+          "color": {
+            "mode": "thresholds"
+          },
+          "unit": "suffix:GiB",
+          "noValue": "offline",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "red",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 0
+              },
+              {
+                "color": "orange",
+                "value": 4
+              },
+              {
+                "color": "yellow",
+                "value": 8
+              },
+              {
+                "color": "green",
+                "value": 16
+              }
+            ]
+          }
+        }
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ]
+        },
+        "colorMode": "background",
+        "graphMode": "area",
+        "textMode": "auto"
+      },
+      "description": "Свободно = 64 − занято (35/1/9). Отдельного GA free нет. Зелёный ≥16 · жёлтый ≥8 · оранжевый ≥4 · красный <4."
+    },
+    {
+      "id": 11,
       "type": "row",
       "title": "История",
       "gridPos": {
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 7
+        "y": 11
       },
       "collapsed": false
     },
     {
-      "id": 10,
+      "id": 12,
       "type": "timeseries",
       "title": "Температура / RPM / PWM",
       "datasource": {
@@ -555,7 +668,7 @@
         "h": 10,
         "w": 24,
         "x": 0,
-        "y": 8
+        "y": 12
       },
       "targets": [
         {
@@ -751,7 +864,7 @@
       "description": "−1 не скрываем: это дыра в данных. Температура: <60 зелёный, 60–75 жёлтый, 75–80 оранжевый, >80 красный. Защита GPU 84 °C — без Telegram-алерта в этой волне."
     },
     {
-      "id": 11,
+      "id": 13,
       "type": "timeseries",
       "title": "GPU % / VRAM / мощность",
       "datasource": {
@@ -762,7 +875,7 @@
         "h": 8,
         "w": 24,
         "x": 0,
-        "y": 18
+        "y": 22
       },
       "targets": [
         {
@@ -838,7 +951,7 @@
       "description": "GA 35/1/8…10. −1 = просадка / offline. 0% GPU = idle. VRAM шлётся редко (skip-unchanged): держим последнее значение на границах окна + spanNulls 24 ч, иначе серия пропадает."
     },
     {
-      "id": 12,
+      "id": 14,
       "type": "timeseries",
       "title": "CPU / RAM / диск",
       "datasource": {
@@ -849,7 +962,7 @@
         "h": 8,
         "w": 24,
         "x": 0,
-        "y": 26
+        "y": 30
       },
       "targets": [
         {
@@ -925,19 +1038,19 @@
       "description": "GA 35/1/11…13. −1 = просадка / offline."
     },
     {
-      "id": 13,
+      "id": 15,
       "type": "row",
       "title": "Авария",
       "gridPos": {
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 34
+        "y": 38
       },
       "collapsed": false
     },
     {
-      "id": 14,
+      "id": 16,
       "type": "stat",
       "title": "Причина",
       "datasource": {
@@ -948,7 +1061,7 @@
         "h": 4,
         "w": 5,
         "x": 0,
-        "y": 35
+        "y": 39
       },
       "targets": [
         {
@@ -981,7 +1094,7 @@
       "description": "GA 35/1/15 last_shutdown_reason.reason. none → «нет»."
     },
     {
-      "id": 15,
+      "id": 17,
       "type": "stat",
       "title": "ID",
       "datasource": {
@@ -992,7 +1105,7 @@
         "h": 4,
         "w": 5,
         "x": 5,
-        "y": 35
+        "y": 39
       },
       "targets": [
         {
@@ -1025,7 +1138,7 @@
       "description": "GA 35/1/16 event_id."
     },
     {
-      "id": 16,
+      "id": 18,
       "type": "stat",
       "title": "Статус",
       "datasource": {
@@ -1036,7 +1149,7 @@
         "h": 4,
         "w": 4,
         "x": 10,
-        "y": 35
+        "y": 39
       },
       "targets": [
         {
@@ -1069,7 +1182,7 @@
       "description": "GA 35/1/17 last_shutdown_reason.status."
     },
     {
-      "id": 17,
+      "id": 19,
       "type": "stat",
       "title": "°C аварии",
       "datasource": {
@@ -1080,7 +1193,7 @@
         "h": 4,
         "w": 4,
         "x": 14,
-        "y": 35
+        "y": 39
       },
       "targets": [
         {
@@ -1123,7 +1236,7 @@
       "description": "GA 35/1/18 — температура в момент аварии, не текущая GPU. −1 / нет аварии → —."
     },
     {
-      "id": 18,
+      "id": 20,
       "type": "stat",
       "title": "Время",
       "datasource": {
@@ -1134,7 +1247,7 @@
         "h": 4,
         "w": 6,
         "x": 18,
-        "y": 35
+        "y": 39
       },
       "targets": [
         {

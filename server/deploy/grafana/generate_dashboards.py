@@ -1757,6 +1757,20 @@ AI_MISSING_NUM_MAPPINGS = [
 AI_SRV_FRESH = "3 minutes"
 AI_SRV_HEARTBEAT_GAS = ("35/1/2", "35/1/3", "35/1/4", "35/1/8", "35/1/10")
 
+# GA 35/1/9 = used GiB; отдельного free нет. Total из спеки / live max ≈ 63.1.
+AI_VRAM_TOTAL_GIB = 64.0
+# Мало свободно → красный; много → зелёный.
+AI_VRAM_FREE_THRESHOLDS = {
+    "mode": "absolute",
+    "steps": [
+        {"color": "red", "value": None},
+        {"color": "red", "value": 0},
+        {"color": "orange", "value": 4},
+        {"color": "yellow", "value": 8},
+        {"color": "green", "value": 16},
+    ],
+}
+
 
 def _ai_srv_heartbeat_sql() -> str:
     gas = ", ".join(f"'{ga}'" for ga in AI_SRV_HEARTBEAT_GAS)
@@ -1786,6 +1800,27 @@ SELECT now() AS time,
       SELECT {value_expr}
       FROM events e
       WHERE e.house_id = 'house' AND e.ga = '{ga}'
+      ORDER BY e.ts DESC
+      LIMIT 1
+    )
+    ELSE NULL
+  END AS value
+""".strip()
+
+
+def _ai_srv_vram_free_sql() -> str:
+    """Free VRAM GiB = total − used (35/1/9). Offline / −1 → NULL."""
+    return f"""
+SELECT now() AS time,
+  CASE
+    WHEN {_ai_srv_heartbeat_sql()} > now() - interval '{AI_SRV_FRESH}'
+    THEN (
+      SELECT CASE
+        WHEN {NUM} < 0 THEN NULL
+        ELSE round(({AI_VRAM_TOTAL_GIB} - {NUM})::numeric, 2)
+      END
+      FROM events e
+      WHERE e.house_id = 'house' AND e.ga = '35/1/9'
       ORDER BY e.ts DESC
       LIMIT 1
     )
@@ -2092,6 +2127,40 @@ def ai_srv():
             description="GA 35/1/6 protection_state. Без свежих измерений хоста — offline.",
         )
     )
+    y += 4
+
+    used_stat = stat(
+        "VRAM занято",
+        0,
+        y,
+        6,
+        4,
+        _ai_srv_latest_num_sql("35/1/9"),
+        unit="suffix:GiB",
+        decimals=2,
+        color_mode="background",
+        no_value="offline",
+        description=f"GA 35/1/9 used. Всего на карте {AI_VRAM_TOTAL_GIB:g} GiB.",
+    )
+    panels.append(used_stat)
+    free_stat = stat(
+        "VRAM свободно",
+        6,
+        y,
+        6,
+        4,
+        _ai_srv_vram_free_sql(),
+        unit="suffix:GiB",
+        decimals=2,
+        color_mode="background",
+        no_value="offline",
+        description=(
+            f"Свободно = {AI_VRAM_TOTAL_GIB:g} − занято (35/1/9). "
+            "Отдельного GA free нет. Зелёный ≥16 · жёлтый ≥8 · оранжевый ≥4 · красный <4."
+        ),
+    )
+    free_stat["fieldConfig"]["defaults"]["thresholds"] = AI_VRAM_FREE_THRESHOLDS
+    panels.append(free_stat)
     y += 4
 
     panels.append(row("История", y))
