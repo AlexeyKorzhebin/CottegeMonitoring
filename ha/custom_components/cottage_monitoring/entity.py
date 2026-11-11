@@ -89,13 +89,14 @@ class CottageEntity(CoordinatorEntity):
                     floor=item.floor,
                     floors_by_area=floors,
                 )
-        if snap.kettle is not None and snap.kettle.unique_id == uid:
-            return place_device_name(
-                raw_name=snap.kettle.name,
-                area=snap.kettle.area,
-                floor=snap.kettle.floor,
-                floors_by_area=floors,
-            )
+        for extra in (snap.kettle, snap.ai_srv_switcher, snap.projector):
+            if extra is not None and extra.unique_id == uid:
+                return place_device_name(
+                    raw_name=extra.name,
+                    area=extra.area,
+                    floor=extra.floor,
+                    floors_by_area=floors,
+                )
         return self._area_name or self._device_name
 
     def _reassign_area(self) -> None:

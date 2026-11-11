@@ -30,3 +30,11 @@ def kettle_off_body() -> tuple[str, dict]:
 
 def kettle_setpoint_body(c: float) -> tuple[str, dict]:
     return "set_kettle", {"setpoint_c": c}
+
+
+def ai_srv_switcher_body(on: bool) -> tuple[str, dict]:
+    return "set_ai_srv_switcher", {"on": on}
+
+
+def projector_body(on: bool) -> tuple[str, dict]:
+    return "set_projector", {"on": on}

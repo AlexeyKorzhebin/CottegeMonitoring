@@ -54,6 +54,8 @@ class CottageCoordinator(DataUpdateCoordinator[HouseSnapshot]):
                 ),
                 "get_energy_status": await self.client.call_op("get_energy_status"),
                 "get_kettle": await self.client.call_op("get_kettle"),
+                "get_ai_srv_switcher": await self.client.call_op("get_ai_srv_switcher"),
+                "get_projector": await self.client.call_op("get_projector"),
             }
         except NordError as exc:
             raise UpdateFailed(str(exc)) from exc

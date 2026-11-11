@@ -47,12 +47,14 @@ def sync_floors_areas(hass, snap: HouseSnapshot) -> None:
             uid_to_area[item.unique_id] = name
             if name != HOUSE_AREA_NAME:
                 pairs.add((item.floor, name))
-    if snap.kettle:
-        name = _item_area_name(snap.kettle, floors_by_area)
+    for extra in (snap.kettle, snap.ai_srv_switcher, snap.projector):
+        if extra is None:
+            continue
+        name = _item_area_name(extra, floors_by_area)
         if name:
-            uid_to_area[snap.kettle.unique_id] = name
+            uid_to_area[extra.unique_id] = name
             if name != HOUSE_AREA_NAME:
-                pairs.add((snap.kettle.floor, name))
+                pairs.add((extra.floor, name))
     for floor_key, area_name in pairs:
         existing = next((a for a in areas.async_list_areas() if a.name == area_name), None)
         floor_id = floor_ids.get(floor_key) if floor_key else None

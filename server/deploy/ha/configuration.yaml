@@ -22,3 +22,9 @@ lovelace:
       icon: mdi:kettle
       show_in_sidebar: true
       filename: dashboards/appliances.yaml
+    cottage-it:
+      mode: yaml
+      title: ИТ
+      icon: mdi:server
+      show_in_sidebar: true
+      filename: dashboards/it.yaml

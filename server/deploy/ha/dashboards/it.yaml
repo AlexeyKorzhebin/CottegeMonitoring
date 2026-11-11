@@ -1,0 +1,37 @@
+title: ИТ
+views:
+  - title: ИТ
+    path: it
+    type: sections
+    max_columns: 2
+    sections:
+      - type: grid
+        cards:
+          - type: heading
+            heading: Проектор
+          - type: tile
+            entity: switch.projector
+            name: Проектор
+            icon: mdi:projector
+            features:
+              - type: toggle
+      - type: grid
+        cards:
+          - type: heading
+            heading: AI-SRV
+          - type: tile
+            entity: switch.ai_srv
+            name: Розетка
+            icon: mdi:power-socket-eu
+            features:
+              - type: toggle
+          - type: glance
+            entities:
+              - entity: sensor.ai_srv_power
+                name: Вт
+              - entity: sensor.ai_srv_current
+                name: А
+              - entity: sensor.ai_srv_voltage
+                name: В
+              - entity: sensor.ai_srv_energy
+                name: кВт·ч

@@ -5,6 +5,7 @@ import asyncio
 from pathlib import Path
 
 from cottage_monitoring.commands import (
+    ai_srv_switcher_body,
     auto_heating_body,
     climate_set_temp_body,
     kettle_off_body,
@@ -12,6 +13,7 @@ from cottage_monitoring.commands import (
     kettle_setpoint_body,
     lights_turn_off_body,
     lights_turn_on_body,
+    projector_body,
 )
 
 COMMANDS_PY = (
@@ -100,6 +102,16 @@ def test_kettle_setpoint_body() -> None:
     assert "on" not in body
 
 
+def test_ai_srv_switcher_body() -> None:
+    assert ai_srv_switcher_body(True) == ("set_ai_srv_switcher", {"on": True})
+    assert ai_srv_switcher_body(False) == ("set_ai_srv_switcher", {"on": False})
+
+
+def test_projector_body() -> None:
+    assert projector_body(True) == ("set_projector", {"on": True})
+    assert projector_body(False) == ("set_projector", {"on": False})
+
+
 def test_commands_module_does_not_import_homeassistant() -> None:
     for module in _imported_modules(COMMANDS_PY):
         assert not module.startswith("homeassistant")
@@ -135,6 +147,8 @@ def test_fake_coordinator_call_op_bodies() -> None:
         await coord.send(auto_heating_body, False)
         await coord.send(kettle_on_body)
         await coord.send(kettle_setpoint_body, 80.0)
+        await coord.send(ai_srv_switcher_body, True)
+        await coord.send(projector_body, False)
 
     asyncio.run(_run())
     assert coord.client.ops == [
@@ -143,5 +157,7 @@ def test_fake_coordinator_call_op_bodies() -> None:
         ("set_auto_heating", {"on": False}),
         ("set_kettle", {"on": True}),
         ("set_kettle", {"setpoint_c": 80.0}),
+        ("set_ai_srv_switcher", {"on": True}),
+        ("set_projector", {"on": False}),
     ]
     assert all("force_relay" not in body for _, body in coord.client.ops)

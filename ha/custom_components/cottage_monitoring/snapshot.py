@@ -25,6 +25,20 @@ ENERGY_DISPLAY_NAME: dict[str, str] = {
     "pf": "PF",
 }
 
+AI_SRV_DISPLAY_NAME: dict[str, str] = {
+    "ai_srv_power": "Мощность",
+    "ai_srv_current": "Ток",
+    "ai_srv_voltage": "Напряжение",
+    "ai_srv_energy": "Энергия",
+}
+
+AI_SRV_SENSOR_FIELDS: tuple[tuple[str, str, str], ...] = (
+    ("power_w", "ai_srv_power", "power"),
+    ("current_a", "ai_srv_current", "current"),
+    ("voltage_v", "ai_srv_voltage", "voltage"),
+    ("energy_kwh", "ai_srv_energy", "energy"),
+)
+
 
 def slug(name: str) -> str:
     """Lowercase; whitespace runs become a single ``_``. Hyphens are kept (``свет_-_кухня``)."""
@@ -233,6 +247,10 @@ def sensor_ha_profile(kind: str) -> dict[str, str | None]:
         "hour": {"device_class": "energy", "unit": "kWh", "state_class": "total"},
         "daily": {"device_class": "energy", "unit": "kWh", "state_class": "total"},
         "pf": {"device_class": "power_factor", "unit": None, "state_class": "measurement"},
+        "ai_srv_power": {"device_class": "power", "unit": "W", "state_class": "measurement"},
+        "ai_srv_current": {"device_class": "current", "unit": "A", "state_class": "measurement"},
+        "ai_srv_voltage": {"device_class": "voltage", "unit": "V", "state_class": "measurement"},
+        "ai_srv_energy": {"device_class": "energy", "unit": "kWh", "state_class": "total_increasing"},
         "battery": {"device_class": "battery", "unit": "%", "state_class": "measurement"},
         "humidity": {"device_class": "humidity", "unit": "%", "state_class": "measurement"},
         "air": {"device_class": "temperature", "unit": "°C", "state_class": "measurement"},
@@ -248,6 +266,8 @@ def sensor_display_name(*, name: str, kind: str) -> str:
         return "Батарея"
     if kind in ENERGY_DISPLAY_NAME:
         return ENERGY_DISPLAY_NAME[kind]
+    if kind in AI_SRV_DISPLAY_NAME:
+        return AI_SRV_DISPLAY_NAME[kind]
     if kind == "humidity":
         return "Влажность"
     if kind == "air":
@@ -354,7 +374,7 @@ class ClimateZone:
 @dataclass(frozen=True)
 class SensorItem:
     name: str
-    kind: str  # air | floor | humidity | outdoor | battery | power | frequency | meter | hour | daily | pf
+    kind: str  # air | floor | humidity | outdoor | battery | power | frequency | meter | hour | daily | pf | ai_srv_*
     value: object
     area: str | None
     floor: str | None
@@ -374,6 +394,15 @@ class KettleItem:
 
 
 @dataclass(frozen=True)
+class SwitchItem:
+    name: str
+    on: bool | None
+    area: str | None
+    floor: str | None
+    unique_id: str
+
+
+@dataclass(frozen=True)
 class HouseSnapshot:
     house_id: str
     online: bool
@@ -383,6 +412,8 @@ class HouseSnapshot:
     climates: tuple[ClimateZone, ...]
     sensors: tuple[SensorItem, ...]
     kettle: KettleItem | None
+    ai_srv_switcher: SwitchItem | None
+    projector: SwitchItem | None
 
     @classmethod
     def from_ops(cls, house_id: str, ops: dict) -> HouseSnapshot:
@@ -392,6 +423,8 @@ class HouseSnapshot:
         temps_op = ops.get("get_temperature") or {}
         sensors_op = ops.get("get_sensors") or {}
         kettle_op = ops.get("get_kettle") or {}
+        plug_op = ops.get("get_ai_srv_switcher")
+        proj_op = ops.get("get_projector")
 
         sensors: list[SensorItem] = []
 
@@ -521,6 +554,37 @@ class HouseSnapshot:
                 has_setpoint=appliance.get("setpoint_c") is not None,
             )
 
+        ai_srv_switcher: SwitchItem | None = None
+        if plug_op is not None:
+            ai_srv_switcher = SwitchItem(
+                name="AI-SRV",
+                on=_as_on_optional(plug_op.get("on")),
+                area="серверная",
+                floor="1",
+                unique_id=_unique_id(house_id, "ai_srv_switcher", "AI-SRV"),
+            )
+            for field, kind, key in AI_SRV_SENSOR_FIELDS:
+                sensors.append(
+                    SensorItem(
+                        name=f"AI-SRV {key}",
+                        kind=kind,
+                        value=plug_op.get(field),
+                        area="серверная",
+                        floor="1",
+                        unique_id=_unique_id(house_id, "ai_srv", key),
+                    )
+                )
+
+        projector: SwitchItem | None = None
+        if proj_op is not None:
+            projector = SwitchItem(
+                name="Проектор",
+                on=_as_on_optional(proj_op.get("on")),
+                area="гостиная",
+                floor="1",
+                unique_id=_unique_id(house_id, "projector", "Проектор"),
+            )
+
         return cls(
             house_id=house_id,
             online=status.get("online_status") == "online",
@@ -530,6 +594,8 @@ class HouseSnapshot:
             climates=climates,
             sensors=tuple(sensors),
             kettle=kettle,
+            ai_srv_switcher=ai_srv_switcher,
+            projector=projector,
         )
 
     def area_climate_sensor_uids(self) -> dict[str, dict[str, str | None]]:
@@ -559,6 +625,7 @@ class HouseSnapshot:
 
     def floors_by_area(self) -> dict[str, frozenset[str]]:
         groups: list[tuple] = [self.lights, self.climates, self.sensors]
-        if self.kettle is not None:
-            groups.append((self.kettle,))
+        for extra in (self.kettle, self.ai_srv_switcher, self.projector):
+            if extra is not None:
+                groups.append((extra,))
         return floors_by_area_from_items(*groups)

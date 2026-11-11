@@ -7,6 +7,8 @@ from homeassistant.components.sensor import (
 )
 from homeassistant.const import (
     PERCENTAGE,
+    UnitOfElectricCurrent,
+    UnitOfElectricPotential,
     UnitOfEnergy,
     UnitOfFrequency,
     UnitOfPower,
@@ -46,6 +48,8 @@ class CottageSensor(CottageEntity, SensorEntity):
             floors_by_area=floors,
         )
         self._apply_device_class(item.kind, label)
+        if item.kind.startswith("ai_srv_"):
+            self.entity_id = f"sensor.{item.kind}"
 
     def _apply_device_class(self, kind: str, label: str) -> None:
         if kind == "outdoor" and label == "Влажность":
@@ -76,6 +80,8 @@ class CottageSensor(CottageEntity, SensorEntity):
             "W": UnitOfPower.WATT,
             "Hz": UnitOfFrequency.HERTZ,
             "kWh": UnitOfEnergy.KILO_WATT_HOUR,
+            "A": UnitOfElectricCurrent.AMPERE,
+            "V": UnitOfElectricPotential.VOLT,
             "%": PERCENTAGE,
             "°C": UnitOfTemperature.CELSIUS,
         }

@@ -350,3 +350,156 @@ def test_climate_zone_uses_its_own_floor_air_and_humidity() -> None:
     assert pick_area_entity("sensor.ruchnoy", "sensor.vozdukh", current_is_ours=False) == (False, "sensor.ruchnoy")
     assert pick_area_entity("sensor.staryy_pol", None, current_is_ours=True) == (True, None)
 
+
+def _base_ops(**extra):
+    ops = {
+        "get_house_status": {"online_status": "online"},
+        "list_lights": {"items": []},
+        "get_climate": {"auto_heating_enabled": False, "zones": []},
+        "get_temperature": {"items": []},
+        "get_sensors": {"items": []},
+        "get_kettle": {},
+    }
+    ops.update(extra)
+    return ops
+
+
+def test_missing_ai_srv_and_projector_ops_are_none() -> None:
+    snap = HouseSnapshot.from_ops("house", OPS)
+    assert snap.ai_srv_switcher is None
+    assert snap.projector is None
+    kinds = {s.kind for s in snap.sensors}
+    assert "ai_srv_power" not in kinds
+
+
+def test_ai_srv_switcher_snapshot_and_metrics() -> None:
+    from cottage_monitoring.snapshot import sensor_display_name, sensor_ha_profile
+
+    snap = HouseSnapshot.from_ops(
+        "house",
+        _base_ops(
+            get_ai_srv_switcher={
+                "on": False,
+                "power_w": 12.5,
+                "current_a": 0.08,
+                "voltage_v": 230.1,
+                "energy_kwh": 1.4,
+                "status_ga": "32/6/6",
+                "cmd_ga": "32/6/5",
+            }
+        ),
+    )
+    plug = snap.ai_srv_switcher
+    assert plug is not None
+    assert plug.name == "AI-SRV"
+    assert plug.on is False
+    assert plug.area == "серверная"
+    assert plug.floor == "1"
+    assert plug.unique_id == "house:ai_srv_switcher:ai-srv"
+    assert "/" not in plug.unique_id
+    metrics = {s.kind: s for s in snap.sensors if s.kind.startswith("ai_srv_")}
+    assert set(metrics) == {
+        "ai_srv_power",
+        "ai_srv_current",
+        "ai_srv_voltage",
+        "ai_srv_energy",
+    }
+    assert metrics["ai_srv_power"].value == 12.5
+    assert metrics["ai_srv_current"].value == 0.08
+    assert metrics["ai_srv_voltage"].value == 230.1
+    assert metrics["ai_srv_energy"].value == 1.4
+    assert metrics["ai_srv_power"].unique_id == "house:ai_srv:power"
+    assert metrics["ai_srv_current"].unique_id == "house:ai_srv:current"
+    assert metrics["ai_srv_voltage"].unique_id == "house:ai_srv:voltage"
+    assert metrics["ai_srv_energy"].unique_id == "house:ai_srv:energy"
+    assert all(s.area == "серверная" and s.floor == "1" for s in metrics.values())
+    assert sensor_display_name(name="ignored", kind="ai_srv_power") == "Мощность"
+    assert sensor_display_name(name="ignored", kind="ai_srv_current") == "Ток"
+    assert sensor_display_name(name="ignored", kind="ai_srv_voltage") == "Напряжение"
+    assert sensor_display_name(name="ignored", kind="ai_srv_energy") == "Энергия"
+    assert sensor_ha_profile("ai_srv_power") == {
+        "device_class": "power",
+        "unit": "W",
+        "state_class": "measurement",
+    }
+    assert sensor_ha_profile("ai_srv_current") == {
+        "device_class": "current",
+        "unit": "A",
+        "state_class": "measurement",
+    }
+    assert sensor_ha_profile("ai_srv_voltage") == {
+        "device_class": "voltage",
+        "unit": "V",
+        "state_class": "measurement",
+    }
+    assert sensor_ha_profile("ai_srv_energy") == {
+        "device_class": "energy",
+        "unit": "kWh",
+        "state_class": "total_increasing",
+    }
+
+
+def test_ai_srv_switcher_missing_metrics_are_none() -> None:
+    snap = HouseSnapshot.from_ops(
+        "house",
+        _base_ops(
+            get_ai_srv_switcher={
+                "on": None,
+                "power_w": None,
+                "current_a": None,
+                "voltage_v": None,
+                "energy_kwh": None,
+                "status_ga": "32/6/6",
+                "cmd_ga": "32/6/5",
+            }
+        ),
+    )
+    assert snap.ai_srv_switcher is not None
+    assert snap.ai_srv_switcher.on is None
+    metrics = {s.kind: s for s in snap.sensors if s.kind.startswith("ai_srv_")}
+    assert all(item.value is None for item in metrics.values())
+
+
+def test_projector_snapshot() -> None:
+    snap = HouseSnapshot.from_ops(
+        "house",
+        _base_ops(
+            get_projector={
+                "on": True,
+                "status_ga": "32/6/3",
+                "cmd_ga": "32/6/2",
+            }
+        ),
+    )
+    proj = snap.projector
+    assert proj is not None
+    assert proj.name == "Проектор"
+    assert proj.on is True
+    assert proj.area == "гостиная"
+    assert proj.floor == "1"
+    assert proj.unique_id == "house:projector:проектор"
+    assert "/" not in proj.unique_id
+
+
+def test_floors_by_area_includes_plug_and_projector() -> None:
+    snap = HouseSnapshot.from_ops(
+        "house",
+        _base_ops(
+            get_ai_srv_switcher={
+                "on": True,
+                "power_w": 1,
+                "current_a": 0.01,
+                "voltage_v": 230,
+                "energy_kwh": 0,
+                "status_ga": "32/6/6",
+                "cmd_ga": "32/6/5",
+            },
+            get_projector={"on": False, "status_ga": "32/6/3", "cmd_ga": "32/6/2"},
+        ),
+    )
+    floors = snap.floors_by_area()
+    assert "серверная" in floors
+    assert "1" in floors["серверная"]
+    assert area_name_for("серверная", "1", floors) == "серверная"
+    assert area_name_for("гостиная", "1", floors) == "гостиная"
+
