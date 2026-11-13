@@ -1,0 +1,10 @@
+[Unit]
+Description=Daily platform metrics retention cleanup
+
+[Timer]
+OnCalendar=daily
+Persistent=true
+Unit=platform-metrics-cleanup.service
+
+[Install]
+WantedBy=timers.target

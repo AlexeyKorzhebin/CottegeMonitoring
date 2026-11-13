@@ -1,0 +1,17 @@
+# Template: install SQL and a dedicated maintenance-only .pgpass before enabling.
+[Unit]
+Description=Bounded platform metrics retention cleanup
+After=network.target
+
+[Service]
+Type=oneshot
+User=platform-metrics-maintenance
+Group=platform-metrics-maintenance
+Environment=PGPASSFILE=/etc/platform-metrics/maintenance.pgpass
+# Replace database name after verifying the actual local PostgreSQL instance.
+ExecStart=/usr/bin/psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -p 5432 -U platform_metrics_maintenance -d REPLACE_DATABASE_NAME -f /etc/platform-metrics/cleanup.sql
+TimeoutStartSec=15
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
