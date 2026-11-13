@@ -30,6 +30,10 @@ class ApiKeyAuthMiddleware(BaseHTTPMiddleware):
         # Always reset per-request; dry-run is opt-in via header only.
         set_command_dry_run(_header_dry_run(request))
 
+        # This exact route has mandatory, independent writer authentication.
+        if request.method == "POST" and request.url.path == "/api/v1/platform-metrics/batches":
+            return await call_next(request)
+
         if not settings.auth_required:
             return await call_next(request)
 

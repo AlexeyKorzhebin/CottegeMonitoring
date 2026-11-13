@@ -26,6 +26,11 @@ class Settings(BaseSettings):
     api_port: int = 8321
     api_host: str = "127.0.0.1"
 
+    # Separate platform aggregate writer; disabled until explicitly configured.
+    platform_metrics_enabled: bool = False
+    platform_metrics_token_file: str | None = None
+    platform_metrics_db_url: str | None = None
+
     # Logging
     log_level: str = "INFO"
     log_dir: str = "/var/log/cottage-monitoring"

@@ -6,6 +6,7 @@ from cottage_monitoring.api.events import router as events_router
 from cottage_monitoring.api.houses import router as houses_router
 from cottage_monitoring.api.objects import router as objects_router
 from cottage_monitoring.api.ops import router as ops_router
+from cottage_monitoring.api.platform_metrics import router as platform_metrics_router
 from cottage_monitoring.api.rpc import router as rpc_router
 from cottage_monitoring.api.schemas import router as schemas_router
 from cottage_monitoring.api.state import router as state_router
@@ -21,3 +22,5 @@ api_router.include_router(objects_router, tags=["objects"])
 api_router.include_router(commands_router, tags=["commands"])
 api_router.include_router(schemas_router, tags=["schemas"])
 api_router.include_router(rpc_router, tags=["rpc"])
+
+api_router.include_router(platform_metrics_router, tags=["platform-metrics"])
