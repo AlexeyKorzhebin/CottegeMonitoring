@@ -49,6 +49,11 @@ _ALLOWED.update(
 )
 _ALLOWED.update({("gateway", m): ("count", 0, 100000) for m in ("active", "capacity")})
 _ALLOWED[("gateway", "latency_mean_ms")] = ("ms", 0, 3600000)
+_ALLOWED.update({("admission", m): ("count", 0, 1000000) for m in (
+    "requests_total_window", "errors_total_window", "busy_total_window"
+)})
+_ALLOWED[("admission", "active")] = ("count", 0, 100000)
+_ALLOWED[("admission", "latency_mean_ms")] = ("ms", 0, 3600000)
 _ALLOWED.update(
     {
         ("ai-host", m): ("percent", 0, 100)

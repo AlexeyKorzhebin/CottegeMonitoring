@@ -53,6 +53,28 @@ def test_validation_boundaries_and_untrusted_fields(payload):
     pm.validate(json.dumps(payload).encode(), now)
 
 
+@pytest.mark.parametrize("metric,unit,maximum", [
+    ("ready", "bool", 1), ("active", "count", 100000),
+    ("requests_total_window", "count", 1000000),
+    ("errors_total_window", "count", 1000000),
+    ("busy_total_window", "count", 1000000),
+    ("latency_mean_ms", "ms", 3600000),
+])
+def test_admission_series_allowlist_and_bounds(payload, metric, unit, maximum):
+    sample = payload["samples"][0]
+    sample.update(service="admission", metric=metric, unit=unit, value=maximum)
+    now = datetime.now(UTC)
+    pm.validate(json.dumps(payload).encode(), now)
+    sample.update(status="unknown", value=None)
+    pm.validate(json.dumps(payload).encode(), now)
+    sample.update(status="observed", value=maximum + 1)
+    with pytest.raises(ValueError):
+        pm.validate(json.dumps(payload).encode(), now)
+    sample.update(value=0, unit="unexpected")
+    with pytest.raises(ValueError):
+        pm.validate(json.dumps(payload).encode(), now)
+
+
 @pytest.mark.parametrize("house_auth", [False, True])
 def test_endpoint_auth_limits_and_errors(monkeypatch, tmp_path, payload, house_auth):
     token = tmp_path / "token"
