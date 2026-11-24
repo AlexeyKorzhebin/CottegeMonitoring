@@ -30,6 +30,10 @@ SPEC_CATALOG: dict[str, tuple[str, bool]] = {
     "get_heating_diagnostics": ("read", True),
     "get_kettle": ("read", True),
     "set_kettle": ("write", True),
+    "get_ai_srv_switcher": ("read", True),
+    "set_ai_srv_switcher": ("write", True),
+    "get_projector": ("read", True),
+    "set_projector": ("write", True),
     "get_command_status": ("read", True),
 }
 

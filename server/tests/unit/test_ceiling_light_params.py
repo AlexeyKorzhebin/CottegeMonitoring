@@ -182,11 +182,12 @@ def test_set_lights_writes_catalog_control_gas_and_turns_relay_on(monkeypatch) -
     payload = sent[0]["items"] if sent[0]["items"] is not None else [
         {"ga": ga, "value": sent[0]["value"]} for ga, _name in sent[0]["targets"]
     ]
+    # Params before relay so OFF→ON sync sees color intent after settle.
     assert payload == [
-        {"ga": "1/1/13", "value": True},
         {"ga": "36/1/1", "value": 50},
         {"ga": "36/1/2", "value": 250},
         {"ga": "36/1/3", "value": 0x112233},
+        {"ga": "1/1/13", "value": True},
     ]
 
 
@@ -258,8 +259,8 @@ def test_set_light_writes_catalog_control_gas(monkeypatch) -> None:
         {"ga": ga, "value": sent[0]["value"]} for ga, _name in sent[0]["targets"]
     ]
     assert payload == [
-        {"ga": "1/1/15", "value": True},
         {"ga": "36/1/4", "value": 10},
+        {"ga": "1/1/15", "value": True},
     ]
 
 

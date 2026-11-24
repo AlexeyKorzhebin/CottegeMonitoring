@@ -191,11 +191,12 @@ def test_set_lights_ambiguous_non_zone(monkeypatch) -> None:
     monkeypatch.setattr(object_resolver, "load_active_objects", fake_load)
     monkeypatch.setattr(agent_actions, "_get_state_map", fake_states)
 
+    # Room-label exact match prefers «гостиная торшер»; bare «гостиная» stays ambiguous.
     result = asyncio.run(
         agent_actions.set_lights(
             None,  # type: ignore[arg-type]
             "h1",
-            query="гостиная торшер",
+            query="гостиная",
             on=False,
         )
     )
