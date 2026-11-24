@@ -263,6 +263,10 @@ AI-SRV `35/1/*`: `ai_knx` + `AI_SRV_MIN_INTERVAL=15` (skip unchanged; changed �
 
 Снимок включённых скриптов LM на 2026-10-24 без вшитых секретов: `cm-client/scripts/lm-live/2026-10-24/`. Вне git остались light control и Setup watch dog timers (пароль admin в URL), `mqtt_listen` и zigbee send (пароль MQTT), погода Яндекса (API key), `telegram_listner` (токен бота). id 39 в снимке — текст до общей блокировки гостиной; на LM `docs/superpowers/plans/manage_warm_floor.lua`: потолок пола для всех комнат 32°C; пик датчиков гостиной 1/2 гасит оба её реле с 32°C; нет числа с любого из двух датчиков — оба реле OFF. С 2026-10-26 resident 71 меняет местами входы гостиной: IR14 → `1/3/6` (темп. гостиная 2), IR15 → `1/3/5` (темп. гостиная 1). Раньше зонд под плёнкой гостиной 1 публиковался как гостиная 2.
 
+### Zigbee потолочники — event `zb_light_sync`
+
+Источник: `cm-client/scripts/zb_light_sync.lua`. Ставить как **Event** script с tag filter **`zb_light_sync`** (реле `1/1/13` Тима, `1/1/15` холл, `1/1/14` кабинет). При ON — LWW `updatetime` control vs status (design §7). Пароля MQTT в файле нет: live-publish через глобал `ZB_CEILING_PUBLISH(ga, value)` в этом же event-скрипте (после merge `zigbee_send_ceiling_fragment.lua` + mosquitto client из live `zigbee_send`). Без глобала скрипт логирует topic/payload и `zb_light_sync: need ZB_CEILING_PUBLISH`. Полный деплой-чеклист — Task 5 / design §9.
+
 ### Конфиг и TLS без Web UI
 
 | Действие | HTTP (admin + Referer) |
