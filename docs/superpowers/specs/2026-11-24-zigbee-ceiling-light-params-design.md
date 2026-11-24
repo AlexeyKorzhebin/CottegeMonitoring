@@ -17,8 +17,9 @@
 |-------------------|--------|---------|
 | `Ceiling_lamp_tima1` | Tuya `CK-BL702-AL-01` | Тимина |
 | `Ceiling_lamp_tima2` | Tuya `CK-BL702-AL-01` | Тимина |
+| **группа** `Ceiling_lamps_tima` (z2m id 1) | члены: tima1+tima2 | Тимина — один MQTT `…/set` |
 | `Ceiling_lamp_hall_2_floor` | Tuya `TS0505B_1` | Холл 2 этаж |
-| (нет в z2m на момент спеки) | неизвестна до re-pair | Кабинет |
+| `Ceiling_lamp_office` | Tuya `TS0505B_1` (`0xa4c1386468e80b6b`) | Кабинет |
 
 В LM для этих зон уже есть KNX-реле on/off (`1/1/13` Тима, `1/1/15` холл, `1/1/14` кабинет). Они **работают и остаются**. В `mqtt_listen` заведены только простые Zigbee on/off (торшер, кухня, тайфайтер) — без brightness / color_temp / color. Управлять параметрами света из LM (сцены, визуализация) сейчас нельзя.
 
@@ -91,9 +92,9 @@ flowchart LR
 
 | Зона | Relay control | z2m targets | Primary status source |
 |------|---------------|-------------|------------------------|
-| Тима | `1/1/13` | `Ceiling_lamp_tima1`, `Ceiling_lamp_tima2` | `tima1` |
+| Тима | `1/1/13` | **группа** `Ceiling_lamps_tima` (не два отдельных set) | state группы / fallback `tima1` |
 | Холл 2 | `1/1/15` | `Ceiling_lamp_hall_2_floor` | hall |
-| Кабинет | `1/1/14` | заполнить после re-pair | no-op send до появления friendly name |
+| Кабинет | `1/1/14` | `Ceiling_lamp_office` | office |
 
 На зону — три пары control/status:
 
@@ -121,9 +122,9 @@ flowchart LR
 
 Подписка / разбор JSON:
 
-- `zigbee2mqtt/Ceiling_lamp_tima1` → status GA Тима (brightness %, color_temp, rgb)
-- `zigbee2mqtt/Ceiling_lamp_tima2` → не пишет status группы (primary = tima1); опционально debug при сильном расхождении
+- `zigbee2mqtt/Ceiling_lamps_tima` (группа) и/или `Ceiling_lamp_tima1` → status GA Тима (brightness %, color_temp, rgb); `tima2` не пишет status
 - `zigbee2mqtt/Ceiling_lamp_hall_2_floor` → status холла
+- `zigbee2mqtt/Ceiling_lamp_office` → status кабинета
 
 Писать status через `grp.update` (живой `updatetime`). Конвертеры как в таблице §5.  
 Не обновлять param control из MQTT в горячем пути v1 — выравнивание control←status только в sync при ON, если status новее (§7).
@@ -132,8 +133,8 @@ flowchart LR
 
 Таблица: param control GA → `{ topics[], field, convert }`.
 
-- Тима: один GA → set на оба friendly name.
-- Кабинет: слот с пустым/nil topic → log + return.
+- Тима: один GA → set на **группу** `zigbee2mqtt/Ceiling_lamps_tima/set` (не два publish).
+- Холл / кабинет: set на свой friendly name.
 - Guard: если `storage` флаг `zb_light_from_sync_align` (или аналог) — пропуск publish (чтобы выравнивание control не эхоило в z2m).
 
 ### 6.3 Event script `zb_light_sync`
