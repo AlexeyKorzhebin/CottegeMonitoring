@@ -2,7 +2,7 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use `superpowers:subagent-driven-development`. Steps use checkbox (`- [ ]`) syntax for tracking. Do not offer inline execution. Do not use `inherit` for subagent models; pick from `.cursor/rules/subagent-models.mdc` (map to available session slugs).
 
-**Goal:** Виртуальные GA `34/1|2/*` на LM для brightness / CCT / RGB потолочных Zigbee; read через `mqtt_listen`, write через `zigbee_send`; sync при ON реле с LWW по `updatetime`.
+**Goal:** Виртуальные GA `36/1|2/*` на LM для brightness / CCT / RGB потолочных Zigbee; read через `mqtt_listen`, write через `zigbee_send`; sync при ON реле с LWW по `updatetime`.
 
 **Architecture:** Каталог JSON → one-shot `grp.create` → `mqtt_listen` statusmap + converters → `zigbee_send` таблица (Тима = группа `Ceiling_lamps_tima`) → event-скрипт `zb_light_sync` на теге реле. Алиса/Nord/HA — out of scope.
 
@@ -18,7 +18,7 @@
 - Тима write: **только** `zigbee2mqtt/Ceiling_lamps_tima/set` (группа id 1: tima1+tima2). Не два отдельных publish.
 - Status Тима: `zigbee2mqtt/Ceiling_lamp_tima1` (и опционально state группы); `tima2` не пишет status.
 - Холл: `Ceiling_lamp_hall_2_floor`. Кабинет: `Ceiling_lamp_office`.
-- Диапазон GA только `34/1/1–9` control, `34/2/1–9` status (см. каталог ниже).
+- Диапазон GA только `36/1/1–9` control, `36/2/1–9` status (см. каталог ниже).
 - `mqtt_listen` **id 4** only. Не трогать id 48.
 - `zigbee_send` живёт на LM с MQTT-паролем — **не коммитить пароль**. В git: шаблон/фрагмент маппинга без секретов + инструкция в quickstart.
 - Guard `storage.zb_light_from_sync_align` (или аналог) при выравнивании control←status.
@@ -32,15 +32,15 @@
 
 | Zone | Relay | z2m set target | Param | Control | Status | DPT |
 |------|-------|----------------|-------|---------|--------|-----|
-| Тима | `1/1/13` | `Ceiling_lamps_tima` | brightness | `34/1/1` | `34/2/1` | 5 (0–100%) |
-| Тима | | | color_temp | `34/1/2` | `34/2/2` | 9 (mired) |
-| Тима | | | rgb | `34/1/3` | `34/2/3` | 12 (uint32 0xRRGGBB) |
-| Холл | `1/1/15` | `Ceiling_lamp_hall_2_floor` | brightness | `34/1/4` | `34/2/4` | 5 |
-| Холл | | | color_temp | `34/1/5` | `34/2/5` | 9 |
-| Холл | | | rgb | `34/1/6` | `34/2/6` | 12 |
-| Кабинет | `1/1/14` | `Ceiling_lamp_office` | brightness | `34/1/7` | `34/2/7` | 5 |
-| Кабинет | | | color_temp | `34/1/8` | `34/2/8` | 9 |
-| Кабинет | | | rgb | `34/1/9` | `34/2/9` | 12 |
+| Тима | `1/1/13` | `Ceiling_lamps_tima` | brightness | `36/1/1` | `36/2/1` | 5 (0–100%) |
+| Тима | | | color_temp | `36/1/2` | `36/2/2` | 9 (mired) |
+| Тима | | | rgb | `36/1/3` | `36/2/3` | 12 (uint32 0xRRGGBB) |
+| Холл | `1/1/15` | `Ceiling_lamp_hall_2_floor` | brightness | `36/1/4` | `36/2/4` | 5 |
+| Холл | | | color_temp | `36/1/5` | `36/2/5` | 9 |
+| Холл | | | rgb | `36/1/6` | `36/2/6` | 12 |
+| Кабинет | `1/1/14` | `Ceiling_lamp_office` | brightness | `36/1/7` | `36/2/7` | 5 |
+| Кабинет | | | color_temp | `36/1/8` | `36/2/8` | 9 |
+| Кабинет | | | rgb | `36/1/9` | `36/2/9` | 12 |
 
 Names: `Свет Zigbee - <Зона> - яркость|CCT|RGB` и `:status`.  
 Tags control: `2floor, light, zigbee, zigbee_send`. Status: `2floor, light, zigbee, status`.
@@ -89,12 +89,12 @@ Converters: brightness LM% ↔ z2m 0–254 (`round(pct*2.54)`, `round(bri/2.54)`
 
 ```lua
 ['zigbee2mqtt/Ceiling_lamp_tima1'] = {
-  brightness = { addr = '34/2/1', convert_func = Bri254toPct },
-  color_temp = '34/2/2',
+  brightness = { addr = '36/2/1', convert_func = Bri254toPct },
+  color_temp = '36/2/2',
   -- color handled in custom branch OR map if framework supports nested
 },
-['zigbee2mqtt/Ceiling_lamp_hall_2_floor'] = { ... 34/2/4-6 ... },
-['zigbee2mqtt/Ceiling_lamp_office'] = { ... 34/2/7-9 ... },
+['zigbee2mqtt/Ceiling_lamp_hall_2_floor'] = { ... 36/2/4-6 ... },
+['zigbee2mqtt/Ceiling_lamp_office'] = { ... 36/2/7-9 ... },
 ```
 
 If current mqtt_listen only maps flat keys: add a small JSON handler for these three topics that reads `brightness`, `color_temp`, `color` and `grp.update`s status GAs (same pattern as `ai_srv_json`). Prefer that over breaking existing flat maps.

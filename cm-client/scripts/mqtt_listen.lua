@@ -155,10 +155,10 @@ end
 -- Nested z2m `color` does not fit the flat statusmap loop (same pattern as ai_srv_json).
 -- tima2 never writes status. Group Ceiling_lamps_tima is optional and shares tima1 GAs.
 local zb_ceiling_gas = {
-  ['zigbee2mqtt/Ceiling_lamp_tima1'] = { brightness = '34/2/1', color_temp = '34/2/2', rgb = '34/2/3' },
-  ['zigbee2mqtt/Ceiling_lamps_tima'] = { brightness = '34/2/1', color_temp = '34/2/2', rgb = '34/2/3' },
-  ['zigbee2mqtt/Ceiling_lamp_hall_2_floor'] = { brightness = '34/2/4', color_temp = '34/2/5', rgb = '34/2/6' },
-  ['zigbee2mqtt/Ceiling_lamp_office'] = { brightness = '34/2/7', color_temp = '34/2/8', rgb = '34/2/9' },
+  ['zigbee2mqtt/Ceiling_lamp_tima1'] = { brightness = '36/2/1', color_temp = '36/2/2', rgb = '36/2/3' },
+  ['zigbee2mqtt/Ceiling_lamps_tima'] = { brightness = '36/2/1', color_temp = '36/2/2', rgb = '36/2/3' },
+  ['zigbee2mqtt/Ceiling_lamp_hall_2_floor'] = { brightness = '36/2/4', color_temp = '36/2/5', rgb = '36/2/6' },
+  ['zigbee2mqtt/Ceiling_lamp_office'] = { brightness = '36/2/7', color_temp = '36/2/8', rgb = '36/2/9' },
 }
 
 local function apply_zb_ceiling_json(topic, dd)

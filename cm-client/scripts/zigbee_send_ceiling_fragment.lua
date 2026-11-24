@@ -3,7 +3,7 @@
 
   Merge into live zigbee_send on LM (full ops: Task 5 / quickstart):
     1. Scripting → Event → existing zigbee_send (tag filter zigbee_send).
-       Control GAs 34/1/1–9 already have tag zigbee_send; this script fires on them.
+       Control GAs 36/1/1–9 already have tag zigbee_send; this script fires on them.
     2. Paste helpers + ceiling_light_set below the existing device map.
        Keep the live MQTT login/password as-is — do not copy credentials into git.
     3. In the event handler, resolve dst = event.dst or event.dstraw and value =
@@ -66,17 +66,17 @@ local TOPIC_OFFICE = 'zigbee2mqtt/Ceiling_lamp_office/set'
 -- control GA → z2m /set topic + payload builder
 local ceiling_light_set = {
   -- Тима (group id 1: tima1+tima2). One publish, not two devices.
-  ['34/1/1'] = { topic = TOPIC_TIMA, param = 'brightness', build_payload = payload_brightness },
-  ['34/1/2'] = { topic = TOPIC_TIMA, param = 'color_temp', build_payload = payload_color_temp },
-  ['34/1/3'] = { topic = TOPIC_TIMA, param = 'rgb', build_payload = payload_rgb },
+  ['36/1/1'] = { topic = TOPIC_TIMA, param = 'brightness', build_payload = payload_brightness },
+  ['36/1/2'] = { topic = TOPIC_TIMA, param = 'color_temp', build_payload = payload_color_temp },
+  ['36/1/3'] = { topic = TOPIC_TIMA, param = 'rgb', build_payload = payload_rgb },
   -- Холл
-  ['34/1/4'] = { topic = TOPIC_HALL, param = 'brightness', build_payload = payload_brightness },
-  ['34/1/5'] = { topic = TOPIC_HALL, param = 'color_temp', build_payload = payload_color_temp },
-  ['34/1/6'] = { topic = TOPIC_HALL, param = 'rgb', build_payload = payload_rgb },
+  ['36/1/4'] = { topic = TOPIC_HALL, param = 'brightness', build_payload = payload_brightness },
+  ['36/1/5'] = { topic = TOPIC_HALL, param = 'color_temp', build_payload = payload_color_temp },
+  ['36/1/6'] = { topic = TOPIC_HALL, param = 'rgb', build_payload = payload_rgb },
   -- Кабинет
-  ['34/1/7'] = { topic = TOPIC_OFFICE, param = 'brightness', build_payload = payload_brightness },
-  ['34/1/8'] = { topic = TOPIC_OFFICE, param = 'color_temp', build_payload = payload_color_temp },
-  ['34/1/9'] = { topic = TOPIC_OFFICE, param = 'rgb', build_payload = payload_rgb },
+  ['36/1/7'] = { topic = TOPIC_OFFICE, param = 'brightness', build_payload = payload_brightness },
+  ['36/1/8'] = { topic = TOPIC_OFFICE, param = 'color_temp', build_payload = payload_color_temp },
+  ['36/1/9'] = { topic = TOPIC_OFFICE, param = 'rgb', build_payload = payload_rgb },
 }
 
 -- zb_light_sync sets this while grp.update(control ← status) so this path

@@ -45,27 +45,27 @@ local RELAY_ZONES = {
     zone = 'Тима',
     topic = 'zigbee2mqtt/Ceiling_lamps_tima/set',
     params = {
-      { param = 'brightness', control = '34/1/1', status = '34/2/1' },
-      { param = 'color_temp', control = '34/1/2', status = '34/2/2' },
-      { param = 'rgb',        control = '34/1/3', status = '34/2/3' },
+      { param = 'brightness', control = '36/1/1', status = '36/2/1' },
+      { param = 'color_temp', control = '36/1/2', status = '36/2/2' },
+      { param = 'rgb',        control = '36/1/3', status = '36/2/3' },
     },
   },
   ['1/1/15'] = {
     zone = 'Холл',
     topic = 'zigbee2mqtt/Ceiling_lamp_hall_2_floor/set',
     params = {
-      { param = 'brightness', control = '34/1/4', status = '34/2/4' },
-      { param = 'color_temp', control = '34/1/5', status = '34/2/5' },
-      { param = 'rgb',        control = '34/1/6', status = '34/2/6' },
+      { param = 'brightness', control = '36/1/4', status = '36/2/4' },
+      { param = 'color_temp', control = '36/1/5', status = '36/2/5' },
+      { param = 'rgb',        control = '36/1/6', status = '36/2/6' },
     },
   },
   ['1/1/14'] = {
     zone = 'Кабинет',
     topic = 'zigbee2mqtt/Ceiling_lamp_office/set',
     params = {
-      { param = 'brightness', control = '34/1/7', status = '34/2/7' },
-      { param = 'color_temp', control = '34/1/8', status = '34/2/8' },
-      { param = 'rgb',        control = '34/1/9', status = '34/2/9' },
+      { param = 'brightness', control = '36/1/7', status = '36/2/7' },
+      { param = 'color_temp', control = '36/1/8', status = '36/2/8' },
+      { param = 'rgb',        control = '36/1/9', status = '36/2/9' },
     },
   },
 }

@@ -1,6 +1,6 @@
 [
   {
-    "ga": "34/1/1",
+    "ga": "36/1/1",
     "name": "Свет Zigbee - Тима - яркость",
     "tags": ["2floor", "light", "zigbee", "zigbee_send"],
     "datatype": 5,
@@ -11,7 +11,7 @@
     "role": "control"
   },
   {
-    "ga": "34/2/1",
+    "ga": "36/2/1",
     "name": "Свет Zigbee - Тима - яркость:status",
     "tags": ["2floor", "light", "zigbee", "status"],
     "datatype": 5,
@@ -23,7 +23,7 @@
     "role": "status"
   },
   {
-    "ga": "34/1/2",
+    "ga": "36/1/2",
     "name": "Свет Zigbee - Тима - CCT",
     "tags": ["2floor", "light", "zigbee", "zigbee_send"],
     "datatype": 9,
@@ -34,7 +34,7 @@
     "role": "control"
   },
   {
-    "ga": "34/2/2",
+    "ga": "36/2/2",
     "name": "Свет Zigbee - Тима - CCT:status",
     "tags": ["2floor", "light", "zigbee", "status"],
     "datatype": 9,
@@ -46,7 +46,7 @@
     "role": "status"
   },
   {
-    "ga": "34/1/3",
+    "ga": "36/1/3",
     "name": "Свет Zigbee - Тима - RGB",
     "tags": ["2floor", "light", "zigbee", "zigbee_send"],
     "datatype": 12,
@@ -57,7 +57,7 @@
     "role": "control"
   },
   {
-    "ga": "34/2/3",
+    "ga": "36/2/3",
     "name": "Свет Zigbee - Тима - RGB:status",
     "tags": ["2floor", "light", "zigbee", "status"],
     "datatype": 12,
@@ -69,7 +69,7 @@
     "role": "status"
   },
   {
-    "ga": "34/1/4",
+    "ga": "36/1/4",
     "name": "Свет Zigbee - Холл - яркость",
     "tags": ["2floor", "light", "zigbee", "zigbee_send"],
     "datatype": 5,
@@ -80,7 +80,7 @@
     "role": "control"
   },
   {
-    "ga": "34/2/4",
+    "ga": "36/2/4",
     "name": "Свет Zigbee - Холл - яркость:status",
     "tags": ["2floor", "light", "zigbee", "status"],
     "datatype": 5,
@@ -91,7 +91,7 @@
     "role": "status"
   },
   {
-    "ga": "34/1/5",
+    "ga": "36/1/5",
     "name": "Свет Zigbee - Холл - CCT",
     "tags": ["2floor", "light", "zigbee", "zigbee_send"],
     "datatype": 9,
@@ -102,7 +102,7 @@
     "role": "control"
   },
   {
-    "ga": "34/2/5",
+    "ga": "36/2/5",
     "name": "Свет Zigbee - Холл - CCT:status",
     "tags": ["2floor", "light", "zigbee", "status"],
     "datatype": 9,
@@ -113,7 +113,7 @@
     "role": "status"
   },
   {
-    "ga": "34/1/6",
+    "ga": "36/1/6",
     "name": "Свет Zigbee - Холл - RGB",
     "tags": ["2floor", "light", "zigbee", "zigbee_send"],
     "datatype": 12,
@@ -124,7 +124,7 @@
     "role": "control"
   },
   {
-    "ga": "34/2/6",
+    "ga": "36/2/6",
     "name": "Свет Zigbee - Холл - RGB:status",
     "tags": ["2floor", "light", "zigbee", "status"],
     "datatype": 12,
@@ -135,7 +135,7 @@
     "role": "status"
   },
   {
-    "ga": "34/1/7",
+    "ga": "36/1/7",
     "name": "Свет Zigbee - Кабинет - яркость",
     "tags": ["2floor", "light", "zigbee", "zigbee_send"],
     "datatype": 5,
@@ -146,7 +146,7 @@
     "role": "control"
   },
   {
-    "ga": "34/2/7",
+    "ga": "36/2/7",
     "name": "Свет Zigbee - Кабинет - яркость:status",
     "tags": ["2floor", "light", "zigbee", "status"],
     "datatype": 5,
@@ -157,7 +157,7 @@
     "role": "status"
   },
   {
-    "ga": "34/1/8",
+    "ga": "36/1/8",
     "name": "Свет Zigbee - Кабинет - CCT",
     "tags": ["2floor", "light", "zigbee", "zigbee_send"],
     "datatype": 9,
@@ -168,7 +168,7 @@
     "role": "control"
   },
   {
-    "ga": "34/2/8",
+    "ga": "36/2/8",
     "name": "Свет Zigbee - Кабинет - CCT:status",
     "tags": ["2floor", "light", "zigbee", "status"],
     "datatype": 9,
@@ -179,7 +179,7 @@
     "role": "status"
   },
   {
-    "ga": "34/1/9",
+    "ga": "36/1/9",
     "name": "Свет Zigbee - Кабинет - RGB",
     "tags": ["2floor", "light", "zigbee", "zigbee_send"],
     "datatype": 12,
@@ -190,7 +190,7 @@
     "role": "control"
   },
   {
-    "ga": "34/2/9",
+    "ga": "36/2/9",
     "name": "Свет Zigbee - Кабинет - RGB:status",
     "tags": ["2floor", "light", "zigbee", "status"],
     "datatype": 12,

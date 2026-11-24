@@ -1,5 +1,5 @@
 -- One-shot. Scripting → User / Event. Not resident.
--- Creates 18 virtual GAs 34/1|2/1–9 for Zigbee ceiling brightness/CCT/RGB.
+-- Creates 18 virtual GAs 36/1|2/1–9 for Zigbee ceiling brightness/CCT/RGB.
 -- Skip existing addresses. Then try tag relays 1/1/13, 1/1/14, 1/1/15 with zb_light_sync.
 -- Catalog: cm-client/scripts/zb_ceiling_light_catalog.json
 
@@ -11,24 +11,24 @@ local TAGS_CONTROL = { '2floor', 'light', 'zigbee', 'zigbee_send' }
 local TAGS_STATUS = { '2floor', 'light', 'zigbee', 'status' }
 
 local objects = {
-  { address = '34/1/1', name = 'Свет Zigbee - Тима - яркость',         datatype = 5,  tags = TAGS_CONTROL },
-  { address = '34/2/1', name = 'Свет Zigbee - Тима - яркость:status',  datatype = 5,  tags = TAGS_STATUS },
-  { address = '34/1/2', name = 'Свет Zigbee - Тима - CCT',             datatype = 9,  tags = TAGS_CONTROL },
-  { address = '34/2/2', name = 'Свет Zigbee - Тима - CCT:status',      datatype = 9,  tags = TAGS_STATUS },
-  { address = '34/1/3', name = 'Свет Zigbee - Тима - RGB',             datatype = 12, tags = TAGS_CONTROL },
-  { address = '34/2/3', name = 'Свет Zigbee - Тима - RGB:status',      datatype = 12, tags = TAGS_STATUS },
-  { address = '34/1/4', name = 'Свет Zigbee - Холл - яркость',         datatype = 5,  tags = TAGS_CONTROL },
-  { address = '34/2/4', name = 'Свет Zigbee - Холл - яркость:status',  datatype = 5,  tags = TAGS_STATUS },
-  { address = '34/1/5', name = 'Свет Zigbee - Холл - CCT',             datatype = 9,  tags = TAGS_CONTROL },
-  { address = '34/2/5', name = 'Свет Zigbee - Холл - CCT:status',      datatype = 9,  tags = TAGS_STATUS },
-  { address = '34/1/6', name = 'Свет Zigbee - Холл - RGB',             datatype = 12, tags = TAGS_CONTROL },
-  { address = '34/2/6', name = 'Свет Zigbee - Холл - RGB:status',      datatype = 12, tags = TAGS_STATUS },
-  { address = '34/1/7', name = 'Свет Zigbee - Кабинет - яркость',      datatype = 5,  tags = TAGS_CONTROL },
-  { address = '34/2/7', name = 'Свет Zigbee - Кабинет - яркость:status', datatype = 5,  tags = TAGS_STATUS },
-  { address = '34/1/8', name = 'Свет Zigbee - Кабинет - CCT',          datatype = 9,  tags = TAGS_CONTROL },
-  { address = '34/2/8', name = 'Свет Zigbee - Кабинет - CCT:status',   datatype = 9,  tags = TAGS_STATUS },
-  { address = '34/1/9', name = 'Свет Zigbee - Кабинет - RGB',          datatype = 12, tags = TAGS_CONTROL },
-  { address = '34/2/9', name = 'Свет Zigbee - Кабинет - RGB:status',   datatype = 12, tags = TAGS_STATUS },
+  { address = '36/1/1', name = 'Свет Zigbee - Тима - яркость',         datatype = 5,  tags = TAGS_CONTROL },
+  { address = '36/2/1', name = 'Свет Zigbee - Тима - яркость:status',  datatype = 5,  tags = TAGS_STATUS },
+  { address = '36/1/2', name = 'Свет Zigbee - Тима - CCT',             datatype = 9,  tags = TAGS_CONTROL },
+  { address = '36/2/2', name = 'Свет Zigbee - Тима - CCT:status',      datatype = 9,  tags = TAGS_STATUS },
+  { address = '36/1/3', name = 'Свет Zigbee - Тима - RGB',             datatype = 12, tags = TAGS_CONTROL },
+  { address = '36/2/3', name = 'Свет Zigbee - Тима - RGB:status',      datatype = 12, tags = TAGS_STATUS },
+  { address = '36/1/4', name = 'Свет Zigbee - Холл - яркость',         datatype = 5,  tags = TAGS_CONTROL },
+  { address = '36/2/4', name = 'Свет Zigbee - Холл - яркость:status',  datatype = 5,  tags = TAGS_STATUS },
+  { address = '36/1/5', name = 'Свет Zigbee - Холл - CCT',             datatype = 9,  tags = TAGS_CONTROL },
+  { address = '36/2/5', name = 'Свет Zigbee - Холл - CCT:status',      datatype = 9,  tags = TAGS_STATUS },
+  { address = '36/1/6', name = 'Свет Zigbee - Холл - RGB',             datatype = 12, tags = TAGS_CONTROL },
+  { address = '36/2/6', name = 'Свет Zigbee - Холл - RGB:status',      datatype = 12, tags = TAGS_STATUS },
+  { address = '36/1/7', name = 'Свет Zigbee - Кабинет - яркость',      datatype = 5,  tags = TAGS_CONTROL },
+  { address = '36/2/7', name = 'Свет Zigbee - Кабинет - яркость:status', datatype = 5,  tags = TAGS_STATUS },
+  { address = '36/1/8', name = 'Свет Zigbee - Кабинет - CCT',          datatype = 9,  tags = TAGS_CONTROL },
+  { address = '36/2/8', name = 'Свет Zigbee - Кабинет - CCT:status',   datatype = 9,  tags = TAGS_STATUS },
+  { address = '36/1/9', name = 'Свет Zigbee - Кабинет - RGB',          datatype = 12, tags = TAGS_CONTROL },
+  { address = '36/2/9', name = 'Свет Zigbee - Кабинет - RGB:status',   datatype = 12, tags = TAGS_STATUS },
 }
 
 local function exists(addr)

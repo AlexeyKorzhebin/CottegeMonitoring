@@ -58,8 +58,8 @@
 flowchart LR
   subgraph lm [LogicMachine]
     Relay["KNX relay 1/1/*"]
-    Ctrl["param control 34/1/*"]
-    Stat["param status 34/2/*"]
+    Ctrl["param control 36/1/*"]
+    Stat["param status 36/2/*"]
     Send["zigbee_send"]
     Listen["mqtt_listen"]
     Sync["event zb_light_sync"]
@@ -86,7 +86,7 @@ flowchart LR
 
 ## 5. Objects
 
-**Диапазон:** `34/1/*` control, `34/2/*` status (не пересекается с `1/*`, `32/6/*`, `33/1/*`, `35/1/*`).
+**Диапазон:** `36/1/*` control, `36/2/*` status (не пересекается с `1/*`, `32/6/*`, `33/1/*`, `34/1/*` диагностика ТП/loadavg, `35/1/*`). `34/1/1–8` на live LM заняты — не использовать.
 
 **Зоны v1:**
 
@@ -112,7 +112,7 @@ flowchart LR
 - param status: `2floor, light, zigbee, status`
 - реле зон из таблицы: дополнительно тег **`zb_light_sync`**
 
-Locked catalog (`cm-client/scripts/zb_ceiling_light_catalog.json`): control `34/1/1–9`, status `34/2/1–9`. Ops: `specs/002-logicmachine-mqtt-client/quickstart.md` (**R-031**).
+Locked catalog (`cm-client/scripts/zb_ceiling_light_catalog.json`): control `36/1/1–9`, status `36/2/1–9`. Ops: `specs/002-logicmachine-mqtt-client/quickstart.md` (**R-031**).
 
 ---
 
