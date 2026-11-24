@@ -660,7 +660,9 @@ Grafana / `list_lights` / skip_unchanged остаются на status `1/2/*`. F
 
 После Submit **не кликать** ~2–3 с — иначе форма падает с ошибкой. Поле `cfgid` = authorized_keys (ed25519). Приватный ключ в UI **не** вставлять.
 
-У нас: `root@192.168.100.130`, alias `lm_estate` / `~/.ssh/id_ed25519_lm_estate`. Пароль — только как fallback (`LM_SSH_PASSWORD`).
+У нас: `root@192.168.100.130`, alias `lm_estate` / `~/.ssh/lm_estate_ed25519` (или `id_ed25519_lm_estate`). Пароль — fallback `LM_SSH_PASSWORD` в `secrets/lm.env`.
+
+На старой прошивке без `webrequest` и когда pubkey в Dropbear сброшен: **Apps `.lp` не root** (`chpasswd: permission denied`). Смена пароля — временный **resident** + `os.execute('printf … | passwd root')` (uid 0), шаблон `deploy/lm-set-root-pass.sh` (resident id 67). После неудачных SSH LM **ipblocker** может `iptables DROP` ваш LAN IP на `:22` — скрипт снимает правило; иначе HTTP жив, SSH «timeout».
 
 **Не коммитить** ключи из вендорского архива (`lm-16.ppk`, фрагменты PPK в PDF) — это чужой приватный ключ.
 
@@ -765,6 +767,34 @@ Resident (таблица `scripting`) **не** является App daemon:
 
 ---
 
+## R-031: Zigbee потолочники — группа Тима, GA `36/*`, LWW при ON реле (2026-11-24)
+
+### Контекст
+
+Потолочные Tuya на 2 этаже умеют brightness / CCT / RGB, но в LM были только KNX-реле on/off (`1/1/13` Тима, `1/1/15` холл, `1/1/14` кабинет). `mqtt_listen` знал простые Zigbee on/off (торшер, кухня, тайфайтер). Нужны виртуальные GA и догон параметров после питания (set в эфир не «ждётся», пока лампа без 220 В).
+
+### Решение
+
+- **Тима write:** один MQTT set на группу **`Ceiling_lamps_tima`** (z2m id 1, члены tima1+tima2). Не два отдельных publish. Status: `Ceiling_lamp_tima1` (и опционально state группы); `tima2` status не пишет.
+- **Холл:** `Ceiling_lamp_hall_2_floor`. **Кабинет:** re-paired как **`Ceiling_lamp_office`** (слот больше не «пропавшая лампа»).
+- **GA:** control `36/1/1–9`, status `36/2/1–9` (каталог `cm-client/scripts/zb_ceiling_light_catalog.json`). Реле без смены on/off-логики, тег `zb_light_sync`. `34/1/*` на live LM заняты диагностикой ТП и loadavg — не использовать.
+- **Sync:** event `zb_light_sync` на ON реле. Last-write-wins по `updatetime` control vs status: control новее → set из control; status новее → `grp.update` control←status под guard `zb_light_from_sync_align` (`zigbee_send` не эхоит align в z2m). OFF → no-op. **Только фронт OFF→ON** (`storage zb_light_prev_on_<ga>`): повторный `true` при уже включённом реле (cloud `set_lights` всегда шлёт relay+params) не должен снова гонять LWW — иначе после settle «висящий» RGB (status=0) перебивает только что применённый CCT → лампа залипает синим. После ON — `os.sleep(1.5)` settle + `0.25` с между param-publish (иначе при одновременном питании зон set теряется, пока Tuya ещё поднимается). **Color mode exclusive:** intent = max `control.updatetime` среди `color_temp`/`rgb` **даже если** сторона intent уже sync к status; старый mode никогда не publish (иначе после RGB status догоняет → остаётся pending CCT → синий через ~1.5 с становится белым). Проигравший — align control←status. То же при live write: `zigbee_send_ceiling_fragment` после publish CCT/RGB demote sibling.
+- **Секреты:** live `zigbee_send` держит MQTT-пароль. В git только `cm-client/scripts/zigbee_send_ceiling_fragment.lua` без credentials; merge в live, не FTP-замена. Ops: `specs/002-logicmachine-mqtt-client/quickstart.md`.
+
+### Operational notes
+
+- `create-zb-ceiling-light-objects.lua` skip occupied addresses. Диапазон `34/*` на live LM занят: диагностика тёплого пола `34/1/1–4` и loadavg `34/1/6–8` (R-015, Grafana `cottage-lm-load`). Потолочники используют свободный `36/1/1–9` control и `36/2/1–9` status.
+- `mqtt_listen` **id=4** only (не 48). Cloud/HA/MCP facade (не SoT): server ops `list_lights`/`set_lights` читают status `36/2/*`, пишут control `36/1/*` + реле — design §12. После создания GA на LM нужен force_export / «Выгрузить в MQTT». Алиса / Nord semantic — later.
+- `dofile` фрагмента только по абсолютному пути `/home/apps/store/data/cottage-monitoring/zigbee_send_ceiling_fragment.lua` (и зеркало `/www/apps/data/...`). Голое имя `*.lua` LM ищет как User script → `cannot open User script: No such file or directory`.
+- После `db:update` event/resident **недостаточно**: рантайм исполняет bytecode из `/lib/genohm-scada/scripting/<id>.lua`, а не текст из SQLite. `db:update` + `script.disable/enable` / `script.reload` могут оставить на диске старый `.lua` (наблюдали 2026-11-24: в БД был DROP office CCT, а `/lib/.../75.lua` от 17:23 без DROP → `/set` с `color_temp` после RGB → синий→белый). Рабочий деплой: `loadstring(src)` → `string.dump` → записать `/lib/genohm-scada/scripting/<id>.lua` (+ `db:update` для UI), resident — kill/respawn `scripting-resident.lua <id>`. UI Scripting → Save тоже пересобирает этот файл.
+
+### Альтернативы
+
+- Два set на tima1 и tima2 — отвергнуто: группа z2m id 1.
+- Очередь pending в z2m/облаке — отвергнуто для v1; догон только LWW при ON реле.
+
+---
+
 ## Сводка решений
 
 | ID | Тема | Решение |
@@ -789,3 +819,4 @@ Resident (таблица `scripting`) **не** является App daemon:
 | R-028 | Stale light status | daemon v1.1.4: snapshot, groupresponse, counted drops; AI-SRV 15 с; свет остаётся на `1/2/*` |
 | R-029 | Zigbee stale fallback heat | checkupdate+float глотает temp; knx_check=grp.update; ZB_STALE=1800; k≠погода |
 | R-030 | SSH/SFTP Dropbear | ключ через System Config; SFTP/WinSCP да, scp нет; карта путей; Lua/db gotchas |
+| R-031 | Zigbee потолочники | группа `Ceiling_lamps_tima`; GA `36/1\|2/1–9` (`34/*` занят ТП/loadavg); LWW `updatetime` при ON реле; кабинет = `Ceiling_lamp_office` |

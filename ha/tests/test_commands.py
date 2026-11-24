@@ -80,6 +80,38 @@ def test_lights_turn_off_body() -> None:
     name, body = lights_turn_off_body("Свет - кухня")
     assert name == "set_lights"
     assert body == {"query": "Свет - кухня", "on": False, "skip_unchanged": False}
+    assert "brightness" not in body
+    assert "color_temp" not in body
+    assert "rgb" not in body
+
+
+def test_lights_turn_on_body_with_brightness_omits_on() -> None:
+    name, body = lights_turn_on_body("Свет - спальня Тима", brightness=50)
+    assert name == "set_lights"
+    assert body == {
+        "query": "Свет - спальня Тима",
+        "brightness": 50,
+        "skip_unchanged": False,
+    }
+    assert "on" not in body
+
+
+def test_lights_turn_on_body_with_color_params() -> None:
+    name, body = lights_turn_on_body(
+        "Свет - холл 2 этаж",
+        brightness=80,
+        color_temp=250,
+        rgb=0x112233,
+    )
+    assert name == "set_lights"
+    assert body == {
+        "query": "Свет - холл 2 этаж",
+        "brightness": 80,
+        "color_temp": 250,
+        "rgb": 0x112233,
+        "skip_unchanged": False,
+    }
+    assert "on" not in body
 
 
 def test_auto_heating_body() -> None:

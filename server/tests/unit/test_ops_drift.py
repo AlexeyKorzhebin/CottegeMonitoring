@@ -30,6 +30,10 @@ SPEC_CATALOG: dict[str, tuple[str, bool]] = {
     "get_heating_diagnostics": ("read", True),
     "get_kettle": ("read", True),
     "set_kettle": ("write", True),
+    "get_ai_srv_switcher": ("read", True),
+    "set_ai_srv_switcher": ("write", True),
+    "get_projector": ("read", True),
+    "set_projector": ("write", True),
     "get_command_status": ("read", True),
 }
 
@@ -108,9 +112,21 @@ def test_mcp_tool_schema_keeps_existing_arguments() -> None:
         "query",
         "on",
         "skip_unchanged",
+        "brightness",
+        "color_temp",
+        "rgb",
         "house_id",
     }
-    assert set(tools["set_lights"].inputSchema["required"]) == {"query", "on"}
+    assert set(tools["set_lights"].inputSchema["required"]) == {"query"}
+    assert set(tools["set_light"].inputSchema["properties"]) == {
+        "query",
+        "on",
+        "brightness",
+        "color_temp",
+        "rgb",
+        "house_id",
+    }
+    assert set(tools["set_light"].inputSchema["required"]) == {"query"}
     assert set(tools["get_energy_status"].inputSchema["properties"]) == {"house_id"}
     assert set(tools["set_auto_heating"].inputSchema["properties"]) == {"on", "house_id"}
     assert set(tools["set_auto_heating"].inputSchema["required"]) == {"on"}

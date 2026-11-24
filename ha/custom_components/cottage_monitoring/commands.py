@@ -1,8 +1,23 @@
 from __future__ import annotations
 
 
-def lights_turn_on_body(name: str) -> tuple[str, dict]:
-    return "set_lights", {"query": name, "on": True, "skip_unchanged": False}
+def lights_turn_on_body(
+    name: str,
+    *,
+    brightness: int | None = None,
+    color_temp: int | None = None,
+    rgb: int | None = None,
+) -> tuple[str, dict]:
+    body: dict = {"query": name, "skip_unchanged": False}
+    if brightness is not None:
+        body["brightness"] = brightness
+    if color_temp is not None:
+        body["color_temp"] = color_temp
+    if rgb is not None:
+        body["rgb"] = rgb
+    if brightness is None and color_temp is None and rgb is None:
+        body["on"] = True
+    return "set_lights", body
 
 
 def lights_turn_off_body(name: str) -> tuple[str, dict]:

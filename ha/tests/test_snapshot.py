@@ -364,6 +364,10 @@ def _base_ops(**extra):
     return ops
 
 
+def _ops_with_lights(items: list[dict]) -> dict:
+    return _base_ops(list_lights={"items": items})
+
+
 def test_missing_ai_srv_and_projector_ops_are_none() -> None:
     snap = HouseSnapshot.from_ops("house", OPS)
     assert snap.ai_srv_switcher is None
@@ -503,3 +507,175 @@ def test_floors_by_area_includes_plug_and_projector() -> None:
     assert area_name_for("серверная", "1", floors) == "серверная"
     assert area_name_for("гостиная", "1", floors) == "гостиная"
 
+def test_relay_light_without_params_stays_onoff_only() -> None:
+    from cottage_monitoring.snapshot import light_color_modes, light_current_color_mode
+
+    snap = HouseSnapshot.from_ops(
+        "house",
+        _ops_with_lights(
+            [{"name": "Свет - кухня", "on": True, "area": "кухня", "floor": "1"}]
+        ),
+    )
+    item = snap.lights[0]
+    assert item.supports_brightness is False
+    assert item.supports_color_temp is False
+    assert item.supports_rgb is False
+    assert item.brightness is None
+    assert item.color_temp is None
+    assert item.rgb is None
+    assert light_color_modes(item) == frozenset({"onoff"})
+    assert light_current_color_mode(item) == "onoff"
+
+
+def test_ceiling_light_params_from_list_lights_status_fields() -> None:
+    from cottage_monitoring.snapshot import (
+        brightness_pct_to_ha,
+        light_color_modes,
+        light_current_color_mode,
+        mired_to_kelvin,
+        uint32_to_rgb,
+    )
+
+    snap = HouseSnapshot.from_ops(
+        "house",
+        _ops_with_lights(
+            [
+                {
+                    "name": "Свет - спальня Тима",
+                    "on": True,
+                    "area": "Тимнина комната",
+                    "floor": "2",
+                    "brightness": 40,
+                    "color_temp": 300,
+                    "rgb": 16711680,
+                }
+            ]
+        ),
+    )
+    item = snap.lights[0]
+    assert item.supports_brightness is True
+    assert item.supports_color_temp is True
+    assert item.supports_rgb is True
+    assert item.brightness == 40
+    assert item.color_temp == 300
+    assert item.rgb == 16711680
+    assert light_color_modes(item) == frozenset({"color_temp", "rgb"})
+    assert "onoff" not in light_color_modes(item)
+    assert "brightness" not in light_color_modes(item)
+    assert light_current_color_mode(item) == "rgb"
+    assert brightness_pct_to_ha(40) == 102
+    assert uint32_to_rgb(16711680) == (255, 0, 0)
+    assert mired_to_kelvin(300) == 3333
+
+
+def test_ceiling_light_null_param_values_still_expose_modes() -> None:
+    from cottage_monitoring.snapshot import light_color_modes, light_current_color_mode
+
+    snap = HouseSnapshot.from_ops(
+        "house",
+        _ops_with_lights(
+            [
+                {
+                    "name": "Свет - холл 2 этаж",
+                    "on": False,
+                    "area": "холл",
+                    "floor": "2",
+                    "brightness": None,
+                    "color_temp": None,
+                    "rgb": None,
+                }
+            ]
+        ),
+    )
+    item = snap.lights[0]
+    assert item.supports_brightness is True
+    assert item.supports_color_temp is True
+    assert item.supports_rgb is True
+    assert item.brightness is None
+    assert light_color_modes(item) == frozenset({"color_temp", "rgb"})
+    assert light_current_color_mode(item) == "color_temp"
+
+
+def test_brightness_only_light_exposes_brightness_mode() -> None:
+    from cottage_monitoring.snapshot import light_color_modes, light_current_color_mode
+
+    snap = HouseSnapshot.from_ops(
+        "house",
+        _ops_with_lights(
+            [
+                {
+                    "name": "Свет - диммер",
+                    "on": True,
+                    "brightness": 80,
+                }
+            ]
+        ),
+    )
+    item = snap.lights[0]
+    assert item.supports_brightness is True
+    assert item.supports_color_temp is False
+    assert light_color_modes(item) == frozenset({"brightness"})
+    assert light_current_color_mode(item) == "brightness"
+
+
+def test_color_temp_without_rgb_prefers_color_temp_mode() -> None:
+    from cottage_monitoring.snapshot import light_color_modes, light_current_color_mode
+
+    snap = HouseSnapshot.from_ops(
+        "house",
+        _ops_with_lights(
+            [
+                {
+                    "name": "Свет - кабинет",
+                    "on": True,
+                    "brightness": 50,
+                    "color_temp": 250,
+                }
+            ]
+        ),
+    )
+    item = snap.lights[0]
+    assert light_color_modes(item) == frozenset({"color_temp"})
+    assert light_current_color_mode(item) == "color_temp"
+
+
+def test_ha_boundary_converters_match_wire_units() -> None:
+    from cottage_monitoring.snapshot import (
+        brightness_ha_to_pct,
+        brightness_pct_to_ha,
+        kelvin_to_mired,
+        light_turn_on_params,
+        mired_to_kelvin,
+        rgb_to_uint32,
+        uint32_to_rgb,
+    )
+
+    assert rgb_to_uint32(255, 0, 0) == 16711680
+    assert rgb_to_uint32(0x11, 0x22, 0x33) == 0x112233
+    assert uint32_to_rgb(0x112233) == (0x11, 0x22, 0x33)
+    assert brightness_ha_to_pct(255) == 100
+    assert brightness_ha_to_pct(0) == 0
+    assert brightness_pct_to_ha(100) == 255
+    assert brightness_pct_to_ha(0) == 0
+    assert mired_to_kelvin(153) == 6535
+    assert kelvin_to_mired(2000) == 500
+    assert light_turn_on_params({"brightness": 128}) == {"brightness": 50}
+    assert light_turn_on_params({"color_temp_kelvin": 4000}) == {
+        "color_temp": kelvin_to_mired(4000)
+    }
+    assert light_turn_on_params({"color_temp": 300}) == {"color_temp": 300}
+    assert light_turn_on_params({"rgb_color": (255, 0, 128)}) == {
+        "rgb": rgb_to_uint32(255, 0, 128)
+    }
+    assert light_turn_on_params({}) == {}
+    assert light_turn_on_params(
+        {
+            "brightness": 255,
+            "color_temp_kelvin": 3333,
+            "rgb_color": (17, 34, 51),
+        }
+    ) == {
+        "brightness": 100,
+        "color_temp": kelvin_to_mired(3333),
+        "rgb": 0x112233,
+    }

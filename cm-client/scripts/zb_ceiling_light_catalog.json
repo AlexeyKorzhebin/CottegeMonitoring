@@ -1,0 +1,203 @@
+[
+  {
+    "ga": "36/1/1",
+    "name": "Свет Zigbee - Тима - яркость",
+    "tags": ["2floor", "light", "zigbee", "zigbee_send"],
+    "datatype": 5,
+    "zone": "Тима",
+    "relay_ga": "1/1/13",
+    "z2m_topic": "Ceiling_lamps_tima",
+    "param": "brightness",
+    "role": "control"
+  },
+  {
+    "ga": "36/2/1",
+    "name": "Свет Zigbee - Тима - яркость:status",
+    "tags": ["2floor", "light", "zigbee", "status"],
+    "datatype": 5,
+    "zone": "Тима",
+    "relay_ga": "1/1/13",
+    "z2m_topic": "Ceiling_lamps_tima",
+    "source_topic": "Ceiling_lamp_tima1",
+    "param": "brightness",
+    "role": "status"
+  },
+  {
+    "ga": "36/1/2",
+    "name": "Свет Zigbee - Тима - CCT",
+    "tags": ["2floor", "light", "zigbee", "zigbee_send"],
+    "datatype": 9,
+    "zone": "Тима",
+    "relay_ga": "1/1/13",
+    "z2m_topic": "Ceiling_lamps_tima",
+    "param": "color_temp",
+    "role": "control"
+  },
+  {
+    "ga": "36/2/2",
+    "name": "Свет Zigbee - Тима - CCT:status",
+    "tags": ["2floor", "light", "zigbee", "status"],
+    "datatype": 9,
+    "zone": "Тима",
+    "relay_ga": "1/1/13",
+    "z2m_topic": "Ceiling_lamps_tima",
+    "source_topic": "Ceiling_lamp_tima1",
+    "param": "color_temp",
+    "role": "status"
+  },
+  {
+    "ga": "36/1/3",
+    "name": "Свет Zigbee - Тима - RGB",
+    "tags": ["2floor", "light", "zigbee", "zigbee_send"],
+    "datatype": 12,
+    "zone": "Тима",
+    "relay_ga": "1/1/13",
+    "z2m_topic": "Ceiling_lamps_tima",
+    "param": "rgb",
+    "role": "control"
+  },
+  {
+    "ga": "36/2/3",
+    "name": "Свет Zigbee - Тима - RGB:status",
+    "tags": ["2floor", "light", "zigbee", "status"],
+    "datatype": 12,
+    "zone": "Тима",
+    "relay_ga": "1/1/13",
+    "z2m_topic": "Ceiling_lamps_tima",
+    "source_topic": "Ceiling_lamp_tima1",
+    "param": "rgb",
+    "role": "status"
+  },
+  {
+    "ga": "36/1/4",
+    "name": "Свет Zigbee - Холл - яркость",
+    "tags": ["2floor", "light", "zigbee", "zigbee_send"],
+    "datatype": 5,
+    "zone": "Холл",
+    "relay_ga": "1/1/15",
+    "z2m_topic": "Ceiling_lamp_hall_2_floor",
+    "param": "brightness",
+    "role": "control"
+  },
+  {
+    "ga": "36/2/4",
+    "name": "Свет Zigbee - Холл - яркость:status",
+    "tags": ["2floor", "light", "zigbee", "status"],
+    "datatype": 5,
+    "zone": "Холл",
+    "relay_ga": "1/1/15",
+    "z2m_topic": "Ceiling_lamp_hall_2_floor",
+    "param": "brightness",
+    "role": "status"
+  },
+  {
+    "ga": "36/1/5",
+    "name": "Свет Zigbee - Холл - CCT",
+    "tags": ["2floor", "light", "zigbee", "zigbee_send"],
+    "datatype": 9,
+    "zone": "Холл",
+    "relay_ga": "1/1/15",
+    "z2m_topic": "Ceiling_lamp_hall_2_floor",
+    "param": "color_temp",
+    "role": "control"
+  },
+  {
+    "ga": "36/2/5",
+    "name": "Свет Zigbee - Холл - CCT:status",
+    "tags": ["2floor", "light", "zigbee", "status"],
+    "datatype": 9,
+    "zone": "Холл",
+    "relay_ga": "1/1/15",
+    "z2m_topic": "Ceiling_lamp_hall_2_floor",
+    "param": "color_temp",
+    "role": "status"
+  },
+  {
+    "ga": "36/1/6",
+    "name": "Свет Zigbee - Холл - RGB",
+    "tags": ["2floor", "light", "zigbee", "zigbee_send"],
+    "datatype": 12,
+    "zone": "Холл",
+    "relay_ga": "1/1/15",
+    "z2m_topic": "Ceiling_lamp_hall_2_floor",
+    "param": "rgb",
+    "role": "control"
+  },
+  {
+    "ga": "36/2/6",
+    "name": "Свет Zigbee - Холл - RGB:status",
+    "tags": ["2floor", "light", "zigbee", "status"],
+    "datatype": 12,
+    "zone": "Холл",
+    "relay_ga": "1/1/15",
+    "z2m_topic": "Ceiling_lamp_hall_2_floor",
+    "param": "rgb",
+    "role": "status"
+  },
+  {
+    "ga": "36/1/7",
+    "name": "Свет Zigbee - Кабинет - яркость",
+    "tags": ["2floor", "light", "zigbee", "zigbee_send"],
+    "datatype": 5,
+    "zone": "Кабинет",
+    "relay_ga": "1/1/14",
+    "z2m_topic": "Ceiling_lamp_office",
+    "param": "brightness",
+    "role": "control"
+  },
+  {
+    "ga": "36/2/7",
+    "name": "Свет Zigbee - Кабинет - яркость:status",
+    "tags": ["2floor", "light", "zigbee", "status"],
+    "datatype": 5,
+    "zone": "Кабинет",
+    "relay_ga": "1/1/14",
+    "z2m_topic": "Ceiling_lamp_office",
+    "param": "brightness",
+    "role": "status"
+  },
+  {
+    "ga": "36/1/8",
+    "name": "Свет Zigbee - Кабинет - CCT",
+    "tags": ["2floor", "light", "zigbee", "zigbee_send"],
+    "datatype": 9,
+    "zone": "Кабинет",
+    "relay_ga": "1/1/14",
+    "z2m_topic": "Ceiling_lamp_office",
+    "param": "color_temp",
+    "role": "control"
+  },
+  {
+    "ga": "36/2/8",
+    "name": "Свет Zigbee - Кабинет - CCT:status",
+    "tags": ["2floor", "light", "zigbee", "status"],
+    "datatype": 9,
+    "zone": "Кабинет",
+    "relay_ga": "1/1/14",
+    "z2m_topic": "Ceiling_lamp_office",
+    "param": "color_temp",
+    "role": "status"
+  },
+  {
+    "ga": "36/1/9",
+    "name": "Свет Zigbee - Кабинет - RGB",
+    "tags": ["2floor", "light", "zigbee", "zigbee_send"],
+    "datatype": 12,
+    "zone": "Кабинет",
+    "relay_ga": "1/1/14",
+    "z2m_topic": "Ceiling_lamp_office",
+    "param": "rgb",
+    "role": "control"
+  },
+  {
+    "ga": "36/2/9",
+    "name": "Свет Zigbee - Кабинет - RGB:status",
+    "tags": ["2floor", "light", "zigbee", "status"],
+    "datatype": 12,
+    "zone": "Кабинет",
+    "relay_ga": "1/1/14",
+    "z2m_topic": "Ceiling_lamp_office",
+    "param": "rgb",
+    "role": "status"
+  }
+]

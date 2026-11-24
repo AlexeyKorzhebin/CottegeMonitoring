@@ -107,14 +107,19 @@ def _catalog() -> tuple[OpSpec, ...]:
         _op(
             "list_lights",
             "read",
-            "List lights with current on/off state.",
+            "List lights with current on/off state. Ceiling Zigbee zones also include "
+            "brightness (0–100 %), color_temp (mired) and rgb (uint32 0xRRGGBB) from "
+            "status GAs 36/2/*.",
             _handler(agent_actions, "list_lights", blank_to_none=("query",)),
             params_model=params.QueryParams,
         ),
         _op(
             "set_light",
             "write",
-            "Turn a light on or off by room/name query (single fixture).",
+            "Turn a light on or off by room/name query (single fixture). Optional "
+            "brightness (0–100), color_temp (mired), rgb (uint32). A param without on "
+            "also turns the relay on. Explicit on=false writes the relay only "
+            "(does not write param GAs 36/1/*).",
             _handler(agent_actions, "set_light"),
             params_model=params.SetLightParams,
         ),
@@ -122,9 +127,11 @@ def _catalog() -> tuple[OpSpec, ...]:
             "set_lights",
             "write",
             "Turn multiple lights on/off in one MQTT batch. Use for zones: «1 этаж», "
-            "«уличное», «2 этаж». skip_unchanged (default true) uses status feedback 1/2/*, "
-            "not control 1/1/* (wall switches update status only). Prefer over looping "
-            "set_light — one request_id, one ack.",
+            "«уличное», «2 этаж». Optional brightness / color_temp / rgb write control "
+            "GAs 36/1/* from the ceiling catalog; a param without on also sets relay on. "
+            "Explicit on=false writes relays only (no param GAs). skip_unchanged "
+            "(default true) uses status feedback 1/2/*, not control 1/1/* (wall switches "
+            "update status only). Prefer over looping set_light — one request_id, one ack.",
             _handler(agent_actions, "set_lights"),
             params_model=params.SetLightsParams,
         ),
@@ -194,6 +201,33 @@ def _catalog() -> tuple[OpSpec, ...]:
             "Never write °C to cmd 33/1/39. Prefer get_kettle before/after.",
             _handler(agent_actions, "set_kettle"),
             params_model=params.SetKettleParams,
+        ),
+        _op(
+            "get_ai_srv_switcher",
+            "read",
+            "AI-SRV wall plug: on (status 32/6/6), power_w/current_a/voltage_v/"
+            "energy_kwh from 35/1/20–23, cmd_ga 32/6/5.",
+            _handler(agent_actions, "get_ai_srv_switcher"),
+        ),
+        _op(
+            "set_ai_srv_switcher",
+            "write",
+            "Toggle AI-SRV Zigbee plug cmd 32/6/5. Prefer get_ai_srv_switcher after.",
+            _handler(agent_actions, "set_ai_srv_switcher"),
+            params_model=params.SetOnParams,
+        ),
+        _op(
+            "get_projector",
+            "read",
+            "Movie projector relay: on from status 32/6/3, cmd_ga 32/6/2.",
+            _handler(agent_actions, "get_projector"),
+        ),
+        _op(
+            "set_projector",
+            "write",
+            "Toggle movie projector Zigbee relay cmd 32/6/2. Prefer get_projector after.",
+            _handler(agent_actions, "set_projector"),
+            params_model=params.SetOnParams,
         ),
         _op(
             "get_command_status",

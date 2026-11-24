@@ -1,9 +1,10 @@
-version: "0.3.6"
-git_ref: "main"
-image_tag: "cottage-monitoring:0.3.6"
-image_digest: "sha256:9dab3b018247126e6523dc38d26d133db606e2abb40f84d0b8db39d29b1ae743"
+version: "0.3.11"
+git_ref: "AlexeyKorzhebin/chore-project-review"
+image_tag: "cottage-monitoring:0.3.11"
+image_digest: "sha256:72c80ef2096a14bff0b2d7cef0c6d89a561e50c18469f0040f36bd4e198d232d"
 overlay_retired: true
-replaces_overlay: "cottage-monitoring:0.3.5"
+replaces_overlay: "cottage-monitoring:0.3.10"
 notes: |
-  v0.3.6: climate setpoint unique by KNX GA (HA writes ga only; resolver room-label
-  + floor-tag guard; set_climate optional ga; soft-fail on set_* only). No migration.
+  v0.3.11: add get/set_ai_srv_switcher and get/set_projector (HA ИТ dashboard).
+  GAs: plug cmd/status 32/6/5|6, metrics 35/1/20–23; projector 32/6/2|3.
+  Also keeps 0.3.10: set_lights on=false never skip_unchanged.

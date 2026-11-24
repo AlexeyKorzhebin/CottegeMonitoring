@@ -28,7 +28,8 @@ def test_is_zone_query_floor() -> None:
     assert _is_zone_query("кухня") is False
 
 
-def test_set_lights_skips_unchanged(monkeypatch) -> None:
+def test_set_lights_skips_unchanged_on(monkeypatch) -> None:
+    """ON may skip relays already on; OFF always sends (stale cloud after ON+params)."""
     from cottage_monitoring.services import agent_actions
     from cottage_monitoring.services import object_resolver
 
@@ -51,7 +52,25 @@ def test_set_lights_skips_unchanged(monkeypatch) -> None:
     monkeypatch.setattr(agent_actions, "_get_state_map", fake_states)
     monkeypatch.setattr(agent_actions, "_send_light_batch", fake_batch)
 
-    result = asyncio.run(
+    # ON: skip kitchen (already on), send corridor
+    result_on = asyncio.run(
+        agent_actions.set_lights(
+            None,  # type: ignore[arg-type]
+            "h1",
+            query="1 этаж",
+            on=True,
+            skip_unchanged=True,
+        )
+    )
+    assert result_on["status"] == "sent"
+    assert {s["ga"] for s in result_on["skipped"]} == {"1/1/7"}
+    assert {c["ga"] for c in result_on["changed"]} == {"1/1/9"}
+    assert sent[0]["targets"] == [("1/1/9", "Свет - коридор")]
+    assert sent[0]["value"] is True
+
+    sent.clear()
+    # OFF: never skip — even corridor already false in cloud
+    result_off = asyncio.run(
         agent_actions.set_lights(
             None,  # type: ignore[arg-type]
             "h1",
@@ -60,12 +79,11 @@ def test_set_lights_skips_unchanged(monkeypatch) -> None:
             skip_unchanged=True,
         )
     )
-    assert result["status"] == "sent"
-    assert len(result["skipped"]) == 1
-    assert result["skipped"][0]["ga"] == "1/1/9"
-    assert len(result["changed"]) == 1
-    assert result["changed"][0]["ga"] == "1/1/7"
-    assert sent[0]["targets"] == [("1/1/7", "Свет - кухня")]
+    assert result_off["status"] == "sent"
+    assert result_off["skipped"] == []
+    assert {c["ga"] for c in result_off["changed"]} == {"1/1/7", "1/1/9"}
+    assert {ga for ga, _ in sent[0]["targets"]} == {"1/1/7", "1/1/9"}
+    assert sent[0]["value"] is False
 
 
 def test_set_lights_skip_uses_status_not_stale_control(monkeypatch) -> None:
@@ -112,11 +130,11 @@ def test_set_lights_skip_uses_status_not_stale_control(monkeypatch) -> None:
             skip_unchanged=True,
         )
     )
+    # OFF always sends (incl. attic already false in cloud — avoids stale skip).
     changed_gas = {c["ga"] for c in result["changed"]}
-    skipped_gas = {s["ga"] for s in result["skipped"]}
-    assert changed_gas == {"1/1/12", "1/1/15"}
-    assert skipped_gas == {"1/1/17"}
-    assert {ga for ga, _name in sent[0]["targets"]} == {"1/1/12", "1/1/15"}
+    assert changed_gas == {"1/1/12", "1/1/15", "1/1/17"}
+    assert result["skipped"] == []
+    assert {ga for ga, _name in sent[0]["targets"]} == {"1/1/12", "1/1/15", "1/1/17"}
 
 
 def test_set_lights_off_not_skipped_when_status_lags_control(monkeypatch) -> None:
@@ -173,11 +191,12 @@ def test_set_lights_ambiguous_non_zone(monkeypatch) -> None:
     monkeypatch.setattr(object_resolver, "load_active_objects", fake_load)
     monkeypatch.setattr(agent_actions, "_get_state_map", fake_states)
 
+    # Room-label exact match prefers «гостиная торшер»; bare «гостиная» stays ambiguous.
     result = asyncio.run(
         agent_actions.set_lights(
             None,  # type: ignore[arg-type]
             "h1",
-            query="гостиная торшер",
+            query="гостиная",
             on=False,
         )
     )
@@ -357,3 +376,58 @@ def test_set_commands_skip_uses_status_sibling(monkeypatch) -> None:
     assert result["skipped"] == []
     written = {(d, item["ga"], item["value"]) for d, p in sent for item in p["items"]}
     assert written == {("dev-a", "1/1/7", False), ("dev-b", "33/1/39", True)}
+
+
+def test_set_lights_params_always_include_relay_on(monkeypatch) -> None:
+    """Cloud may think relay already ON while LM is OFF — still write relay with RGB."""
+    from cottage_monitoring.services import agent_actions
+    from cottage_monitoring.services import object_resolver
+
+    office = _obj("1/1/14", "Свет - кабинет", "2floor,control,light")
+    office.device_id = "dev-lm"
+
+    async def fake_load(_session, _house_id: str) -> list[Object]:
+        return [office]
+
+    async def fake_states(_session, _house_id: str) -> dict:
+        # Stale mirror: both say ON, but physical relay is off.
+        return {"1/1/14": True, "1/2/14": True}
+
+    sent: list[dict] = []
+
+    async def fake_batch(session, house_id, *, targets=None, value=None, items=None, comment):
+        sent.append({"targets": targets, "value": value, "items": items, "comment": comment})
+        return {
+            "request_id": "r1",
+            "status": "ok",
+            "item_count": len(items or targets or []),
+            "send_ms": 1,
+        }
+
+    monkeypatch.setattr(object_resolver, "load_active_objects", fake_load)
+    monkeypatch.setattr(agent_actions, "_get_state_map", fake_states)
+    monkeypatch.setattr(
+        agent_actions,
+        "_light_status_by_control_name",
+        AsyncMock(return_value={"Свет - кабинет": True}),
+    )
+    monkeypatch.setattr(agent_actions, "_send_light_batch", fake_batch)
+
+    result = asyncio.run(
+        agent_actions.set_lights(
+            None,  # type: ignore[arg-type]
+            "h1",
+            query="кабинет",
+            rgb=255,
+            skip_unchanged=True,
+        )
+    )
+    assert result["status"] == "ok"
+    items = sent[0]["items"]
+    assert items is not None
+    by_ga = {i["ga"]: i["value"] for i in items}
+    assert by_ga.get("1/1/14") is True
+    assert by_ga.get("36/1/9") == 255
+    # Params before relay so LM sync sees RGB intent before OFF→ON catch-up.
+    gas = [i["ga"] for i in items]
+    assert gas.index("36/1/9") < gas.index("1/1/14")

@@ -48,6 +48,7 @@ Store `COTTAGE_API_KEY` in env — never commit it.
 | «Свет в …» read | `list_lights` / `discover` kind=light |
 | «Включи/выключи свет» (одна лампа/комната) | `set_light` |
 | «Выключи свет на 1 этаже» / зона / улица | `set_lights` — **один batch**, не цикл `set_light`. Skip смотрит status (`1/2/*`), не control |
+| Яркость / CCT / RGB потолочников (Тима, холл 2, кабинет) | `set_lights` / `list_lights` с `brightness` (0–100), `color_temp` (mired), `rgb` (uint32). SoT = LM GA `36/1|2/*` + реле; облако только зеркало/команды |
 | «Отопление / тёплые полы» read | `get_climate` + `get_heating_diagnostics` |
 | «Поставь 22 градуса» (ТП) | `set_climate` — **setpoint only** |
 | «Авто полы / автоуправление отоплением» | `set_auto_heating` (`on`) — **спроси** перед выкл |

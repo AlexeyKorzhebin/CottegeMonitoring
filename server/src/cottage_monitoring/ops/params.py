@@ -10,7 +10,7 @@ before the registry, so tool JSON Schema stays byte-for-byte compatible.
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, Protocol
 
 from fastapi import HTTPException
 from pydantic import BaseModel, ConfigDict, ValidationError, model_validator
@@ -49,6 +49,31 @@ def validate_params(spec: OpSpec, raw: dict[str, Any] | None) -> dict[str, Any]:
     return parsed.model_dump()
 
 
+class _LightWrite(Protocol):
+    on: bool | None
+    brightness: int | None
+    color_temp: int | None
+    rgb: int | None
+
+
+def _require_light_on_or_params[T: _LightWrite](model: T) -> T:
+    """on is optional when any param is set; at least one of on/params is required."""
+    if (
+        model.on is None
+        and model.brightness is None
+        and model.color_temp is None
+        and model.rgb is None
+    ):
+        raise ValueError("at least one of on, brightness, color_temp, rgb is required")
+    if model.brightness is not None and not (0 <= model.brightness <= 100):
+        raise ValueError("brightness must be between 0 and 100")
+    if model.color_temp is not None and model.color_temp < 0:
+        raise ValueError("color_temp must be >= 0 (mired)")
+    if model.rgb is not None and not (0 <= model.rgb <= 0xFFFFFFFF):
+        raise ValueError("rgb must be a uint32")
+    return model
+
+
 class NoParams(OpParams):
     """Ops that take nothing beyond session and house."""
 
@@ -69,13 +94,27 @@ class GetSensorsParams(OpParams):
 
 class SetLightParams(OpParams):
     query: str
-    on: bool
+    on: bool | None = None
+    brightness: int | None = None
+    color_temp: int | None = None
+    rgb: int | None = None
+
+    @model_validator(mode="after")
+    def on_or_params(self) -> SetLightParams:
+        return _require_light_on_or_params(self)
 
 
 class SetLightsParams(OpParams):
     query: str
-    on: bool
+    on: bool | None = None
     skip_unchanged: bool = True
+    brightness: int | None = None
+    color_temp: int | None = None
+    rgb: int | None = None
+
+    @model_validator(mode="after")
+    def on_or_params(self) -> SetLightsParams:
+        return _require_light_on_or_params(self)
 
 
 class SetCommandsParams(OpParams):
@@ -112,6 +151,12 @@ class SetKettleParams(OpParams):
         if self.setpoint_c is not None and not (40 <= self.setpoint_c <= 100):
             raise ValueError("setpoint_c must be between 40 and 100")
         return self
+
+
+class SetOnParams(OpParams):
+    """Binary switch writes (AI-SRV plug, projector)."""
+
+    on: bool
 
 
 class GetCommandStatusParams(OpParams):
