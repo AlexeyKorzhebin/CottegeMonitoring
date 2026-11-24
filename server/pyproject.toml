@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "cottage-monitoring"
-version = "0.3.6"
+version = "0.3.11"
 description = "MQTT Ingestor + REST API for cottage monitoring system"
 requires-python = ">=3.12"
 dependencies = [
@@ -41,6 +41,9 @@ cottage-ops = "cottage_monitoring.cli.ops_catalog:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]
+
+[tool.setuptools.package-data]
+cottage_monitoring = ["data/*.json"]
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"

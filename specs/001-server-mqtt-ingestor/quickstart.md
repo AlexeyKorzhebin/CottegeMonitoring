@@ -201,7 +201,23 @@ ssh elion '/opt/cottage-monitoring/wait_http_health.sh http://127.0.0.1:8321/hea
 
 Сеть: **bridge** + `host.docker.internal:host-gateway` (не `--network=host`).
 
-Текущий pin: **`cottage-monitoring:0.3.6`** (`server/deploy/IMAGE_PIN.yaml`).
+Текущий pin: **`cottage-monitoring:0.3.11`** (`server/deploy/IMAGE_PIN.yaml`).
+
+### Сделано в 0.3.11 (2026-11-24)
+
+- Ops `get/set_ai_srv_switcher` и `get/set_projector` (раньше были только на стороне HA с 5d8adbc, без сервера → 404 валил весь HA coordinator). GA: розетка cmd/status `32/6/5|6`, метрики `35/1/20–23`; проектор `32/6/2|3`.
+
+### Сделано в 0.3.10 (2026-11-24)
+
+- `set_lights` `on=false` **никогда** не skip: после ON+params облако может ещё видеть реле false → skip OFF оставлял свет включённым, агент писал «выключил».
+
+### Сделано в 0.3.9 (2026-11-24)
+
+- `set_lights` с brightness/CCT/RGB всегда пишет реле ON (не skip при «уже on» в зеркале).
+
+### Сделано в 0.3.8 (2026-11-24)
+
+- Потолочники: cloud facade brightness/color_temp/rgb на `list_lights` / `set_lights`. SoT = LM GA `36/1|2/*` + реле (002 R-031). Live elion **0.3.8**; force_export 2026-11-24 — в schema 18 объектов `36/1|2/1–9`. Миграции нет.
 
 ### Сделано в 0.3.6 (2026-11-08)
 
@@ -256,6 +272,7 @@ ssh elion '/opt/cottage-monitoring/wait_http_health.sh http://127.0.0.1:8321/hea
 | Пункт | Статус |
 |-------|--------|
 | `set_lights` skip_unchanged | смотрит status `1/2/*`, не control `1/1/*` (R-017) |
+| Потолочники brightness/CCT/RGB | SoT = LM GA `36/1|2/*` + реле (002 R-031, design §12). Ops `list_lights` читает **status**, `set_lights` пишет **control**. После создания объектов на LM — force_export / «Выгрузить в MQTT», иначе Unknown GA |
 
 ### Сделано в 0.2.7 + live elion
 

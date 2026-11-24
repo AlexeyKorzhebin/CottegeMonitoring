@@ -168,10 +168,15 @@ local function apply_zb_ceiling_json(topic, dd)
     local pct = Bri254toPct(dd.brightness)
     if pct ~= nil then knx_check(gas.brightness, pct) end
   end
-  if type(dd.color_temp) == 'number' then
+  -- z2m state always carries both color_temp and color xy; only write the
+  -- active mode or sync will align the other and echo it back (blue→white).
+  local mode = dd.color_mode
+  local cct_ok = (mode == nil or mode == 'color_temp')
+  local rgb_ok = (mode == nil or mode == 'xy' or mode == 'hs' or mode == 'rgb')
+  if cct_ok and type(dd.color_temp) == 'number' then
     knx_check(gas.color_temp, dd.color_temp)
   end
-  if dd.color ~= nil then
+  if rgb_ok and dd.color ~= nil then
     local rgb = ColorToUint32(dd.color)
     if rgb ~= nil then knx_check(gas.rgb, rgb) end
   end

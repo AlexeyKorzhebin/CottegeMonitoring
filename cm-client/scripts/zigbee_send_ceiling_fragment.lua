@@ -93,19 +93,62 @@ local function zb_light_from_sync_align()
   return v == true or v == 1 or v == '1' or v == 'true'
 end
 
+-- Relay GA for color-intent storage (zb_light_sync reads zb_light_color_intent_<relay>).
+local CONTROL_RELAY = {
+  ['36/1/1'] = '1/1/13',
+  ['36/1/2'] = '1/1/13',
+  ['36/1/3'] = '1/1/13',
+  ['36/1/4'] = '1/1/15',
+  ['36/1/5'] = '1/1/15',
+  ['36/1/6'] = '1/1/15',
+  ['36/1/7'] = '1/1/14',
+  ['36/1/8'] = '1/1/14',
+  ['36/1/9'] = '1/1/14',
+}
+
+local function remember_color_intent(dst, param)
+  if param ~= 'color_temp' and param ~= 'rgb' then return end
+  local relay = CONTROL_RELAY[dst]
+  if not relay or not storage or not storage.set then return end
+  pcall(storage.set, 'zb_light_color_intent_' .. tostring(relay), param)
+end
+
 -- Returns true if dst is a ceiling control GA (handled here: publish or guard-skip).
 -- publish_fn(topic, payload_json) is the live zigbee_send MQTT publish.
+-- Do not grp.update the sibling color mode here: update re-fires this event and
+-- echoes stale color_temp/rgb to z2m (blue→white). Exclusion lives in zb_light_sync.
 function zigbee_send_ceiling_maybe(dst, value, publish_fn)
   local entry = ceiling_light_set[dst]
   if not entry then return false end
   if zb_light_from_sync_align() then
     return true
   end
+  if dst == '36/1/8' or dst == '36/1/2' or dst == '36/1/5' then
+    return true
+  end
   local payload = entry.build_payload(value)
   if payload == nil or not publish_fn then
     return true
   end
+  local zone = ({
+    ['36/1/2']='tima',['36/1/3']='tima',
+    ['36/1/5']='hall',['36/1/6']='hall',
+    ['36/1/8']='office',['36/1/9']='office',
+  })[dst]
+  if zone and storage and storage.get and storage.set then
+    local now = os.time()
+    if entry.param == 'rgb' then
+      local until_t = tonumber(storage.get('zb_sup_rgb_' .. zone) or 0) or 0
+      if now < until_t then return true end
+      pcall(storage.set, 'zb_sup_cct_' .. zone, now + 20)
+    elseif entry.param == 'color_temp' then
+      local until_t = tonumber(storage.get('zb_sup_cct_' .. zone) or 0) or 0
+      if now < until_t then return true end
+      pcall(storage.set, 'zb_sup_rgb_' .. zone, now + 20)
+    end
+  end
   publish_fn(entry.topic, json.encode(payload))
+  remember_color_intent(dst, entry.param)
   return true
 end
 

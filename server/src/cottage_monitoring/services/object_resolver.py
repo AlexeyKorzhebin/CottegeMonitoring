@@ -81,6 +81,8 @@ _SYNONYMS = {
 class ObjectRole(StrEnum):
     LIGHT_CONTROL = "light_control"
     LIGHT_STATUS = "light_status"
+    LIGHT_PARAM_CONTROL = "light_param_control"
+    LIGHT_PARAM_STATUS = "light_param_status"
     FLOOR_TEMP = "floor_temp"
     ROOM_TEMP = "room_temp"
     ROOM_HUMIDITY = "room_humidity"
@@ -146,6 +148,12 @@ def classify_object(obj: Object) -> ObjectRole:
         return ObjectRole.AUTO_HEATING
     if ga.startswith("34/1/") and "monitoring" in tagset:
         return ObjectRole.HEATING_DIAG
+    # Ceiling Zigbee params (SoT: 36/1 control, 36/2 status). Before light/appliance
+    # tags so they are not extra fixtures or teapots.
+    if ga.startswith("36/1/"):
+        return ObjectRole.LIGHT_PARAM_CONTROL
+    if ga.startswith("36/2/"):
+        return ObjectRole.LIGHT_PARAM_STATUS
     if _has_all(tagset, "control", "light"):
         return ObjectRole.LIGHT_CONTROL
     if _has_all(tagset, "status", "light") and "control" not in tagset:
@@ -183,6 +191,7 @@ def _roles_for_kind(kind: DiscoverKind | None) -> set[ObjectRole] | None:
         return None
     mapping = {
         DiscoverKind.LIGHT: {
+            # Param GAs are not fixtures; list/set_lights stay on KNX relay LIGHT_CONTROL.
             ObjectRole.LIGHT_CONTROL,
             ObjectRole.LIGHT_STATUS,
         },

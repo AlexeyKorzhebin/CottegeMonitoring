@@ -108,9 +108,21 @@ def test_mcp_tool_schema_keeps_existing_arguments() -> None:
         "query",
         "on",
         "skip_unchanged",
+        "brightness",
+        "color_temp",
+        "rgb",
         "house_id",
     }
-    assert set(tools["set_lights"].inputSchema["required"]) == {"query", "on"}
+    assert set(tools["set_lights"].inputSchema["required"]) == {"query"}
+    assert set(tools["set_light"].inputSchema["properties"]) == {
+        "query",
+        "on",
+        "brightness",
+        "color_temp",
+        "rgb",
+        "house_id",
+    }
+    assert set(tools["set_light"].inputSchema["required"]) == {"query"}
     assert set(tools["get_energy_status"].inputSchema["properties"]) == {"house_id"}
     assert set(tools["set_auto_heating"].inputSchema["properties"]) == {"on", "house_id"}
     assert set(tools["set_auto_heating"].inputSchema["required"]) == {"on"}

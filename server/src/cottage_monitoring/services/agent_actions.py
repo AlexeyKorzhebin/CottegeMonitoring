@@ -17,6 +17,7 @@ from cottage_monitoring.models.command import Command
 from cottage_monitoring.models.house import House
 from cottage_monitoring.models.object import Object
 from cottage_monitoring.models.state import CurrentState
+from cottage_monitoring.services.ceiling_light_params import params_for_relay
 from cottage_monitoring.services.command_service import send_command
 from cottage_monitoring.services.command_validation import (
     validate_batch_size,
@@ -35,6 +36,16 @@ from cottage_monitoring.services.object_resolver import (
 from cottage_monitoring.services.placement import placement
 
 logger = structlog.get_logger(__name__)
+
+# Zigbee plug powering AI-SRV + movie projector relay (LM GA SoT).
+AI_SRV_SWITCHER_CMD_GA = "32/6/5"
+AI_SRV_SWITCHER_STATUS_GA = "32/6/6"
+AI_SRV_PLUG_POWER_W_GA = "35/1/20"
+AI_SRV_PLUG_CURRENT_A_GA = "35/1/21"
+AI_SRV_PLUG_VOLTAGE_V_GA = "35/1/22"
+AI_SRV_PLUG_ENERGY_KWH_GA = "35/1/23"
+PROJECTOR_CMD_GA = "32/6/2"
+PROJECTOR_STATUS_GA = "32/6/3"
 
 
 def _with_placement(item: dict, *, name: str, tags: list[str] | str) -> dict:
@@ -379,6 +390,11 @@ async def list_lights(session: AsyncSession, house_id: str, *, query: str | None
     for c in controls.matches:
         val = status_by_base.get(c.name, states.get(c.ga))
         row = {"name": c.name, "ga": c.ga, "value": val, "on": _as_on(val)}
+        zone = params_for_relay(c.ga)
+        if zone is not None:
+            row["brightness"] = states.get(zone.brightness.status)
+            row["color_temp"] = states.get(zone.color_temp.status)
+            row["rgb"] = states.get(zone.rgb.status)
         items.append(_with_placement(row, name=c.name, tags=c.tags))
     return {"items": items, "total": len(items)}
 
@@ -413,21 +429,59 @@ async def _resolve_device_and_send(
     }
 
 
+def _requested_light_params(
+    *,
+    brightness: int | None,
+    color_temp: int | None,
+    rgb: int | None,
+) -> dict[str, int]:
+    out: dict[str, int] = {}
+    if brightness is not None:
+        out["brightness"] = brightness
+    if color_temp is not None:
+        out["color_temp"] = color_temp
+    if rgb is not None:
+        out["rgb"] = rgb
+    return out
+
+
+def _param_control_items(relay_ga: str, params: dict[str, int]) -> list[dict[str, Any]]:
+    zone = params_for_relay(relay_ga)
+    if zone is None or not params:
+        return []
+    items: list[dict[str, Any]] = []
+    for name, value in params.items():
+        addr = getattr(zone, name)
+        items.append({"ga": addr.control, "value": value})
+    return items
+
+
 async def _send_light_batch(
     session: AsyncSession,
     house_id: str,
     *,
-    targets: list[tuple[str, str]],
-    value: bool,
+    targets: list[tuple[str, str]] | None = None,
+    value: Any = None,
+    items: list[dict[str, Any]] | None = None,
     comment: str,
 ) -> dict[str, Any]:
-    """Publish one MQTT batch command for multiple GAs on the same device."""
-    if not targets:
+    """Publish one MQTT batch command for multiple GAs on the same device.
+
+    ``items`` may mix bool relay writes and numeric param GAs. When omitted,
+    every target is written with the same ``value`` (on/off path).
+    """
+    if items is None:
+        if not targets:
+            raise HTTPException(status_code=400, detail="No lights to change")
+        items = [{"ga": ga, "value": value} for ga, _name in targets]
+    if not items:
         raise HTTPException(status_code=400, detail="No lights to change")
 
     device_id: str | None = None
-    items: list[dict[str, Any]] = []
-    for ga, _name in targets:
+    payload_items: list[dict[str, Any]] = []
+    for item in items:
+        ga = str(item["ga"])
+        item_value = item["value"]
         obj_result = await session.execute(
             select(Object).where(Object.house_id == house_id, Object.ga == ga)
         )
@@ -443,9 +497,9 @@ async def _send_light_batch(
                 status_code=400,
                 detail="Lights span multiple devices; narrow the query",
             )
-        items.append({"ga": ga, "value": value})
+        payload_items.append({"ga": ga, "value": item_value})
 
-    payload: dict[str, Any] = {"items": items, "comment": comment}
+    payload: dict[str, Any] = {"items": payload_items, "comment": comment}
     t0 = time.perf_counter()
     cmd = await send_command(house_id, device_id, payload, session=session)
     await session.commit()
@@ -454,13 +508,13 @@ async def _send_light_batch(
         "set_lights_batch_sent",
         house_id=house_id,
         request_id=str(cmd.request_id),
-        item_count=len(items),
+        item_count=len(payload_items),
         send_ms=send_ms,
     )
     return {
         "request_id": str(cmd.request_id),
         "status": cmd.status,
-        "item_count": len(items),
+        "item_count": len(payload_items),
         "send_ms": send_ms,
     }
 
@@ -470,10 +524,24 @@ async def set_lights(
     house_id: str,
     *,
     query: str,
-    on: bool,
+    on: bool | None = None,
     skip_unchanged: bool = True,
+    brightness: int | None = None,
+    color_temp: int | None = None,
+    rgb: int | None = None,
 ) -> dict[str, Any]:
     """Turn multiple lights on/off in one MQTT batch (zone queries like «1 этаж»)."""
+    params = _requested_light_params(
+        brightness=brightness, color_temp=color_temp, rgb=rgb
+    )
+    write_params = bool(params) and on is not False
+    if on is None and not write_params:
+        raise HTTPException(
+            status_code=400,
+            detail="at least one of on, brightness, color_temp, rgb is required",
+        )
+    relay_on = True if on is None else on
+
     t0 = time.perf_counter()
     states = await _get_state_map(session, house_id)
     result = await resolve_objects(
@@ -492,18 +560,40 @@ async def set_lights(
 
     skipped: list[dict[str, Any]] = []
     to_change: list[tuple[str, str]] = []
+    batch_items: list[dict[str, Any]] = []
+    changed: list[dict[str, Any]] = []
     for m in result.matches:
         status_val = status_by_base.get(m.name, states.get(m.ga))
         control_val = states.get(m.ga)
         status_on = _as_on(status_val)
         control_on = _as_on(control_val)
+        param_items = _param_control_items(m.ga, params) if write_params else []
         # Skip only if status AND control already match. After a write, control
         # updates first; status lags. Skipping OFF because status is still false
         # would leave the light on (HA click-on then click-off).
-        if skip_unchanged and status_on == on and control_on == on:
+        skip_relay = skip_unchanged and status_on == relay_on and control_on == relay_on
+        # Params imply power: always include relay ON (cloud may be stale while LM
+        # is OFF). zb_light_sync is rising-edge only + color intent exclusive so
+        # re-assert ON must not echo stale CCT after RGB.
+        if write_params and relay_on:
+            skip_relay = False
+        # Never skip OFF: cloud current_state can still show both false after a
+        # recent ON+params (MQTT status lag) → agent reports "выключил" while
+        # relays stay true on LM.
+        if relay_on is False:
+            skip_relay = False
+        if skip_relay and not param_items:
             skipped.append({"name": m.name, "ga": m.ga, "on": status_on})
             continue
         to_change.append((m.ga, m.name))
+        # Params before relay so OFF→ON sync sees the new color intent after settle.
+        batch_items.extend(param_items)
+        if not skip_relay:
+            batch_items.append({"ga": m.ga, "value": relay_on})
+        entry: dict[str, Any] = {"name": m.name, "ga": m.ga, "on": relay_on}
+        if write_params:
+            entry.update(params)
+        changed.append(entry)
 
     if not to_change:
         elapsed_ms = round((time.perf_counter() - t0) * 1000)
@@ -516,18 +606,28 @@ async def set_lights(
             "elapsed_ms": elapsed_ms,
         }
 
-    out = await _send_light_batch(
-        session,
-        house_id,
-        targets=to_change,
-        value=on,
-        comment=f"mcp set_lights {query}",
-    )
+    if write_params:
+        out = await _send_light_batch(
+            session,
+            house_id,
+            items=batch_items,
+            comment=f"mcp set_lights {query}",
+        )
+        changed_out = changed
+    else:
+        out = await _send_light_batch(
+            session,
+            house_id,
+            targets=to_change,
+            value=relay_on,
+            comment=f"mcp set_lights {query}",
+        )
+        changed_out = [{"name": name, "ga": ga, "on": relay_on} for ga, name in to_change]
     elapsed_ms = round((time.perf_counter() - t0) * 1000)
     return {
         "status": out["status"],
         "request_id": out["request_id"],
-        "changed": [{"name": name, "ga": ga, "on": on} for ga, name in to_change],
+        "changed": changed_out,
         "skipped": skipped,
         "batch": True,
         "item_count": out["item_count"],
@@ -624,7 +724,10 @@ async def set_light(
     house_id: str,
     *,
     query: str,
-    on: bool,
+    on: bool | None = None,
+    brightness: int | None = None,
+    color_temp: int | None = None,
+    rgb: int | None = None,
 ) -> dict[str, Any]:
     result = await resolve_objects(
         session, house_id, query=query, kind=DiscoverKind.LIGHT, role=ObjectRole.LIGHT_CONTROL
@@ -639,7 +742,35 @@ async def set_light(
     obj = result.single
     if obj is None:
         raise HTTPException(status_code=500, detail="Resolver returned ok without a match")
-    return await _resolve_device_and_send(session, house_id, obj.ga, on, comment=f"mcp set_light {query}")
+    params = _requested_light_params(
+        brightness=brightness, color_temp=color_temp, rgb=rgb
+    )
+    write_params = bool(params) and on is not False
+    if not write_params:
+        if on is None:
+            raise HTTPException(
+                status_code=400,
+                detail="at least one of on, brightness, color_temp, rgb is required",
+            )
+        return await _resolve_device_and_send(
+            session, house_id, obj.ga, on, comment=f"mcp set_light {query}"
+        )
+    relay_on = True if on is None else on
+    items = [*_param_control_items(obj.ga, params), {"ga": obj.ga, "value": relay_on}]
+    out = await _send_light_batch(
+        session,
+        house_id,
+        items=items,
+        comment=f"mcp set_light {query}",
+    )
+    return {
+        "request_id": out["request_id"],
+        "status": out["status"],
+        "ga": obj.ga,
+        "value": relay_on,
+        "item_count": out["item_count"],
+        "batch": True,
+    }
 
 
 async def get_climate(
@@ -917,6 +1048,68 @@ async def get_kettle(session: AsyncSession, house_id: str) -> dict[str, Any]:
     if len(appliances) > 1:
         return {"status": "ambiguous", "appliances": appliances}
     return {"status": "not_found", "appliance": None}
+
+
+async def get_ai_srv_switcher(session: AsyncSession, house_id: str) -> dict[str, Any]:
+    """Read AI-SRV wall-plug relay + electrical metrics for HA ИТ dashboard."""
+    states = await _get_state_map(session, house_id)
+    status_on = _as_on(states.get(AI_SRV_SWITCHER_STATUS_GA))
+    if status_on is None:
+        status_on = _as_on(states.get(AI_SRV_SWITCHER_CMD_GA))
+    return {
+        "on": status_on,
+        "power_w": states.get(AI_SRV_PLUG_POWER_W_GA),
+        "current_a": states.get(AI_SRV_PLUG_CURRENT_A_GA),
+        "voltage_v": states.get(AI_SRV_PLUG_VOLTAGE_V_GA),
+        "energy_kwh": states.get(AI_SRV_PLUG_ENERGY_KWH_GA),
+        "cmd_ga": AI_SRV_SWITCHER_CMD_GA,
+        "status_ga": AI_SRV_SWITCHER_STATUS_GA,
+    }
+
+
+async def set_ai_srv_switcher(
+    session: AsyncSession,
+    house_id: str,
+    *,
+    on: bool,
+) -> dict[str, Any]:
+    """Toggle AI-SRV Zigbee plug (cmd 32/6/5)."""
+    return await _resolve_device_and_send(
+        session,
+        house_id,
+        AI_SRV_SWITCHER_CMD_GA,
+        on,
+        comment="mcp set_ai_srv_switcher",
+    )
+
+
+async def get_projector(session: AsyncSession, house_id: str) -> dict[str, Any]:
+    """Read movie projector Zigbee relay status for HA ИТ dashboard."""
+    states = await _get_state_map(session, house_id)
+    status_on = _as_on(states.get(PROJECTOR_STATUS_GA))
+    if status_on is None:
+        status_on = _as_on(states.get(PROJECTOR_CMD_GA))
+    return {
+        "on": status_on,
+        "cmd_ga": PROJECTOR_CMD_GA,
+        "status_ga": PROJECTOR_STATUS_GA,
+    }
+
+
+async def set_projector(
+    session: AsyncSession,
+    house_id: str,
+    *,
+    on: bool,
+) -> dict[str, Any]:
+    """Toggle movie projector Zigbee relay (cmd 32/6/2)."""
+    return await _resolve_device_and_send(
+        session,
+        house_id,
+        PROJECTOR_CMD_GA,
+        on,
+        comment="mcp set_projector",
+    )
 
 
 async def get_command_status(

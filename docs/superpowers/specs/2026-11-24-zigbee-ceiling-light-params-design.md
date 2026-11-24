@@ -5,7 +5,8 @@
 **Scope:** Virtual LM objects + `mqtt_listen` / `zigbee_send` + event sync on KNX relay ON for brightness / color_temp / RGB of 2nd-floor Zigbee ceiling lamps.  
 **Depends on:** Existing LAN zigbee2mqtt → LM (`mqtt_listen`, `zigbee_send`); KNX relay on/off for room lights unchanged.  
 **Related:** `cm-client/scripts/mqtt_listen.lua`, `docs/superpowers/specs/2026-07-15-house-objects-inventory.md`, `specs/002-logicmachine-mqtt-client/`.  
-**Out of scope (later):** Yandex Alice, Nord Ops / `set_lights` extensions, HA light entities for these params.
+**Out of scope (this LM slice):** Yandex Alice.  
+**Cloud / HA / MCP facade:** §12 (SoT остаётся LM GA; облако — зеркало + команды на те же адреса).
 
 ---
 
@@ -37,7 +38,7 @@
 | Feedback | status GA из z2m state |
 | Питание OFF | Команда set в эфир не «ждётся» в z2m; догон при ON реле |
 | Конфликт LM vs z2m UI | Last-write-wins по `updatetime` control vs status |
-| Алиса / Nord / HA | Не в этой итерации |
+| Алиса / Nord | Не в LM-slice; cloud facade — §12 |
 
 ---
 
@@ -47,26 +48,29 @@
 - Отдельный Zigbee on/off GA на потолочники (питание = реле).
 - Mode-GA «цвет vs CCT» (последняя запись побеждает, как в z2m).
 - Очередь pending в z2m или в облаке.
-- Расширение `set_lights` / MCP / Alice.
+- Alice / Nord (отдельно от §12).
+- Прямой MQTT из облака в z2m (минуя LM GA).
 - Автопоиск лампы в mesh, если снова пропадёт (кабинет уже `Ceiling_lamp_office`).
 
 ---
 
-## 4. Architecture
+## 4. Architecture (LM = source of truth)
+
+Групповые адреса на LogicMachine — единственный SoT для on/off и params. z2m — транспорт до ламп; облако/HA/MCP в §12 только зеркалят и пишут в те же GA.
 
 ```mermaid
 flowchart LR
-  subgraph lm [LogicMachine]
-    Relay["KNX relay 1/1/*"]
-    Ctrl["param control 36/1/*"]
-    Stat["param status 36/2/*"]
+  subgraph lm [LogicMachine SoT]
+    Relay["KNX relay control"]
+    Ctrl["param control GA"]
+    Stat["param status GA"]
     Send["zigbee_send"]
     Listen["mqtt_listen"]
     Sync["event zb_light_sync"]
   end
   subgraph z2m [zigbee2mqtt]
-    Tima["tima1 + tima2"]
-    Hall["hall_2_floor"]
+    Tima["Ceiling_lamps_tima"]
+    Hall["hall and office"]
   end
   Ctrl -->|groupwrite| Send
   Send -->|MQTT set| Tima
@@ -74,13 +78,15 @@ flowchart LR
   Tima -->|state| Listen
   Hall -->|state| Listen
   Listen -->|grp.update| Stat
-  Relay -->|tag zb_light_sync ON| Sync
-  Sync -->|updatetime LWW| Send
+  Relay -->|"tag zb_light_sync ON"| Sync
+  Sync -->|"updatetime LWW"| Send
 ```
 
-**Write while powered:** control → `zigbee_send` → `zigbee2mqtt/<friendly>/set` → state → `mqtt_listen` → status.
+GA (зафиксированы в каталоге): реле `1/1/13|14|15`, param control `36/1/1–9`, param status `36/2/1–9`.
 
-**Write while unpowered:** control обновляется в LM; set до устройства не доходит (лампа offline). При OFF→ON реле срабатывает sync-скрипт.
+**Write while powered:** control GA → `zigbee_send` → `zigbee2mqtt/<friendly>/set` → state → `mqtt_listen` → status GA.
+
+**Write while unpowered:** control GA обновляется в LM; set до устройства не доходит. При OFF→ON реле — `zb_light_sync` (LWW).
 
 ---
 
@@ -194,8 +200,68 @@ Locked catalog (`cm-client/scripts/zb_ceiling_light_catalog.json`): control `36/
 
 ---
 
-## 11. Follow-ups (не v1)
+## 11. Follow-ups (не v1 LM-slice)
 
 - Кабинет: **done** — re-paired как `Ceiling_lamp_office`.
-- Alice / HA / Nord: семантические ops для brightness/CCT/RGB поверх тех же GA.
+- Alice / Nord semantic layer (поверх тех же GA).
 - Опционально: зеркало state→control в `mqtt_listen` всегда (тогда LWW реже нужен); в v1 достаточно LWW на ON реле.
+
+---
+
+## 12. Cloud / HA / MCP facade (SoT = LM GA)
+
+**Не новая модель света.** Server, HA и OpenClaw не хранят свою правду по яркости/CCT/RGB. Они:
+
+| Действие | Что делают | Какие GA |
+|----------|------------|----------|
+| Read | читают зеркало `current_state` после MQTT ingest | **status** реле + `36/2/*` |
+| Write | шлют MQTT command на LM | **control** реле `1/1/*` + `36/1/*` |
+| z2m | не трогают | только LM `zigbee_send` / `zb_light_sync` |
+
+Карта зона ↔ GA: тот же [`zb_ceiling_light_catalog.json`](../../cm-client/scripts/zb_ceiling_light_catalog.json) (server импортирует, не копирует другую схему).
+
+```mermaid
+flowchart TB
+  subgraph sot [SoT LogicMachine]
+    RelayCtrl["relay control"]
+    RelayStat["relay status"]
+    ParamCtrl["param control 36/1"]
+    ParamStat["param status 36/2"]
+    ZSend["zigbee_send"]
+    Sync["zb_light_sync"]
+  end
+  subgraph mirror [Cloud mirror not SoT]
+    Schema["objects schema"]
+    State["current_state"]
+    CmdQ["commands queue"]
+  end
+  subgraph facade [Semantic facade]
+    MCP["MCP OpenClaw"]
+    HA["HA CottageLight"]
+    Ops["list_lights set_lights"]
+  end
+  ParamStat -->|"MQTT events"| State
+  RelayStat -->|"MQTT events"| State
+  Schema -->|"meta force_export"| Schema
+  State --> Ops
+  MCP --> Ops
+  HA --> Ops
+  Ops -->|"write control GA only"| CmdQ
+  CmdQ -->|"MQTT cmd"| RelayCtrl
+  CmdQ -->|"MQTT cmd"| ParamCtrl
+  ParamCtrl --> ZSend
+  RelayCtrl --> Sync
+  Sync --> ZSend
+```
+
+**Ops semantics**
+
+- `list_lights`: entity = KNX-реле зоны; поля `brightness` / `color_temp` / `rgb` = значения **status** GA `36/2/*` для `relay_ga`.
+- `set_lights` / `set_light`: пишут **control** GA. Param без `on` ⇒ также `on=true` на реле. Явный `on=false` ⇒ только реле, param GA не трогаем.
+- Единицы как на LM: % / mired / uint32 `0xRRGGBB`. HA конвертирует rgb/mired только на UI-границе.
+
+**Классификация объектов:** `36/1|2/*` → роли param (не `LIGHT_CONTROL`, не appliance), чтобы не плодить фантомные светильники/чайники.
+
+**Prerequisite:** LM «Выгрузить в MQTT» / `force_export`, чтобы SoT-объекты `36/*` попали в cloud mirror.
+
+**Implementation plan:** `.cursor/plans` / `docs/superpowers/plans` для cloud slice (после approve §12).

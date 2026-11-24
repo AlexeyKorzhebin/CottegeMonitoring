@@ -11,13 +11,18 @@
 
   Behaviour (design §6.3 / §7):
     Fires when a tagged relay changes (event.dst = relay GA).
-    Relay false/OFF → return (no send).
-    Relay true/ON → last-write-wins per zone param:
+    Relay false/OFF → remember prev=OFF, return (no send).
+    Relay true/ON → only on rising edge OFF→ON (re-assert ON while already ON
+      must not re-LWW: cloud set_lights always sends relay+params; settle would
+      republish stale pending RGB after concurrent CCT already applied → stuck blue).
+    Rising ON → last-write-wins per zone param:
       control.updatetime > status.updatetime → publish set from control
       status.updatetime > control.updatetime → set storage.zb_light_from_sync_align,
         grp.update(control, status value), clear flag (LM catches up to z2m UI;
         zigbee_send fragment skips publish while the flag is set)
       equal / missing objects / missing updatetime → no-op
+    Color mode exclusive: publish only newest of color_temp/rgb; demoted loser
+      is aligned control←status under guard so it does not stay pending forever.
     Does not write the relay. Does not touch other zones.
 
   Publish path — NO MQTT password in this file.
@@ -38,6 +43,19 @@
 ]]
 
 local ALIGN_FLAG = 'zb_light_from_sync_align'
+-- Per-relay last ON edge (storage key prefix + GA).
+local PREV_ON_PREFIX = 'zb_light_prev_on_'
+-- After relay ON wait for Zigbee mains settle before LWW publish (multi-zone power-on).
+local SETTLE_SEC = 1.5
+-- Small gap between brightness / CCT / RGB publishes on the same zone.
+local PARAM_GAP_SEC = 0.25
+
+local function pause(sec)
+  if not sec or sec <= 0 then return end
+  if os and os.sleep then
+    pcall(os.sleep, sec)
+  end
+end
 
 local RELAY_ZONES = {
   -- Тима: group Ceiling_lamps_tima (not two device publishes)
@@ -123,19 +141,43 @@ local function set_align_flag(on)
   storage.zb_light_from_sync_align = v
 end
 
+local function prev_on_key(dst)
+  return PREV_ON_PREFIX .. tostring(dst)
+end
+
+local function get_prev_on(dst)
+  if not storage or not storage.get then return nil end
+  local ok, v = pcall(storage.get, prev_on_key(dst))
+  if ok then return v end
+  return nil
+end
+
+local function set_prev_on(dst, on)
+  if not storage or not storage.set then return end
+  pcall(storage.set, prev_on_key(dst), on and true or false)
+end
+
+-- Absolute FTP paths only. Bare names like 'foo.lua' are treated by LM as
+-- "User script" and log: cannot open User script: No such file or directory.
+local FRAGMENT_PATHS = {
+  '/home/apps/store/data/cottage-monitoring/zigbee_send_ceiling_fragment.lua',
+  '/www/apps/data/cottage-monitoring/zigbee_send_ceiling_fragment.lua',
+}
+
 local fragment_tried = false
 local function maybe_dofile_fragment()
   if fragment_tried then return end
   fragment_tried = true
   if type(ZB_CEILING_PUBLISH) == 'function' then return end
-  local paths = {
-    'zigbee_send_ceiling_fragment.lua',
-    '/home/ftp/scripts/zigbee_send_ceiling_fragment.lua',
-    '/www/apps/data/cottage-monitoring/scripts/zigbee_send_ceiling_fragment.lua',
-  }
-  for i = 1, #paths do
-    if pcall(dofile, paths[i]) then
-      return
+  if type(zigbee_send_ceiling_maybe) == 'function' then return end
+  for i = 1, #FRAGMENT_PATHS do
+    local path = FRAGMENT_PATHS[i]
+    local f = io.open(path, 'r')
+    if f then
+      f:close()
+      if pcall(dofile, path) then
+        return
+      end
     end
   end
 end
@@ -234,17 +276,89 @@ function zb_light_sync_run()
   if not dst then return end
   local zone = RELAY_ZONES[dst]
   if not zone then return end
-  if not relay_is_on(event_value()) then return end
+  if not relay_is_on(event_value()) then
+    set_prev_on(dst, false)
+    return
+  end
+  -- Re-assert ON (cloud always sends relay+params): skip catch-up.
+  if relay_is_on(get_prev_on(dst)) then
+    return
+  end
+  set_prev_on(dst, true)
 
+  -- Let Zigbee end-devices finish power-up before we push pending control.
+  pause(SETTLE_SEC)
+
+  -- Plan actions first. Tuya color_mode is exclusive: never publish both
+  -- color_temp and rgb. Intent = newest control.updatetime among the pair
+  -- (even if that side already synced to status). Otherwise: cloud writes RGB,
+  -- zigbee_send turns blue, RGB status catches up during settle → only stale
+  -- CCT stays "publish" → lamp flips blue→white a second later.
+  local planned = {}
+  local color_intent_i = nil
+  local color_intent_ut = nil
   for i = 1, #zone.params do
     local p = zone.params[i]
     local ctrl = find_obj(p.control)
     local stat = find_obj(p.status)
     local action = lww_action(ctrl, stat)
-    if action == 'publish' then
-      publish_control(p.control, ctrl.value, zone.topic, p.param)
-    elseif action == 'align' then
-      align_control(p.control, stat.value)
+    planned[i] = { p = p, ctrl = ctrl, stat = stat, action = action }
+    if p.param == 'color_temp' or p.param == 'rgb' then
+      local ut = read_updatetime(ctrl) or 0
+      if color_intent_i == nil or ut > color_intent_ut then
+        color_intent_i = i
+        color_intent_ut = ut
+      end
+    end
+  end
+  -- Optional override from last zigbee_send color write (survives ut skew).
+  local intent_override = nil
+  if storage and storage.get then
+    local ok, v = pcall(storage.get, 'zb_light_color_intent_' .. tostring(dst))
+    if ok then intent_override = v end
+  end
+  if intent_override == 'color_temp' or intent_override == 'rgb' then
+    for i = 1, #planned do
+      if planned[i].p.param == intent_override then
+        color_intent_i = i
+        break
+      end
+    end
+  end
+
+  for i = 1, #planned do
+    local row = planned[i]
+    local param = row.p.param
+    if param == 'color_temp' or param == 'rgb' then
+      if i ~= color_intent_i then
+        -- Non-intent color mode: never publish/align (align echoes via zigbee_send).
+        row.action = 'noop'
+      elseif row.action == 'align' then
+        -- Intent but status newer: do not align color modes. grp.update re-fires
+        -- zigbee_send and pushes CCT while lamp is in RGB (blue→white).
+        row.action = 'noop'
+      end
+    end
+  end
+
+  local published = 0
+  for i = 1, #planned do
+    local row = planned[i]
+    local param = row.p.param
+    -- Hard stop: never push color_temp/rgb from relay catch-up. Direct GA
+    -- writes go through zigbee_send only. Catch-up of color modes was echoing
+    -- the non-active mode to z2m (MQTT: color then color_temp ~2s later).
+    if param == 'color_temp' or param == 'rgb' then
+      row.action = 'noop'
+    end
+    if row.action == 'publish' then
+      if published > 0 then
+        pause(PARAM_GAP_SEC)
+      end
+      publish_control(row.p.control, row.ctrl.value, zone.topic, row.p.param)
+      published = published + 1
+    elseif row.action == 'align' then
+      align_control(row.p.control, row.stat.value)
     end
   end
 end

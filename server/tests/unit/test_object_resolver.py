@@ -27,6 +27,31 @@ def test_classify_light_control() -> None:
     assert classify_object(o) == ObjectRole.LIGHT_CONTROL
 
 
+def test_classify_ceiling_param_control_not_light_or_appliance() -> None:
+    o = _obj("36/1/1", "Свет Zigbee - Тима - яркость", "2floor,light,zigbee,zigbee_send")
+    assert classify_object(o) == ObjectRole.LIGHT_PARAM_CONTROL
+    assert classify_object(o) != ObjectRole.LIGHT_CONTROL
+    assert classify_object(o) != ObjectRole.ZIGBEE_APPLIANCE
+
+
+def test_classify_ceiling_param_status_not_light_status() -> None:
+    o = _obj("36/2/1", "Свет Zigbee - Тима - яркость:status", "2floor,light,zigbee,status")
+    assert classify_object(o) == ObjectRole.LIGHT_PARAM_STATUS
+    assert classify_object(o) != ObjectRole.LIGHT_STATUS
+    assert classify_object(o) != ObjectRole.ZIGBEE_APPLIANCE
+
+
+def test_light_kind_excludes_param_roles() -> None:
+    from cottage_monitoring.services.object_resolver import DiscoverKind, _roles_for_kind
+
+    roles = _roles_for_kind(DiscoverKind.LIGHT)
+    assert roles is not None
+    assert ObjectRole.LIGHT_CONTROL in roles
+    assert ObjectRole.LIGHT_STATUS in roles
+    assert ObjectRole.LIGHT_PARAM_CONTROL not in roles
+    assert ObjectRole.LIGHT_PARAM_STATUS not in roles
+
+
 def test_classify_room_temp_zb() -> None:
     o = _obj("33/1/13", "zb_sensor_fl1_kitchen_temperature", "floor1,temperature,zb_sensor")
     assert classify_object(o) == ObjectRole.ROOM_TEMP
