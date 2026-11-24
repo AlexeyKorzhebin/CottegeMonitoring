@@ -263,9 +263,51 @@ AI-SRV `35/1/*`: `ai_knx` + `AI_SRV_MIN_INTERVAL=15` (skip unchanged; changed �
 
 Снимок включённых скриптов LM на 2026-10-24 без вшитых секретов: `cm-client/scripts/lm-live/2026-10-24/`. Вне git остались light control и Setup watch dog timers (пароль admin в URL), `mqtt_listen` и zigbee send (пароль MQTT), погода Яндекса (API key), `telegram_listner` (токен бота). id 39 в снимке — текст до общей блокировки гостиной; на LM `docs/superpowers/plans/manage_warm_floor.lua`: потолок пола для всех комнат 32°C; пик датчиков гостиной 1/2 гасит оба её реле с 32°C; нет числа с любого из двух датчиков — оба реле OFF. С 2026-10-26 resident 71 меняет местами входы гостиной: IR14 → `1/3/6` (темп. гостиная 2), IR15 → `1/3/5` (темп. гостиная 1). Раньше зонд под плёнкой гостиной 1 публиковался как гостиная 2.
 
-### Zigbee потолочники — event `zb_light_sync`
+### Zigbee потолочники — params (`34/1|2/1–9`)
 
-Источник: `cm-client/scripts/zb_light_sync.lua`. Ставить как **Event** script с tag filter **`zb_light_sync`** (реле `1/1/13` Тима, `1/1/15` холл, `1/1/14` кабинет). При ON — LWW `updatetime` control vs status (design §7). Пароля MQTT в файле нет: live-publish через глобал `ZB_CEILING_PUBLISH(ga, value)` в этом же event-скрипте (после merge `zigbee_send_ceiling_fragment.lua` + mosquitto client из live `zigbee_send`). Без глобала скрипт логирует topic/payload и `zb_light_sync: need ZB_CEILING_PUBLISH`. Полный деплой-чеклист — Task 5 / design §9.
+Виртуальные GA яркости / CCT / RGB для потолочных Tuya на 2 этаже. Реле KNX on/off **не менять** (`1/1/13` Тима, `1/1/15` холл, `1/1/14` кабинет) — только тег `zb_light_sync`. Read: `mqtt_listen` id=4. Write: merge фрагмента в live `zigbee_send` (пароль MQTT остаётся на LM, **не в git**). Sync при ON реле: event `zb_light_sync`, LWW по `updatetime` (**R-031**). Каталог: `cm-client/scripts/zb_ceiling_light_catalog.json`.
+
+| Скрипт | Роль | Куда на LM |
+|--------|------|------------|
+| `cm-client/scripts/create-zb-ceiling-light-objects.lua` | одноразовый user-script: 18 объектов `34/1\|2/1–9` + тег реле | FTP → `data/cottage-monitoring/` + `.lp` `dofile` |
+| `cm-client/scripts/mqtt_listen.lua` | resident **id=4**: status `34/2/*` из z2m JSON | `db:update('scripting', { script = code }, { id = 4 })` + respawn |
+| `cm-client/scripts/zigbee_send_ceiling_fragment.lua` | маппинг control `34/1/*` → `…/set` **без пароля** | merge в live event `zigbee_send` (не FTP-замена) |
+| `cm-client/scripts/zb_light_sync.lua` | event, tag filter **`zb_light_sync`** | Scripting → Event / `db:insert` `scripting` |
+
+**z2m friendly names**
+
+| Зона | Реле | Write (`zigbee2mqtt/<name>/set`) | Status source |
+|------|------|----------------------------------|---------------|
+| Тима | `1/1/13` | группа **`Ceiling_lamps_tima`** (id 1: tima1+tima2; **не** два publish) | `Ceiling_lamp_tima1` (и опционально state группы); `tima2` status не пишет |
+| Холл 2 | `1/1/15` | `Ceiling_lamp_hall_2_floor` | то же имя |
+| Кабинет | `1/1/14` | `Ceiling_lamp_office` (re-pair) | то же имя |
+
+**GA** (`34/1` control, `34/2` status; DPT 5 яркость 0–100 %, 9 CCT mired, 12 RGB uint32 `0xRRGGBB`):
+
+| Зона | Param | Control | Status |
+|------|-------|---------|--------|
+| Тима | brightness | `34/1/1` | `34/2/1` |
+| Тима | color_temp | `34/1/2` | `34/2/2` |
+| Тима | rgb | `34/1/3` | `34/2/3` |
+| Холл | brightness | `34/1/4` | `34/2/4` |
+| Холл | color_temp | `34/1/5` | `34/2/5` |
+| Холл | rgb | `34/1/6` | `34/2/6` |
+| Кабинет | brightness | `34/1/7` | `34/2/7` |
+| Кабинет | color_temp | `34/1/8` | `34/2/8` |
+| Кабинет | rgb | `34/1/9` | `34/2/9` |
+
+Имена: `Свет Zigbee - <Зона> - яркость|CCT|RGB` и `:status`. Теги control: `2floor, light, zigbee, zigbee_send`. Status: `2floor, light, zigbee, status`.
+
+Конвертеры: brightness LM% ↔ z2m 0–254 (`round(pct*2.54)` / `round(bri/2.54)`); CCT as-is mired; RGB uint32 ↔ `{r,g,b}`. Guard `storage.zb_light_from_sync_align` глушит echo publish при выравнивании control←status.
+
+**Порядок деплоя** (на LM, не на elion):
+
+1. `create-zb-ceiling-light-objects.lua` — FTP + user-script / `dofile` (как AI-SRV). Skip уже существующих адресов.
+2. `mqtt_listen.lua` — FTP + `db:update` + respawn resident **id=4** (тот же паттерн, что watchdog; не 73). Daemon cottage-monitoring не рестартовать.
+3. Merge `zigbee_send_ceiling_fragment.lua` в live `zigbee_send`: вставить helpers + `zigbee_send_ceiling_maybe` в существующий MQTT-publish path. Пароль MQTT **не копировать** в git и не заливать фрагмент вместо live-скрипта.
+4. Поставить event `zb_light_sync` (источник `cm-client/scripts/zb_light_sync.lua`), tag filter **`zb_light_sync`**. Publish: глобал `ZB_CEILING_PUBLISH(ga, value)` в этом же event-скрипте после merge (mosquitto client из live `zigbee_send`). Без глобала скрипт логирует topic/payload и `zb_light_sync: need ZB_CEILING_PUBLISH`.
+5. Тег `zb_light_sync` на реле `1/1/13`, `1/1/14`, `1/1/15` (create-script пытается `grp.addtags`; если API нет — вручную в LM UI).
+6. Ручные тесты (design §9): Тима яркость 50% при включённом реле → оба ceiling, status ≈ 50; холл CCT затем RGB; кабинет; реле OFF → сменить brightness в LM → ON → лампа берёт control; z2m UI затем OFF→ON → control подтягивается, лампа **не** откатывается; регресс торшер / подсветка кухни / тайфайтер.
 
 ### Конфиг и TLS без Web UI
 

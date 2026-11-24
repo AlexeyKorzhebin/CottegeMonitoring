@@ -765,6 +765,32 @@ Resident (таблица `scripting`) **не** является App daemon:
 
 ---
 
+## R-031: Zigbee потолочники — группа Тима, GA `34/*`, LWW при ON реле (2026-11-24)
+
+### Контекст
+
+Потолочные Tuya на 2 этаже умеют brightness / CCT / RGB, но в LM были только KNX-реле on/off (`1/1/13` Тима, `1/1/15` холл, `1/1/14` кабинет). `mqtt_listen` знал простые Zigbee on/off (торшер, кухня, тайфайтер). Нужны виртуальные GA и догон параметров после питания (set в эфир не «ждётся», пока лампа без 220 В).
+
+### Решение
+
+- **Тима write:** один MQTT set на группу **`Ceiling_lamps_tima`** (z2m id 1, члены tima1+tima2). Не два отдельных publish. Status: `Ceiling_lamp_tima1` (и опционально state группы); `tima2` status не пишет.
+- **Холл:** `Ceiling_lamp_hall_2_floor`. **Кабинет:** re-paired как **`Ceiling_lamp_office`** (слот больше не «пропавшая лампа»).
+- **GA:** control `34/1/1–9`, status `34/2/1–9` (каталог `cm-client/scripts/zb_ceiling_light_catalog.json`). Реле без смены on/off-логики, тег `zb_light_sync`.
+- **Sync:** event `zb_light_sync` на ON реле. Last-write-wins по `updatetime` control vs status: control новее → set из control; status новее → `grp.update` control←status под guard `zb_light_from_sync_align` (`zigbee_send` не эхоит align в z2m). OFF → no-op.
+- **Секреты:** live `zigbee_send` держит MQTT-пароль. В git только `cm-client/scripts/zigbee_send_ceiling_fragment.lua` без credentials; merge в live, не FTP-замена. Ops: `specs/002-logicmachine-mqtt-client/quickstart.md`.
+
+### Operational notes
+
+- `create-zb-ceiling-light-objects.lua` skip occupied addresses. На снимке 2026-10-24 loadavg ещё писал `34/1/6–8` (R-015, Grafana `cottage-lm-load`). Перед create убедиться, что `34/1/1–9` свободны под потолочники — иначе hall RGB / office brightness+CCT не создадутся (или сначала перенести loadavg).
+- `mqtt_listen` **id=4** only (не 48). Алиса / Nord / HA — out of scope.
+
+### Альтернативы
+
+- Два set на tima1 и tima2 — отвергнуто: группа z2m id 1.
+- Очередь pending в z2m/облаке — отвергнуто для v1; догон только LWW при ON реле.
+
+---
+
 ## Сводка решений
 
 | ID | Тема | Решение |
@@ -789,3 +815,4 @@ Resident (таблица `scripting`) **не** является App daemon:
 | R-028 | Stale light status | daemon v1.1.4: snapshot, groupresponse, counted drops; AI-SRV 15 с; свет остаётся на `1/2/*` |
 | R-029 | Zigbee stale fallback heat | checkupdate+float глотает temp; knx_check=grp.update; ZB_STALE=1800; k≠погода |
 | R-030 | SSH/SFTP Dropbear | ключ через System Config; SFTP/WinSCP да, scp нет; карта путей; Lua/db gotchas |
+| R-031 | Zigbee потолочники | группа `Ceiling_lamps_tima`; GA `34/1\|2/1–9`; LWW `updatetime` при ON реле; кабинет = `Ceiling_lamp_office` |

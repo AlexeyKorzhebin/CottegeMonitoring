@@ -23,7 +23,7 @@
 
 В LM для этих зон уже есть KNX-реле on/off (`1/1/13` Тима, `1/1/15` холл, `1/1/14` кабинет). Они **работают и остаются**. В `mqtt_listen` заведены только простые Zigbee on/off (торшер, кухня, тайфайтер) — без brightness / color_temp / color. Управлять параметрами света из LM (сцены, визуализация) сейчас нельзя.
 
-Светильник кабинета временно отсутствует в z2m; слот в дизайне резервируем.
+Кабинет **re-paired** в z2m как `Ceiling_lamp_office` (тот же IEEE `0xa4c1386468e80b6b`).
 
 ---
 
@@ -33,7 +33,7 @@
 |------|----------|
 | Не трогать реле | Пары `1/1/*` control / `1/2/*` status без изменений |
 | Параметры через LM | brightness, color_temp (mired), RGB |
-| Тима | Одна логическая зона → publish на `tima1` и `tima2` |
+| Тима | Одна логическая зона → один set на группу `Ceiling_lamps_tima` |
 | Feedback | status GA из z2m state |
 | Питание OFF | Команда set в эфир не «ждётся» в z2m; догон при ON реле |
 | Конфликт LM vs z2m UI | Last-write-wins по `updatetime` control vs status |
@@ -48,7 +48,7 @@
 - Mode-GA «цвет vs CCT» (последняя запись побеждает, как в z2m).
 - Очередь pending в z2m или в облаке.
 - Расширение `set_lights` / MCP / Alice.
-- Автопоиск пропавшей лампы кабинета в mesh (ручной re-pair / rename).
+- Автопоиск лампы в mesh, если снова пропадёт (кабинет уже `Ceiling_lamp_office`).
 
 ---
 
@@ -112,7 +112,7 @@ flowchart LR
 - param status: `2floor, light, zigbee, status`
 - реле зон из таблицы: дополнительно тег **`zb_light_sync`**
 
-Точные GA (`34/1/1`…) фиксируются при создании объектов в LM и копируются в таблицу в репозитории (как каталог AI-SRV).
+Locked catalog (`cm-client/scripts/zb_ceiling_light_catalog.json`): control `34/1/1–9`, status `34/2/1–9`. Ops: `specs/002-logicmachine-mqtt-client/quickstart.md` (**R-031**).
 
 ---
 
@@ -169,7 +169,7 @@ flowchart LR
 - Лампа offline при set: control сохранён; status не двигается; после ON реле сработает LWW.
 - Невалидные значения: clamp в допустимый диапазон модели; script не падает.
 - Расхождение tima1/tima2 после группового set: status группы = tima1; выравнивание tima2 отдельным retry в v1 не делаем.
-- Пропавший кабинет: объекты можно создать заранее; send/sync no-op до заполнения friendly name.
+- Пустой friendly name / лампа offline в z2m: send/sync no-op до появления устройства (кабинет в карте: `Ceiling_lamp_office`).
 - Реле ON, но z2m ещё не видит устройство: publish может не примениться; повтор — следующий OFF→ON или ручная запись param.
 
 ---
@@ -190,12 +190,12 @@ flowchart LR
 2. Конвертеры и маппинг в `mqtt_listen` (read-path).
 3. Строки в `zigbee_send` (write-path) + guard.
 4. Event script sync + LWW.
-5. Ручной чеклист §9; при появлении лампы кабинета — заполнить friendly name в таблице.
+5. Ручной чеклист §9. Кабинет в карте: `Ceiling_lamp_office`.
 
 ---
 
 ## 11. Follow-ups (не v1)
 
-- Кабинет: re-pair / имя в z2m → включить в карту.
+- Кабинет: **done** — re-paired как `Ceiling_lamp_office`.
 - Alice / HA / Nord: семантические ops для brightness/CCT/RGB поверх тех же GA.
 - Опционально: зеркало state→control в `mqtt_listen` всегда (тогда LWW реже нужен); в v1 достаточно LWW на ON реле.
