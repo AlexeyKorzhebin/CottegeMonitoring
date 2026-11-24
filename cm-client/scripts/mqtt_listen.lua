@@ -17,6 +17,31 @@ function OnOff2Bool(s)
     return s == "ON"
 end
 
+-- z2m brightness 0–254 → LM 0–100%. Lua 5.1: round via floor(x+0.5).
+function Bri254toPct(bri)
+    if type(bri) ~= 'number' then return nil end
+    local pct = math.floor(bri / 2.54 + 0.5)
+    if pct < 0 then pct = 0 end
+    if pct > 100 then pct = 100 end
+    return pct
+end
+
+-- z2m color {r,g,b} → uint32 0xRRGGBB. Skip if r/g/b missing (xy-only payload).
+function ColorToUint32(color)
+    if type(color) ~= 'table' then return nil end
+    local r, g, b = color.r, color.g, color.b
+    if type(r) ~= 'number' or type(g) ~= 'number' or type(b) ~= 'number' then
+        return nil
+    end
+    r = math.floor(r + 0.5)
+    g = math.floor(g + 0.5)
+    b = math.floor(b + 0.5)
+    if r < 0 then r = 0 elseif r > 255 then r = 255 end
+    if g < 0 then g = 0 elseif g > 255 then g = 255 end
+    if b < 0 then b = 0 elseif b > 255 then b = 255 end
+    return r * 65536 + g * 256 + b
+end
+
 local AI_SRV_MIN_INTERVAL = 15
 local ai_last = {}
 
@@ -127,6 +152,31 @@ local function apply_ai_srv_json(dd)
   end
 end
 
+-- Nested z2m `color` does not fit the flat statusmap loop (same pattern as ai_srv_json).
+-- tima2 never writes status. Group Ceiling_lamps_tima is optional and shares tima1 GAs.
+local zb_ceiling_gas = {
+  ['zigbee2mqtt/Ceiling_lamp_tima1'] = { brightness = '34/2/1', color_temp = '34/2/2', rgb = '34/2/3' },
+  ['zigbee2mqtt/Ceiling_lamps_tima'] = { brightness = '34/2/1', color_temp = '34/2/2', rgb = '34/2/3' },
+  ['zigbee2mqtt/Ceiling_lamp_hall_2_floor'] = { brightness = '34/2/4', color_temp = '34/2/5', rgb = '34/2/6' },
+  ['zigbee2mqtt/Ceiling_lamp_office'] = { brightness = '34/2/7', color_temp = '34/2/8', rgb = '34/2/9' },
+}
+
+local function apply_zb_ceiling_json(topic, dd)
+  local gas = zb_ceiling_gas[topic]
+  if not gas or not dd then return end
+  if dd.brightness ~= nil then
+    local pct = Bri254toPct(dd.brightness)
+    if pct ~= nil then knx_check(gas.brightness, pct) end
+  end
+  if type(dd.color_temp) == 'number' then
+    knx_check(gas.color_temp, dd.color_temp)
+  end
+  if dd.color ~= nil then
+    local rgb = ColorToUint32(dd.color)
+    if rgb ~= nil then knx_check(gas.rgb, rgb) end
+  end
+end
+
 if not mclient then
     -- control, topic -> address map
     controlmap = {
@@ -183,6 +233,10 @@ if not mclient then
         ['ble-mqtt-bridge/RK-M173S'] = {temperature = "33/1/37", state = {addr = '33/1/38', convert_func = OnOff2Bool } },
         ['cooler-arduino/alex-neuro'] = 'ai_srv_json',
         ['cooler-arduino/alex-neuro/availability'] = 'ai_srv_avail',
+        ['zigbee2mqtt/Ceiling_lamp_tima1'] = 'zb_ceiling_json',
+        ['zigbee2mqtt/Ceiling_lamps_tima'] = 'zb_ceiling_json',
+        ['zigbee2mqtt/Ceiling_lamp_hall_2_floor'] = 'zb_ceiling_json',
+        ['zigbee2mqtt/Ceiling_lamp_office'] = 'zb_ceiling_json',
         --[[
         ['zigbee2mqtt/TempHum_sensor_living_room'] = {temperature = "32/7/1", humidity = "32/7/2", battery = "32/7/3",  linkquality = "32/7/4"},
         ['zigbee2mqtt/TempHum_sensor_office'] = {temperature = "32/7/5", humidity = "32/7/6", battery = "32/7/7",  linkquality = "32/7/8"},
@@ -232,6 +286,10 @@ if not mclient then
         end
         if topic == 'cooler-arduino/alex-neuro' then
           apply_ai_srv_json(json.pdecode(data))
+          return
+        end
+        if zb_ceiling_gas[topic] then
+          apply_zb_ceiling_json(topic, json.pdecode(data))
           return
         end
 
